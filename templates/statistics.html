@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Статистика{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Статистика</h1>
+</div>
+
+<div class="team-selector">
+    <label for="statsTeamSelect">Команда:</label>
+    <select id="statsTeamSelect" onchange="loadStatistics()">
+        <option value="0">Все команды</option>
+        {% for team in teams %}
+        <option value="{{ team.id }}">{{ team.name }}</option>
+        {% endfor %}
+    </select>
+</div>
+
+<div id="statisticsContent">
+    <div class="stats-container">
+        <div class="stats-card">
+            <h3>Общая статистика</h3>
+            <div class="stats-grid" id="summaryStats">
+                <div class="stats-item">
+                    <div class="stats-number" id="totalActive">0</div>
+                    <div class="stats-label">Активных работ</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats-card">
+            <h3>Распределение по критичности</h3>
+            <div class="stats-grid" id="criticalityStats">
+                <div class="stats-item criticality-high">
+                    <div class="stats-number" id="critHigh">0</div>
+                    <div class="stats-label">Высокая</div>
+                </div>
+                <div class="stats-item criticality-medium">
+                    <div class="stats-number" id="critMedium">0</div>
+                    <div class="stats-label">Средняя</div>
+                </div>
+                <div class="stats-item criticality-low">
+                    <div class="stats-number" id="critLow">0</div>
+                    <div class="stats-label">Низкая</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats-card">
+            <h3>Статусы на сегодня</h3>
+            <div class="stats-grid" id="statusStats">
+                <div class="stats-item" style="background: #ffffff;">
+                    <div class="stats-number" id="statusNew">0</div>
+                    <div class="stats-label">Новый</div>
+                </div>
+                <div class="stats-item" style="background: #fff3cd;">
+                    <div class="stats-number" id="statusPlanned">0</div>
+                    <div class="stats-label">Запланировано</div>
+                </div>
+                <div class="stats-item" style="background: #f8d7da;">
+                    <div class="stats-number" id="statusRollback">0</div>
+                    <div class="stats-label">Откат</div>
+                </div>
+                <div class="stats-item" style="background: #d4edda;">
+                    <div class="stats-number" id="statusSuccess">0</div>
+                    <div class="stats-label">Успешно</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        loadStatistics();
+    });
+
+    function loadStatistics() {
+        const teamId = document.getElementById('statsTeamSelect').value;
+
+        fetch(`/api/statistics/${teamId}`)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('totalActive').textContent = data.total_active;
+                document.getElementById('critHigh').textContent = data.criticality.high || 0;
+                document.getElementById('critMedium').textContent = data.criticality.medium || 0;
+                document.getElementById('critLow').textContent = data.criticality.low || 0;
+                document.getElementById('statusNew').textContent = data.status_today.new || 0;
+                document.getElementById('statusPlanned').textContent = data.status_today.planned || 0;
+                document.getElementById('statusRollback').textContent = data.status_today.rollback || 0;
+                document.getElementById('statusSuccess').textContent = data.status_today.success || 0;
+            })
+            .catch(error => {
+                console.error('Error loading statistics:', error);
+            });
+    }
+</script>
+{% endblock %}
