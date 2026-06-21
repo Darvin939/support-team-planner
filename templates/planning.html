@@ -274,7 +274,7 @@
         const dateTo = new Date(document.getElementById('dateTo').value);
         const dates = [];
         let currentDate = new Date(dateFrom);
-        const todayDate = new Date().getDate();
+        const todayDate = new Date().toDateString();
 
         while (currentDate <= dateTo) {
             dates.push(new Date(currentDate));
@@ -297,7 +297,7 @@
 
             let className = 'date-col';
             if (isWeekend) className += ' weekend';
-            if (d.getDate() === todayDate) className += ' current';
+            if (d.toDateString() === todayDate) className += ' current';
             if (isFreeze) className += ' freeze';
 
             // Добавляем data-date атрибут для идентификации даты
@@ -376,7 +376,7 @@
                     <div class="schedule-info ${statusColor}">
                         <span class="schedule-location">${assignment.block || ''}</span>
                         <span class="schedule-status">${getStatusDisplay(assignment.status)}</span>
-                        <span class="schedule-comment">${assignment.comment}</span>
+                        <span class="schedule-comment">${assignment.comment || ''}</span>
                         <span class="schedule-employee">${assignment.employee_name}</span>
                     </div>
                 `;

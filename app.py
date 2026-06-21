@@ -61,6 +61,7 @@ def planning(team_id):
                            end_date=end_date.strftime('%Y-%m-%d'))
 
 
+# === API для назначений ===
 @app.route('/api/assignments/<int:team_id>')
 def get_assignments_api(team_id):
     """API для получения назначений команды"""
@@ -75,7 +76,9 @@ def get_assignments_api(team_id):
     # Преобразование для JSON
     result = []
     for a in assignments:
-        employee_name = utils.format_employee_name(a['employee_last_name'], a['employee_first_name'], a['employee_middle_name'])
+        employee_name = utils.format_employee_name(a['employee_last_name'],
+                                                   a['employee_first_name'],
+                                                   a['employee_middle_name'])
         result.append({
             'id': a['id'],
             'task_id': a['task_id'],
@@ -87,21 +90,6 @@ def get_assignments_api(team_id):
             'comment': a['comment']
         })
 
-    return jsonify(result)
-
-
-@app.route('/api/tasks/<int:team_id>')
-def get_tasks_api(team_id):
-    """API для получения задач команды"""
-    tasks = db.get_tasks_by_team(team_id)
-    result = []
-    for t in tasks:
-        result.append({
-            'id': t['id'],
-            'name': t['name'],
-            'description': t['description'],
-            'criticality': t['criticality']
-        })
     return jsonify(result)
 
 
@@ -137,6 +125,21 @@ def delete_assignment_api(assignment_id):
     return jsonify({'success': True})
 
 
+@app.route('/api/tasks/<int:team_id>')
+def get_tasks_api(team_id):
+    """API для получения задач команды"""
+    tasks = db.get_tasks_by_team(team_id)
+    result = []
+    for t in tasks:
+        result.append({
+            'id': t['id'],
+            'name': t['name'],
+            'description': t['description'],
+            'criticality': t['criticality']
+        })
+    return jsonify(result)
+
+
 @app.route('/api/task', methods=['POST'])
 def save_task_api():
     """API для сохранения задачи"""
@@ -161,8 +164,7 @@ def delete_task_api(task_id):
     return jsonify({'success': True})
 
 
-# === API для настроек ===
-
+# === API для команд ===
 @app.route('/api/teams', methods=['GET'])
 def get_teams_api():
     """Получить все команды"""
@@ -208,6 +210,7 @@ def delete_team_api(team_id):
     return jsonify({'success': True})
 
 
+# === API для сотрудников ===
 @app.route('/api/employees', methods=['GET'])
 def get_employees_api():
     """Получить всех сотрудников"""
@@ -265,6 +268,7 @@ def delete_employee_api(employee_id):
     return jsonify({'success': True})
 
 
+# === API для дней фризов ===
 @app.route('/api/freeze-days', methods=['GET'])
 def get_freeze_days_api():
     """Получить все дни фриза"""
@@ -300,7 +304,6 @@ def delete_freeze_day_api(date_str):
 
 
 # === Страницы настроек и статистики ===
-
 @app.route('/settings')
 def settings_page():
     """Страница настроек"""
