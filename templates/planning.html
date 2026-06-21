@@ -359,7 +359,7 @@
                 cell.className = 'schedule-cell';
                 if (isWeekend) cell.classList.add('weekend');
                 if (isFreeze) cell.classList.add('freeze');
-                if (d.getDate() === todayDate) cell.classList.add('current');
+                if (d.toDateString() === todayDate) cell.classList.add('current');
 
                 // Добавляем data атрибуты для идентификации
                 cell.dataset.taskId = task.id;
