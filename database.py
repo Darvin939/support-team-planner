@@ -18,134 +18,54 @@ def init_db():
     cursor = conn.cursor()
 
     # Создание таблиц
+    # @formatter:off
     cursor.executescript('''
-                         CREATE TABLE IF NOT EXISTS teams
-                         (
-                             id
-                             INTEGER
-                             PRIMARY
-                             KEY
-                             AUTOINCREMENT,
-                             name
-                             TEXT
-                             NOT
-                             NULL
-                             UNIQUE
-                         );
+        CREATE TABLE if NOT EXISTS teams (
+            id INTEGER PRIMARY key autoincrement,
+            name text NOT NULL UNIQUE
+        );
 
-                         CREATE TABLE IF NOT EXISTS employees
-                         (
-                             id
-                             INTEGER
-                             PRIMARY
-                             KEY
-                             AUTOINCREMENT,
-                             full_name
-                             TEXT
-                             NOT
-                             NULL
-                         );
-
-                         CREATE TABLE IF NOT EXISTS freeze_days
-                         (
-                             id
-                             INTEGER
-                             PRIMARY
-                             KEY
-                             AUTOINCREMENT,
-                             date
-                             DATE
-                             NOT
-                             NULL
-                             UNIQUE
-                         );
-
-                         CREATE TABLE IF NOT EXISTS tasks
-                         (
-                             id
-                             INTEGER
-                             PRIMARY
-                             KEY
-                             AUTOINCREMENT,
-                             team_id
-                             INTEGER
-                             NOT
-                             NULL,
-                             description
-                             TEXT
-                             NOT
-                             NULL,
-                             criticality
-                             TEXT
-                             NOT
-                             NULL
-                             DEFAULT
-                             'medium',
-                             FOREIGN
-                             KEY
-                         (
-                             team_id
-                         ) REFERENCES teams
-                         (
-                             id
-                         ) ON DELETE CASCADE
-                             );
-
-                         CREATE TABLE IF NOT EXISTS assignments
-                         (
-                             id
-                             INTEGER
-                             PRIMARY
-                             KEY
-                             AUTOINCREMENT,
-                             task_id
-                             INTEGER
-                             NOT
-                             NULL,
-                             date
-                             DATE
-                             NOT
-                             NULL,
-                             block
-                             TEXT,
-                             status
-                             TEXT
-                             NOT
-                             NULL
-                             DEFAULT
-                             'new',
-                             employee_id
-                             INTEGER,
-                             comment
-                             TEXT,
-                             FOREIGN
-                             KEY
-                         (
-                             task_id
-                         ) REFERENCES tasks
-                         (
-                             id
-                         ) ON DELETE CASCADE,
-                             FOREIGN KEY
-                         (
-                             employee_id
-                         ) REFERENCES employees
-                         (
-                             id
-                         ),
-                             UNIQUE
-                         (
-                             task_id,
-                             date
-                         )
-                             );
-
-                         CREATE INDEX IF NOT EXISTS idx_assignments_task_id ON assignments(task_id);
-                         CREATE INDEX IF NOT EXISTS idx_assignments_date ON assignments(date);
-                         CREATE INDEX IF NOT EXISTS idx_assignments_status ON assignments(status);
-                         CREATE INDEX IF NOT EXISTS idx_tasks_team_id ON tasks(team_id);
-                         ''')
-
+        CREATE TABLE IF NOT EXISTS employees (
+            id INTEGER PRIMARY key autoincrement,
+            last_name TEXT NOT NULL,
+            first_name TEXT NOT NULL,
+            middle_name TEXT,
+            UNIQUE(last_name, first_name, middle_name)
+        );
+        
+        CREATE TABLE if NOT EXISTS freeze_days (
+            id INTEGER PRIMARY key autoincrement,
+            date DATE NOT NULL UNIQUE
+        );
+        
+        CREATE TABLE if NOT EXISTS tasks (
+            id INTEGER PRIMARY key autoincrement,
+            team_id INTEGER NOT NULL,
+            name text NOT NULL,
+            description text,
+            criticality text NOT NULL DEFAULT 'medium',
+            FOREIGN key (team_id) REFERENCES teams (id) ON DELETE cascade
+        );
+        
+        CREATE TABLE if NOT EXISTS assignments (
+            id INTEGER PRIMARY key autoincrement,
+            task_id INTEGER NOT NULL,
+            date DATE NOT NULL,
+            block text,
+            status text NOT NULL DEFAULT 'new',
+            employee_id INTEGER,
+            comment text,
+            FOREIGN key (task_id) REFERENCES tasks (id) ON DELETE cascade,
+            FOREIGN key (employee_id) REFERENCES employees (id),
+            UNIQUE (task_id, date)
+        );
+        
+        CREATE index if NOT EXISTS idx_assignments_task_id ON assignments (task_id);
+        CREATE index if NOT EXISTS idx_assignments_date ON assignments (date);
+        CREATE index if NOT EXISTS idx_assignments_status ON assignments (status);
+        CREATE index if NOT EXISTS idx_tasks_team_id ON tasks (team_id);
+        ''')
+    # @formatter:on
     conn.commit()
     conn.close()
 
@@ -199,25 +119,31 @@ def delete_team(team_id):
 def get_all_employees():
     """Получить всех сотрудников"""
     conn = get_db_connection()
-    employees = conn.execute('SELECT * FROM employees ORDER BY full_name').fetchall()
+    employees = conn.execute('SELECT * FROM employees ORDER BY last_name, first_name, middle_name').fetchall()
     conn.close()
     return [dict(emp) for emp in employees]
 
 
-def create_employee(full_name):
+def create_employee(last_name, first_name, middle_name=None):
     """Создать сотрудника"""
     conn = get_db_connection()
-    cursor = conn.execute('INSERT INTO employees (full_name) VALUES (?)', (full_name,))
+    cursor = conn.execute(
+        '''INSERT INTO employees (last_name, first_name, middle_name)
+           VALUES (?, ?, ?)''',
+        (last_name, first_name, middle_name))
     conn.commit()
     employee_id = cursor.lastrowid
     conn.close()
     return employee_id
 
 
-def update_employee(employee_id, full_name):
+def update_employee(employee_id, last_name, first_name, middle_name=None):
     """Обновить сотрудника"""
     conn = get_db_connection()
-    conn.execute('UPDATE employees SET full_name = ? WHERE id = ?', (full_name, employee_id))
+    conn.execute(
+        '''UPDATE employees
+           SET last_name = ?, first_name = ?, middle_name = ?
+           WHERE id = ?''', (last_name, first_name, middle_name, employee_id))
     conn.commit()
     conn.close()
 
@@ -302,15 +228,15 @@ def get_tasks_by_team(team_id):
     """Получить все задачи команды"""
     conn = get_db_connection()
     tasks = conn.execute(
-        '''SELECT * FROM tasks 
+        '''SELECT *
+           FROM tasks
            WHERE team_id = ?
-           ORDER BY
-               CASE criticality
-                   WHEN 'high' THEN 0
-                   WHEN 'medium' THEN 1
-                   WHEN 'low' THEN 2
-                   ELSE 3
-                   END''',
+           ORDER BY CASE criticality
+                        WHEN 'high' THEN 0
+                        WHEN 'medium' THEN 1
+                        WHEN 'low' THEN 2
+                        ELSE 3
+                        END''',
         (team_id,)
     ).fetchall()
     conn.close()
@@ -325,23 +251,24 @@ def get_task_by_id(task_id):
     return task
 
 
-def create_or_update_task(task_id, team_id, description, criticality='medium'):
+def create_or_update_task(task_id, team_id, name, description, criticality='medium'):
     """Создать задачу"""
     conn = get_db_connection()
     existing = conn.execute('SELECT 1 FROM tasks WHERE id = ?', (task_id,)).fetchone()
     if existing:
         conn.execute(
             '''UPDATE tasks
-               SET description = ?,
+               SET name = ?,
+                   description = ?,
                    criticality = ?
                WHERE id = ?''',
-            (description, criticality, task_id)
+            (name, description, criticality, task_id)
         )
         conn.commit()
     else:
         cursor = conn.execute(
-            'INSERT INTO tasks (team_id, description, criticality) VALUES (?, ?, ?)',
-            (team_id, description, criticality)
+            'INSERT INTO tasks (team_id, name, description, criticality) VALUES (?, ?, ?, ?)',
+            (team_id, name, description, criticality)
         )
         conn.commit()
         task_id = cursor.lastrowid
@@ -363,7 +290,10 @@ def get_assignment(task_id, date_str):
     """Получить назначение на задачу на конкретную дату"""
     conn = get_db_connection()
     assignment = conn.execute(
-        '''SELECT a.*, e.full_name as employee_name
+        '''SELECT a.*,
+                  e.last_name   as employee_last_name,
+                  e.first_name  as employee_first_name,
+                  e.middle_name as employee_middle_name
            FROM assignments a
                     LEFT JOIN employees e ON a.employee_id = e.id
            WHERE a.task_id = ?
@@ -374,29 +304,14 @@ def get_assignment(task_id, date_str):
     return assignment
 
 
-def get_assignments_by_task(task_id):
-    """Получить все назначения для задачи"""
-    conn = get_db_connection()
-    assignments = conn.execute(
-        '''SELECT a.*, e.full_name as employee_name
-           FROM assignments a
-                    LEFT JOIN employees e ON a.employee_id = e.id
-           WHERE a.task_id = ?
-           ORDER BY a.date''',
-        (task_id,)
-    ).fetchall()
-    conn.close()
-    return assignments
-
-
 def get_assignments_by_team_in_period(team_id, start_date, end_date):
     """Получить все назначения команды в период"""
     conn = get_db_connection()
     assignments = conn.execute(
         '''SELECT a.*,
-                  t.description as task_description,
-                  t.criticality,
-                  e.full_name   as employee_name
+                  e.last_name   as employee_last_name,
+                  e.first_name  as employee_first_name,
+                  e.middle_name as employee_middle_name
            FROM assignments a
                     JOIN tasks t ON a.task_id = t.id
                     LEFT JOIN employees e ON a.employee_id = e.id
@@ -414,9 +329,9 @@ def get_assignments_by_team(team_id):
     conn = get_db_connection()
     assignments = conn.execute(
         '''SELECT a.*,
-                  t.description as task_description,
-                  t.criticality,
-                  e.full_name   as employee_name
+                  e.last_name   as employee_last_name,
+                  e.first_name  as employee_first_name,
+                  e.middle_name as employee_middle_name
            FROM assignments a
                     JOIN tasks t ON a.task_id = t.id
                     LEFT JOIN employees e ON a.employee_id = e.id

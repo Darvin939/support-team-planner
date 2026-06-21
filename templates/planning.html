@@ -73,15 +73,13 @@
             </div>
         </div>
     </div>
-    <div class="filter-actions">
-        <button class="btn btn-success" onclick="openTaskModal()">Добавить работу</button>
-    </div>
 </div>
 
 <div class="work-table-container" id="tableContainer">
     <div class="table-header">
-        <div class="table-info">Всего работ: <span id="totalTasks">0</span></div>
-        <div class="table-info">Отображено: <span id="visibleTasks">0</span></div>
+        <button class="btn btn-success" onclick="openTaskModal()">Добавить работу</button>
+        <div class="table-info">Всего работ: <span id="totalTasks">0</span> | Отображено: <span
+                id="visibleTasks">0</span></div>
     </div>
     <div class="table-wrapper" id="tableWrapper">
         <table class="work-table" id="workTable">
@@ -108,11 +106,6 @@
             <input type="hidden" id="assignmentTaskId" value="">
             <input type="hidden" id="taskDate" value="">
             <input type="hidden" id="assignmentId" value="">
-
-            <div class="form-group">
-                <label for="taskDescription">Описание работы</label>
-                <input type="text" id="taskDescription" readonly required>
-            </div>
 
             <div class="form-group">
                 <label for="taskCriticality">Критичность</label>
@@ -148,7 +141,9 @@
                 <select id="assignmentEmployee">
                     <option value="">Не выбран</option>
                     {% for emp in employees %}
-                    <option value="{{ emp.id }}">{{ emp.full_name }}</option>
+                    <option value="{{ emp.id }}">{{ emp.last_name }} {{ emp.first_name }} {% if emp.middle_name %}{{
+                        emp.middle_name }}{% endif %}
+                    </option>
                     {% endfor %}
                 </select>
             </div>
@@ -159,8 +154,11 @@
             </div>
 
             <div class="form-actions">
-                <button type="submit" class="btn btn-primary">Сохранить</button>
-                <button type="button" class="btn btn-danger" onclick="deleteAssignment()" id="deleteAssignmentBtn" style="display:none;">Удалить</button>
+                <button type="submit" class="btn btn-success" id="saveAssignmentBtn">Создать</button>
+                <button type="submit" class="btn btn-primary" id="updateAssignmentBtn">Обновить</button>
+                <button type="button" class="btn btn-danger" onclick="deleteAssignment()" id="deleteAssignmentBtn"
+                        style="display:none;">Удалить
+                </button>
                 <button type="button" class="btn btn-secondary" onclick="closeModal('assignmentModal')">Закрыть</button>
             </div>
         </form>
@@ -177,8 +175,13 @@
         <form onsubmit="saveTask(event)">
             <input type="hidden" id="taskId" value="">
             <div class="form-group">
-                <label for="newTaskDescription">Описание работы</label>
-                <input type="text" id="newTaskDescription" required>
+                <label for="newTaskName">Имя</label>
+                <input type="text" id="newTaskName" required>
+            </div>
+
+            <div class="form-group">
+                <label for="newTaskDescription">Описание</label>
+                <textarea id="newTaskDescription"></textarea>
             </div>
 
             <div class="form-group">
@@ -191,7 +194,8 @@
             </div>
 
             <div class="form-actions">
-                <button type="submit" class="btn btn-success">Создать</button>
+                <button type="submit" class="btn btn-success" id="saveTaskBtn">Создать</button>
+                <button type="submit" class="btn btn-primary" id="updateTaskBtn">Обновить</button>
                 <button type="button" class="btn btn-secondary" onclick="closeModal('taskModal')">Отмена</button>
             </div>
         </form>
@@ -201,16 +205,17 @@
 
 {% block scripts %}
 <script>
+    <!--@formatter:off-->
     const teamId = {{ team.id }};
     const employees = {{ employees|tojson }};
     const freezeDays = {{ freeze_days|tojson }};
-    let currentAssignment = null;
+    <!--@formatter:on-->
     let tasksData = [];
     let assignmentsData = [];
-    let currentDateRange = { start: null, end: null };
+    let currentDateRange = {start: null, end: null};
 
     // Инициализация
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         initializeTable();
         setupDragScroll();
 
@@ -279,9 +284,9 @@
         // Рендерим заголовки
         const header = document.getElementById('tableHeader');
         header.innerHTML = `
-        <th style="width:50px; min-width:50px;"></th>
-        <th style="width:50px; min-width:50px;">Крит.</th>
-        <th style="min-width:150px;">Описание</th>
+        <th></th>
+        <th>Крит.</th>
+        <th>Имя</th>
     `;
 
         dates.forEach(d => {
@@ -333,10 +338,16 @@
             row.appendChild(critCell);
 
             // Колонка описания
-            const descCell = document.createElement('td');
-            descCell.className = 'description-col';
-            descCell.textContent = task.description;
-            row.appendChild(descCell);
+            const nameCell = document.createElement('td');
+            // nameCell.className = 'name-col';
+            nameCell.innerHTML = `
+                <div class="name-col">
+                    <span class="name">${task.name}</span>
+                    <div class="description">${linkify(task.description)}</div>
+                </div>
+            `;
+
+            row.appendChild(nameCell);
 
             // Колонки с датами - убираем onclick, добавляем data атрибуты
             dates.forEach(d => {
@@ -397,16 +408,16 @@
         rows.forEach(row => {
             if (row.classList.contains('empty-row')) return;
 
-            const descCell = row.querySelector('.description-col');
-            if (!descCell) return;
+            const nameCell = row.querySelector('.name-col');
+            if (!nameCell) return;
 
-            const description = descCell.textContent.toLowerCase();
+            const name = nameCell.textContent.toLowerCase();
             const critCell = row.querySelector('.criticality-col .criticality-badge');
             const critValue = critCell ?
                 (critCell.classList.contains('criticality-high') ? 'high' :
                     critCell.classList.contains('criticality-medium') ? 'medium' : 'low') : 'medium';
 
-            let matches = !searchText || description.includes(searchText);
+            let matches = !searchText || name.includes(searchText);
 
             if (criticalityFilter.length > 0) {
                 matches = matches && criticalityFilter.includes(critValue);
@@ -462,19 +473,20 @@
         const taskIdField = document.getElementById('assignmentTaskId');
         const taskDateField = document.getElementById('taskDate');
         const assignmentIdField = document.getElementById('assignmentId');
-        const taskDesc = document.getElementById('taskDescription');
         const taskCrit = document.getElementById('taskCriticality');
         const assignDate = document.getElementById('assignmentDate');
         const assignBlock = document.getElementById('assignmentBlock');
         const assignStatus = document.getElementById('assignmentStatus');
         const assignEmployee = document.getElementById('assignmentEmployee');
         const assignComment = document.getElementById('assignmentComment');
+
+        const saveBtn = document.getElementById('saveAssignmentBtn');
+        const updateBtn = document.getElementById('updateAssignmentBtn');
         const deleteBtn = document.getElementById('deleteAssignmentBtn');
 
         const task = tasksData.find(t => t.id === taskId);
         if (!task) return;
 
-        taskDesc.value = task.description;
         taskCrit.value = task.criticality;
         taskIdField.value = taskId;
         taskDateField.value = dateStr;
@@ -482,25 +494,27 @@
         const assignment = assignmentsData.find(a => a.task_id === taskId && a.date === dateStr);
 
         if (assignment) {
-            title.textContent = `Редактирование: ${task.description}`;
+            title.textContent = `Редактирование: ${task.name}`;
             assignmentIdField.value = assignment.id;
             assignDate.value = assignment.date;
             assignBlock.value = assignment.block || '';
             assignStatus.value = assignment.status;
             assignEmployee.value = assignment.employee_id || '';
             assignComment.value = assignment.comment || '';
+            saveBtn.style.display = 'none';
+            updateBtn.style.display = 'inline-block';
             deleteBtn.style.display = 'inline-block';
-            currentAssignment = assignment;
         } else {
-            title.textContent = `Новая запись: ${task.description}`;
+            title.textContent = `Новая запись: ${task.name}`;
             assignmentIdField.value = '';
             assignDate.value = dateStr;
             assignBlock.value = '';
             assignStatus.value = 'new';
             assignEmployee.value = '';
             assignComment.value = '';
+            saveBtn.style.display = 'inline-block';
+            updateBtn.style.display = 'none';
             deleteBtn.style.display = 'none';
-            currentAssignment = null;
         }
 
         modal.style.display = 'flex';
@@ -566,18 +580,27 @@
     function openTaskModal(taskId) {
         const modal = document.getElementById('taskModal');
         const taskIdField = document.getElementById('taskId');
+        const taskNameField = document.getElementById('newTaskName');
         const taskDescriptionField = document.getElementById('newTaskDescription');
         const taskCriticalityField = document.getElementById('newTaskCriticality');
 
-        taskIdField.value = taskId;
+        const saveBtn = document.getElementById('saveTaskBtn');
+        const updateBtn = document.getElementById('updateTaskBtn');
 
+        taskIdField.value = taskId;
         const task = tasksData.find(t => t.id === taskId);
         if (task) {
+            taskNameField.value = task.name;
             taskDescriptionField.value = task.description;
             taskCriticalityField.value = task.criticality;
+            saveBtn.style.display = 'none';
+            updateBtn.style.display = 'inline-block';
         } else {
+            taskNameField.value = '';
             taskDescriptionField.value = '';
             taskCriticalityField.value = 'medium';
+            saveBtn.style.display = 'inline-block';
+            updateBtn.style.display = 'none';
         }
 
         modal.style.display = 'flex'
@@ -587,11 +610,12 @@
         event.preventDefault();
 
         const taskId = document.getElementById('taskId').value;
+        const name = document.getElementById('newTaskName').value;
         const description = document.getElementById('newTaskDescription').value;
         const criticality = document.getElementById('newTaskCriticality').value;
 
-        if (!description) {
-            alert('Введите описание работы');
+        if (!name) {
+            alert('Введите имя работы');
             return;
         }
 
@@ -603,6 +627,7 @@
             body: JSON.stringify({
                 task_id: taskId,
                 team_id: teamId,
+                name: name,
                 description: description,
                 criticality: criticality
             })
@@ -610,7 +635,6 @@
             .then(response => response.json())
             .then(() => {
                 closeModal('taskModal');
-                document.getElementById('newTaskDescription').value = '';
                 loadData();
             })
             .catch(error => {
@@ -654,7 +678,7 @@
         wrapper.style.cursor = 'grab';
 
         // Обработчик для mousedown на wrapper
-        wrapper.addEventListener('mousedown', function(e) {
+        wrapper.addEventListener('mousedown', function (e) {
             // Не активируем если клик на кнопке, инпуте или селекте
             if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select')) {
                 return;
@@ -674,7 +698,7 @@
         });
 
         // Обработчик для mousemove на document
-        document.addEventListener('mousemove', function(e) {
+        document.addEventListener('mousemove', function (e) {
             if (!wrapper._startMouseX) return;
 
             const deltaX = Math.abs(e.pageX - wrapper._startMouseX);
@@ -696,7 +720,7 @@
         });
 
         // Обработчик для mouseup на document
-        document.addEventListener('mouseup', function(e) {
+        document.addEventListener('mouseup', function (e) {
             if (wrapper._startMouseX !== undefined) {
                 // Если было перетаскивание - сбрасываем флаги
                 if (isDragging) {
@@ -723,7 +747,7 @@
         });
 
         // Перехватываем клики на ячейках и проверяем, было ли перетаскивание
-        wrapper.addEventListener('click', function(e) {
+        wrapper.addEventListener('click', function (e) {
             const cell = e.target.closest('.schedule-cell');
             if (!cell) return;
 

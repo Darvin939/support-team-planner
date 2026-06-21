@@ -3,6 +3,7 @@ from datetime import date, timedelta
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 
 import database as db
+import utils
 
 app = Flask(__name__)
 
@@ -44,7 +45,6 @@ def planning(team_id):
     if not team:
         return redirect(url_for('index'))
 
-    tasks = db.get_tasks_by_team(team_id)
     employees = db.get_all_employees()
     freeze_days = db.get_all_freeze_days()
 
@@ -55,7 +55,6 @@ def planning(team_id):
 
     return render_template('planning.html',
                            team=team,
-                           tasks=tasks,
                            employees=employees,
                            freeze_days=freeze_days,
                            start_date=start_date.strftime('%Y-%m-%d'),
@@ -76,6 +75,7 @@ def get_assignments_api(team_id):
     # Преобразование для JSON
     result = []
     for a in assignments:
+        employee_name = utils.format_employee_name(a['employee_last_name'], a['employee_first_name'], a['employee_middle_name'])
         result.append({
             'id': a['id'],
             'task_id': a['task_id'],
@@ -83,10 +83,8 @@ def get_assignments_api(team_id):
             'block': a['block'],
             'status': a['status'],
             'employee_id': a['employee_id'],
-            'employee_name': a['employee_name'] if a['employee_name'] else '',
-            'comment': a['comment'],
-            'task_description': a['task_description'],
-            'criticality': a['criticality']
+            'employee_name': employee_name,
+            'comment': a['comment']
         })
 
     return jsonify(result)
@@ -100,34 +98,10 @@ def get_tasks_api(team_id):
     for t in tasks:
         result.append({
             'id': t['id'],
+            'name': t['name'],
             'description': t['description'],
             'criticality': t['criticality']
         })
-    return jsonify(result)
-
-
-@app.route('/api/assignment/<int:task_id>', methods=['GET'])
-def get_assignment_api(task_id):
-    """API для получения конкретного назначения"""
-    date_str = request.args.get('date')
-    if not date_str:
-        return jsonify({'error': 'Date required'}), 400
-
-    assignment = db.get_assignment(task_id, date_str)
-    if assignment:
-        result = {
-            'id': assignment['id'],
-            'task_id': assignment['task_id'],
-            'date': assignment['date'],
-            'block': assignment['block'],
-            'status': assignment['status'],
-            'employee_id': assignment['employee_id'],
-            'employee_name': assignment['employee_name'] if assignment['employee_name'] else '',
-            'comment': assignment['comment']
-        }
-    else:
-        result = None
-
     return jsonify(result)
 
 
@@ -138,10 +112,10 @@ def save_assignment_api():
     assignment_id = data.get('assignment_id')
     task_id = data.get('task_id')
     date_str = data.get('date')
-    block = data.get('block', '')
+    block = data.get('block', '').strip() or None
     status = data.get('status', 'new')
     employee_id = data.get('employee_id')
-    comment = data.get('comment', '')
+    comment = data.get('comment', '').strip() or None
 
     if not task_id:
         return jsonify({'error': 'Task ID required'}), 400
@@ -169,13 +143,14 @@ def save_task_api():
     data = request.get_json()
     task_id = data.get('task_id')
     team_id = data.get('team_id')
-    description = data.get('description')
+    name = data.get('name').strip()
+    description = data.get('description').strip() or None
     criticality = data.get('criticality', 'medium')
 
-    if not team_id or not description:
-        return jsonify({'error': 'Team ID and description required'}), 400
+    if not team_id or not name:
+        return jsonify({'error': 'Team ID and name required'}), 400
 
-    task_id = db.create_or_update_task(task_id, team_id, description, criticality)
+    task_id = db.create_or_update_task(task_id, team_id, name, description, criticality)
     return jsonify({'id': task_id, 'success': True})
 
 
@@ -237,7 +212,13 @@ def delete_team_api(team_id):
 def get_employees_api():
     """Получить всех сотрудников"""
     employees = db.get_all_employees()
-    result = [{'id': e['id'], 'full_name': e['full_name']} for e in employees]
+    result = [{
+        'id': e['id'],
+        'last_name': e['last_name'],
+        'first_name': e['first_name'],
+        'middle_name': e['middle_name'],
+        'full_name': e['full_name']
+    } for e in employees]
     return jsonify(result)
 
 
@@ -245,24 +226,36 @@ def get_employees_api():
 def create_employee_api():
     """Создать сотрудника"""
     data = request.get_json()
-    full_name = data.get('full_name')
-    if not full_name:
-        return jsonify({'error': 'Full name required'}), 400
+    last_name = data.get('last_name', '').strip()
+    first_name = data.get('first_name', '').strip()
+    middle_name = data.get('middle_name', '').strip() or None
 
-    employee_id = db.create_employee(full_name)
-    return jsonify({'id': employee_id, 'success': True})
+    if not last_name or not first_name:
+        return jsonify({'error': 'Фамилия и имя обязательны'}), 400
+
+    employee_id = db.create_employee(last_name, first_name, middle_name)
+    if employee_id:
+        return jsonify({'id': employee_id, 'success': True})
+    else:
+        return jsonify({'error': 'Сотрудник с таким ФИО уже существует'}), 400
 
 
 @app.route('/api/employees/<int:employee_id>', methods=['PUT'])
 def update_employee_api(employee_id):
     """Обновить сотрудника"""
     data = request.get_json()
-    full_name = data.get('full_name')
-    if not full_name:
-        return jsonify({'error': 'Full name required'}), 400
+    last_name = data.get('last_name', '').strip()
+    first_name = data.get('first_name', '').strip()
+    middle_name = data.get('middle_name', '').strip() or None
 
-    db.update_employee(employee_id, full_name)
-    return jsonify({'success': True})
+    if not last_name or not first_name:
+        return jsonify({'error': 'Фамилия и имя обязательны'}), 400
+
+    success = db.update_employee(employee_id, last_name, first_name, middle_name)
+    if success:
+        return jsonify({'success': True})
+    else:
+        return jsonify({'error': 'Сотрудник с таким ФИО уже существует'}), 400
 
 
 @app.route('/api/employees/<int:employee_id>', methods=['DELETE'])

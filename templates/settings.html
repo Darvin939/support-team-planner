@@ -37,14 +37,16 @@
         <h2>Сотрудники</h2>
         <div class="add-form">
             <div class="form-row">
-                <input type="text" id="employeeNameInput" placeholder="ФИО сотрудника">
-                <button class="btn btn-success" onclick="addEmployee()">Добавить сотрудника</button>
+                <input type="text" id="employeeLastName" placeholder="Фамилия" style="flex: 1;">
+                <input type="text" id="employeeFirstName" placeholder="Имя" style="flex: 1;">
+                <input type="text" id="employeeMiddleName" placeholder="Отчество" style="flex: 1;">
+                <button class="btn btn-success" onclick="addEmployee()">Добавить</button>
             </div>
         </div>
         <ul class="executors-list" id="employeesList">
             {% for emp in employees %}
             <li class="executor-item" data-id="{{ emp.id }}">
-                <span class="executor-name">{{ emp.full_name }}</span>
+                <span class="executor-name">{{ emp.last_name }} {{ emp.first_name }} {% if emp.middle_name %}{{ emp.middle_name }}{% endif %}</span>
                 <div>
                     <button class="btn btn-primary btn-sm" onclick="editEmployee({{ emp.id }})">✏️</button>
                     <button class="btn btn-danger btn-sm" onclick="deleteEmployee({{ emp.id }})">🗑️</button>
@@ -155,23 +157,30 @@
     }
 
     function addEmployee() {
-        const name = document.getElementById('employeeNameInput').value.trim();
-        if (!name) {
-            alert('Введите ФИО сотрудника');
+        const lastName = document.getElementById('employeeLastName').value.trim();
+        const firstName = document.getElementById('employeeFirstName').value.trim();
+        const middleName = document.getElementById('employeeMiddleName').value.trim();
+
+        if (!lastName || !firstName) {
+            alert('Введите фамилию и имя сотрудника');
             return;
         }
 
         fetch('/api/employees', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({full_name: name})
+            body: JSON.stringify({
+                last_name: lastName,
+                first_name: firstName,
+                middle_name: middleName || null
+            })
         })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
                     location.reload();
                 } else {
-                    alert('Ошибка при добавлении сотрудника');
+                    alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
                 }
             })
             .catch(error => {
@@ -181,30 +190,47 @@
     }
 
     function editEmployee(employeeId) {
-        const item = document.querySelector(`.executor-item[data-id="${employeeId}"] .executor-name`);
+        const item = document.querySelector(`.executor-item[data-id="${employeeId}"]`);
         if (!item) return;
 
-        const currentName = item.textContent;
-        const newName = prompt('Новое ФИО:', currentName);
-        if (newName && newName.trim()) {
-            fetch(`/api/employees/${employeeId}`, {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({full_name: newName.trim()})
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        location.reload();
-                    } else {
-                        alert('Ошибка при обновлении сотрудника');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error updating employee:', error);
-                    alert('Ошибка при обновлении сотрудника');
-                });
+        const nameParts = item.querySelector('.executor-name').textContent.trim().split(' ');
+        const lastName = nameParts[0] || '';
+        const firstName = nameParts[1] || '';
+        const middleName = nameParts.slice(2).join(' ') || '';
+
+        const newLastName = prompt('Фамилия:', lastName);
+        if (newLastName === null) return;
+        const newFirstName = prompt('Имя:', firstName);
+        if (newFirstName === null) return;
+        const newMiddleName = prompt('Отчество (оставьте пустым если нет):', middleName);
+        if (newMiddleName === null) return;
+
+        if (!newLastName.trim() || !newFirstName.trim()) {
+            alert('Фамилия и имя обязательны');
+            return;
         }
+
+        fetch(`/api/employees/${employeeId}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                last_name: newLastName.trim(),
+                first_name: newFirstName.trim(),
+                middle_name: newMiddleName.trim() || null
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+                }
+            })
+            .catch(error => {
+                console.error('Error updating employee:', error);
+                alert('Ошибка при обновлении сотрудника');
+            });
     }
 
     function deleteEmployee(employeeId) {

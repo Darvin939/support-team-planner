@@ -328,7 +328,7 @@ body {
     left: 90px;
     z-index: 20;
     background: white;
-    min-width: 150px;
+    min-width: 200px;
 }
 
 /* Для заголовков первые три колонки должны быть поверх данных */
@@ -372,8 +372,25 @@ body {
     text-align: center;
 }
 
-.description-col {
+.name-col {
+    display: flex;
+    flex-direction: column;
+}
+
+.name-col .name {
     font-weight: 500;
+}
+
+.name-col .description {
+    font-weight: 300;
+    overflow: auto;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 2px;
+    background-color: #f9f9f9;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 200px;
 }
 
 .date-col {
@@ -612,6 +629,10 @@ body {
     overflow-y: auto;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
     animation: modalSlideIn 0.3s ease-out;
+}
+
+.modal-content textarea {
+    height: 200px;
 }
 
 @keyframes modalSlideIn {

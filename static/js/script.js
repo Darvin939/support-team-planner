@@ -1,25 +1,3 @@
-// Закрытие модального окна по клику вне его
-document.addEventListener('click', function(e) {
-    const modals = document.querySelectorAll('.modal');
-    modals.forEach(modal => {
-        if (e.target === modal) {
-            modal.style.display = 'none';
-        }
-    });
-});
-
-// Закрытие модальных окон по Escape
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        const modals = document.querySelectorAll('.modal');
-        modals.forEach(modal => {
-            if (modal.style.display === 'flex') {
-                modal.style.display = 'none';
-            }
-        });
-    }
-});
-
 function restoreFilterState() {
     const dateFrom = document.getElementById('dateFrom');
     const dateTo = document.getElementById('dateTo');
@@ -72,8 +50,39 @@ function updateDropdownLabel(dropdownId) {
     }
 }
 
+// Функция для преобразования текста: находит URL и заменяет их на ссылки
+function linkify(text) {
+    // Регулярное выражение для поиска URL (http, https, ftp)
+    const urlPattern = /(https?:\/\/[^\s]+)/g;
+    return text.replace(urlPattern, function (url) {
+        return `<a href="${url}" target="_blank">${url}</a>`;
+    });
+}
+
+// Закрытие модального окна по Escape
+function closeModalByEscapeBtn(e) {
+    if (e.key === 'Escape') {
+        const modals = document.querySelectorAll('.modal');
+        modals.forEach(modal => {
+            if (modal.style.display === 'flex') {
+                modal.style.display = 'none';
+            }
+        });
+    }
+}
+
+// Закрытие модального окна по клику вне его
+function closeModalByClick(e) {
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => {
+        if (e.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+}
+
 // Закрытие выпадающих списков при клике вне их
-document.addEventListener('click', function(e) {
+function closeDropdownMenuByClick(e) {
     if (!e.target.closest('.dropdown-container')) {
         document.querySelectorAll('.dropdown-menu').forEach(menu => {
             menu.classList.remove('show');
@@ -81,10 +90,25 @@ document.addEventListener('click', function(e) {
             if (toggle) toggle.classList.remove('active');
         });
     }
+}
+
+document.addEventListener('click', function (e) {
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) {
+        return;
+    }
+
+    closeModalByClick(e);
+    closeDropdownMenuByClick(e);
+});
+
+// Закрытие модальных окон по Escape
+document.addEventListener('keydown', function (e) {
+    closeModalByEscapeBtn(e)
 });
 
 // Загрузка состояния фильтров при загрузке страницы
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     restoreFilterState();
 });
 
