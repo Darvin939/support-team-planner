@@ -339,11 +339,12 @@
 
             // Колонка описания
             const nameCell = document.createElement('td');
-            // nameCell.className = 'name-col';
+            const taskDescriptionBlock = task.description ? `<div class="description">${linkify(task.description)}</div>` : '';
+
             nameCell.innerHTML = `
                 <div class="name-col">
                     <span class="name">${task.name}</span>
-                    <div class="description">${linkify(task.description)}</div>
+                    ${taskDescriptionBlock}
                 </div>
             `;
 
