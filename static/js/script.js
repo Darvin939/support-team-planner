@@ -52,6 +52,9 @@ function updateDropdownLabel(dropdownId) {
 
 // Функция для преобразования текста: находит URL и заменяет их на ссылки
 function linkify(text) {
+    if (!text) {
+        return '';
+    }
     // Регулярное выражение для поиска URL (http, https, ftp)
     const urlPattern = /(https?:\/\/[^\s]+)/g;
     return text.replace(urlPattern, function (url) {
