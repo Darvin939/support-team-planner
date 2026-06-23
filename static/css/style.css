@@ -1,3 +1,10 @@
+/* ============================================================
+   Support Team Planner — Основные стили
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   1. Сброс и база
+   ------------------------------------------------------------ */
 * {
     margin: 0;
     padding: 0;
@@ -11,7 +18,9 @@ body {
     line-height: 1.6;
 }
 
-/* Навигация */
+/* ------------------------------------------------------------
+   2. Навигация
+   ------------------------------------------------------------ */
 .navbar {
     background: #2c3e50;
     color: white;
@@ -54,7 +63,9 @@ body {
     color: white;
 }
 
-/* Контейнер */
+/* ------------------------------------------------------------
+   3. Контейнер и заголовки страниц
+   ------------------------------------------------------------ */
 .container {
     max-width: 1400px;
     margin: auto;
@@ -70,115 +81,9 @@ body {
     color: #2c3e50;
 }
 
-/* Селектор команды */
-.team-selector {
-    background: white;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    margin-bottom: 20px;
-}
-
-.team-selector label {
-    font-weight: 600;
-    margin-right: 10px;
-}
-
-.team-selector select {
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 1rem;
-    min-width: 200px;
-}
-
-/* Статистика */
-.stats-summary {
-    display: flex;
-    gap: 20px;
-    background: white;
-    padding: 15px 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-}
-
-.stat-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.stat-label {
-    font-weight: 600;
-    color: #666;
-}
-
-.stat-value {
-    font-weight: bold;
-    font-size: 1.1rem;
-}
-
-.criticality-high .stat-value {
-    color: #dc3545;
-}
-
-.criticality-medium .stat-value {
-    color: #ffc107;
-}
-
-.criticality-low .stat-value {
-    color: #28a745;
-}
-
-/* Фильтры */
-.filter-section {
-    background: white;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    margin-bottom: 20px;
-}
-
-.filter-section h3 {
-    margin-bottom: 15px;
-    color: #2c3e50;
-}
-
-.filter-row {
-    display: flex;
-    gap: 15px;
-    flex-wrap: wrap;
-    align-items: flex-end;
-}
-
-.filter-group {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.filter-group label {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #666;
-}
-
-.filter-input {
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 0.95rem;
-    min-width: 120px;
-}
-
-.filter-input[multiple] {
-    min-height: 60px;
-    min-width: 130px;
-}
-
-/* Кнопки */
+/* ------------------------------------------------------------
+   4. Кнопки
+   ------------------------------------------------------------ */
 .btn {
     padding: 8px 16px;
     border: none;
@@ -229,449 +134,9 @@ body {
     font-size: 0.85rem;
 }
 
-.btn-edit {
-    background: none;
-    border: none;
-    color: #3498db;
-    font-size: 1.1rem;
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 4px;
-    transition: all 0.2s;
-}
-
-.btn-edit:hover {
-    background: #3498db;
-    color: white;
-}
-
-/* Таблица */
-.work-table-container {
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
-}
-
-.table-header {
-    padding: 15px 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid #eee;
-}
-
-.table-info {
-    color: #666;
-    font-size: 0.95rem;
-}
-
-.table-wrapper {
-    overflow-x: auto;
-    padding: 0 0 10px 0;
-    position: relative;
-}
-
-.work-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9rem;
-    min-width: 800px;
-}
-
-.work-table th {
-    background: #f8f9fa;
-    padding: 10px 8px;
-    text-align: left;
-    border-bottom: 2px solid #dee2e6;
-    font-weight: 600;
-    color: #495057;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-}
-
-.work-table td {
-    padding: 4px;
-    border-bottom: 1px solid #eee;
-    vertical-align: middle;
-}
-
-.work-table td.schedule-cell {
-    border-left: 1px solid #eee;
-}
-
-/* Фиксация первых трех колонок */
-.work-table th:nth-child(1),
-.work-table td:nth-child(1) {
-    position: sticky;
-    left: 0;
-    z-index: 20;
-    background: white;
-    min-width: 40px;
-    max-width: 40px;
-}
-
-.work-table th:nth-child(2),
-.work-table td:nth-child(2) {
-    position: sticky;
-    left: 40px;
-    z-index: 20;
-    background: white;
-    min-width: 50px;
-    max-width: 50px;
-}
-
-.work-table th:nth-child(3),
-.work-table td:nth-child(3) {
-    position: sticky;
-    left: 90px;
-    z-index: 20;
-    background: white;
-    min-width: 200px;
-}
-
-/* Для заголовков первые три колонки должны быть поверх данных */
-.work-table th:nth-child(1),
-.work-table th:nth-child(2),
-.work-table th:nth-child(3) {
-    z-index: 30;
-}
-
-/* Для ячеек с данными - чтобы не перекрывались */
-.work-table td:nth-child(1),
-.work-table td:nth-child(2),
-.work-table td:nth-child(3) {
-    z-index: 10;
-}
-
-/* Тень для фиксированных колонок */
-.work-table td:nth-child(3)::after,
-.work-table th:nth-child(3)::after {
-    content: '';
-    position: absolute;
-    right: -5px;
-    top: 0;
-    height: 100%;
-    width: 5px;
-    background: linear-gradient(to right, rgba(0, 0, 0, 0.1), transparent);
-    pointer-events: none;
-}
-
-.action-col {
-    text-align: center;
-}
-
-.action-col .btn-delete,
-.action-col .btn-edit {
-    display: block;
-    margin: 2px auto;
-}
-
-.criticality-col {
-    text-align: center;
-}
-
-.name-col {
-    display: flex;
-    flex-direction: column;
-}
-
-.name-col .name {
-    font-weight: 500;
-}
-
-.name-col .description {
-    font-weight: 300;
-    overflow: auto;
-    padding: 5px;
-    border: 1px solid #ccc;
-    border-radius: 2px;
-    background-color: #f8f9fa;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    max-height: 200px;
-}
-
-.date-col {
-    min-width: 70px;
-    text-align: center;
-    font-size: 0.85rem;
-}
-
-.date-col.weekend {
-    background: #fff3cd;
-}
-
-.date-col.freeze {
-    background: #f8d7da repeating-linear-gradient(
-            45deg,
-            transparent,
-            transparent 5px,
-            rgba(220, 53, 69, 0.1) 5px,
-            rgba(220, 53, 69, 0.1) 10px
-    );
-}
-
-.date-col.current {
-    background: #e3f2fd !important;
-    border-bottom: 3px solid #2196f3 !important;
-}
-
-.date-col.current.weekend {
-    background: #fff3cd !important;
-    border-bottom: 3px solid #ffc107 !important;
-}
-
-.date-col.current.freeze {
-    background: #f8d7da !important;
-    border-bottom: 3px solid #dc3545 !important;
-}
-
-.weekday {
-    display: block;
-    font-size: 0.7rem;
-    font-weight: normal;
-    color: #999;
-}
-
-.schedule-cell {
-    min-width: 70px;
-    text-align: center;
-    cursor: pointer;
-    transition: background 0.2s;
-    position: relative;
-}
-
-.schedule-cell:hover {
-    background: #f0f8ff;
-}
-
-.schedule-cell.weekend {
-    background: #fff8e1;
-}
-
-.schedule-cell.weekend:hover {
-    background: #fff3cd;
-}
-
-.schedule-cell.freeze {
-    background-image: repeating-linear-gradient(
-            45deg,
-            transparent,
-            transparent 5px,
-            rgba(220, 53, 69, 0.08) 5px,
-            rgba(220, 53, 69, 0.08) 10px
-    );
-}
-
-.schedule-cell.freeze.weekend {
-    background-image: repeating-linear-gradient(
-            45deg,
-            rgba(255, 243, 205, 0.5),
-            rgba(255, 243, 205, 0.5) 5px,
-            rgba(220, 53, 69, 0.08) 5px,
-            rgba(220, 53, 69, 0.08) 10px
-    );
-}
-
-.schedule-cell.current {
-    background: #e3f2fd !important;
-}
-
-.schedule-cell.current:hover {
-    background: #f0f8ff !important;
-}
-
-.schedule-cell.current.weekend {
-    background: #fff3cd !important;
-}
-
-.schedule-cell.current.weekend:hover {
-    background: #fff8e1 !important;
-}
-
-.schedule-cell.current.freeze {
-    background-image: repeating-linear-gradient(
-            45deg,
-            transparent,
-            transparent 5px,
-            rgba(220, 53, 69, 0.08) 5px,
-            rgba(220, 53, 69, 0.08) 10px
-    ) !important;
-}
-
-.schedule-cell.current.freeze:hover {
-    background-image: repeating-linear-gradient(
-            45deg,
-            transparent,
-            transparent 5px,
-            rgba(220, 53, 69, 0.08) 5px,
-            rgba(220, 53, 69, 0.08) 10px
-    ) !important;
-}
-
-
-.schedule-info {
-    padding: 4px 6px;
-    border-radius: 4px;
-    min-height: 30px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 2px;
-    transition: all 0.2s;
-    border: 1px solid #e0e0e0;
-}
-
-.schedule-location {
-    font-weight: 600;
-    font-size: 0.9rem;
-}
-
-.schedule-status {
-    font-size: 0.7rem;
-    opacity: 0.8;
-}
-
-.schedule-employee {
-    font-size: 0.7rem;
-    opacity: 0.8;
-}
-
-.schedule-info.status-new {
-    background: #f8f9fa;
-    color: #6c757d;
-}
-
-.schedule-info.status-planned {
-    background: #ffc107;
-    color: #856404;
-}
-
-.schedule-info.status-rollback {
-    background: #dc3545;
-    color: white;
-}
-
-.schedule-info.status-success {
-    background: #28a745;
-    color: white;
-}
-
-.schedule-comment {
-    font-size: 0.65rem;
-    font-style: italic;
-}
-
-.criticality-badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-weight: bold;
-    font-size: 0.8rem;
-    color: white;
-}
-
-.criticality-high {
-    background: #dc3545;
-}
-
-.criticality-medium {
-    background: #ffc107;
-    color: #333;
-}
-
-.criticality-low {
-    background: #28a745;
-}
-
-.btn-delete {
-    background: none;
-    border: none;
-    color: #dc3545;
-    font-size: 1.1rem;
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 4px;
-    transition: all 0.2s;
-}
-
-.btn-delete:hover {
-    background: #dc3545;
-    color: white;
-}
-
-/* Модальные окна */
-.modal {
-    display: none;
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    justify-content: center;
-    align-items: center;
-}
-
-.modal-content {
-    background: white;
-    border-radius: 8px;
-    max-width: 500px;
-    width: 90%;
-    max-height: 90vh;
-    overflow-y: auto;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-    animation: modalSlideIn 0.3s ease-out;
-}
-
-.modal-content textarea {
-    height: 200px;
-}
-
-@keyframes modalSlideIn {
-    from {
-        transform: translateY(-30px);
-        opacity: 0;
-    }
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
-}
-
-.modal-header {
-    padding: 20px;
-    border-bottom: 1px solid #eee;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.modal-header h2 {
-    margin: 0;
-    font-size: 1.3rem;
-    color: #2c3e50;
-}
-
-.modal-close {
-    font-size: 1.5rem;
-    cursor: pointer;
-    color: #999;
-    transition: color 0.2s;
-}
-
-.modal-close:hover {
-    color: #333;
-}
-
-.modal-content form {
-    padding: 20px;
-}
-
+/* ------------------------------------------------------------
+   5. Формы и фильтры
+   ------------------------------------------------------------ */
 .form-group {
     margin-bottom: 15px;
 }
@@ -699,70 +164,11 @@ body {
     cursor: not-allowed;
 }
 
-.work-description-display {
-    padding: 8px 12px;
-    background: #f8f9fa;
-    border-radius: 4px;
-    margin: 0;
-    font-weight: 500;
-}
-
 .form-actions {
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
     margin-top: 20px;
-}
-
-/* Пустые состояния */
-.empty-state {
-    padding: 60px 20px;
-    text-align: center;
-    color: #999;
-}
-
-.empty-state p {
-    font-size: 1.2rem;
-    margin-bottom: 10px;
-}
-
-.empty-state-hint {
-    font-size: 1rem;
-    color: #bbb;
-}
-
-.empty-text {
-    color: #999;
-    font-style: italic;
-    padding: 10px 0;
-}
-
-.empty-row {
-    text-align: center;
-    padding: 40px;
-    color: #999;
-}
-
-/* Настройки */
-.settings-container {
-    display: grid;
-    gap: 30px;
-}
-
-.settings-section {
-    background: white;
-    padding: 25px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.settings-section h2 {
-    margin-bottom: 20px;
-    color: #2c3e50;
-}
-
-.add-form {
-    margin-bottom: 20px;
 }
 
 .form-row {
@@ -781,130 +187,53 @@ body {
     min-width: 150px;
 }
 
-.teams-list {
-    display: grid;
-    gap: 20px;
-}
-
-.team-card {
-    border: 1px solid #e9ecef;
-    border-radius: 6px;
-    padding: 15px;
-    background: #fafafa;
-}
-
-.team-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
-}
-
-.team-header h3 {
-    margin: 0;
-    color: #2c3e50;
-}
-
-.executors-section h4 {
-    margin-bottom: 10px;
-    color: #495057;
-}
-
-.add-executor-form {
-    margin-bottom: 10px;
-}
-
-.executors-list {
-    list-style: none;
-    padding: 0;
-}
-
-.executor-item {
-    padding: 8px 12px;
+/* Фильтры */
+.filter-section {
     background: white;
-    border: 1px solid #e9ecef;
-    border-radius: 4px;
-    margin-bottom: 5px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.executor-name {
-    font-weight: 500;
-}
-
-.executor-role {
-    color: #666;
-    font-size: 0.9rem;
-}
-
-/* Статистика */
-.stats-container {
-    display: grid;
-    gap: 20px;
-}
-
-.stats-card {
-    background: white;
-    padding: 25px;
+    padding: 20px;
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
 }
 
-.stats-team-name {
-    margin-bottom: 20px;
+.filter-section h3 {
+    margin-bottom: 15px;
     color: #2c3e50;
 }
 
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+.filter-row {
+    display: flex;
     gap: 15px;
-    margin-bottom: 20px;
+    flex-wrap: wrap;
+    align-items: flex-end;
 }
 
-.stats-item {
-    text-align: center;
-    padding: 15px;
-    background: #f8f9fa;
-    border-radius: 6px;
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
 }
 
-.stats-number {
-    font-size: 2rem;
-    font-weight: bold;
-}
-
-.stats-label {
-    color: #666;
+.filter-group label {
     font-size: 0.9rem;
-    margin-top: 5px;
+    font-weight: 600;
+    color: #666;
 }
 
-.stats-bar-container {
-    padding: 10px 0;
-}
-
-.stats-bar {
-    display: flex;
-    height: 30px;
+.filter-input {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
     border-radius: 4px;
-    overflow: hidden;
-    background: #e9ecef;
+    font-size: 0.95rem;
+    min-width: 120px;
 }
 
-.stats-bar-segment {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: bold;
-    font-size: 0.85rem;
-    transition: width 0.5s ease;
+.filter-input[multiple] {
+    min-height: 60px;
+    min-width: 130px;
 }
 
-/* Стили для выпадающих списков с чекбоксами */
+/* Выпадающие списки с чекбоксами */
 .filter-dropdown {
     position: relative;
     min-width: 150px;
@@ -998,16 +327,666 @@ body {
     accent-color: #3498db;
 }
 
-.filter-actions {
-    margin-top: 15px;
-    padding-top: 15px;
-    border-top: 1px solid #eee;
+/* ------------------------------------------------------------
+   6. Селектор команды
+   ------------------------------------------------------------ */
+.team-selector {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.team-selector label {
+    font-weight: 600;
+    margin-right: 10px;
+}
+
+.team-selector select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    min-width: 200px;
+}
+
+/* ------------------------------------------------------------
+   7. Статистика (главная и страница статистики)
+   ------------------------------------------------------------ */
+.stats-summary {
     display: flex;
-    gap: 10px;
+    gap: 20px;
+    background: white;
+    padding: 15px 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
     flex-wrap: wrap;
 }
 
-/* Адаптивность */
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.stat-label {
+    font-weight: 600;
+    color: #666;
+}
+
+.stat-value {
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.stats-container {
+    display: grid;
+    gap: 20px;
+}
+
+.stats-card {
+    background: white;
+    padding: 25px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.stats-item {
+    text-align: center;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+}
+
+.stats-number {
+    font-size: 2rem;
+    font-weight: bold;
+}
+
+.stats-label {
+    color: #666;
+    font-size: 0.9rem;
+    margin-top: 5px;
+}
+
+/* ------------------------------------------------------------
+   8. Критичность (бейджи + статистика)
+   ------------------------------------------------------------ */
+.criticality-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-weight: bold;
+    font-size: 0.8rem;
+    color: white;
+}
+
+.criticality-high {
+    background: #dc3545;
+}
+
+.criticality-high .stat-value {
+    color: #dc3545;
+}
+
+.criticality-medium {
+    background: #ffc107;
+    color: #333;
+}
+
+.criticality-medium .stat-value {
+    color: #ffc107;
+}
+
+.criticality-low {
+    background: #28a745;
+}
+
+.criticality-low .stat-value {
+    color: #28a745;
+}
+
+/* ------------------------------------------------------------
+   9. Таблица планирования
+   ------------------------------------------------------------ */
+.work-table-container {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.table-header {
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #eee;
+}
+
+.table-info {
+    color: #666;
+    font-size: 0.95rem;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+    padding: 0 0 10px 0;
+    position: relative;
+}
+
+.work-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    min-width: 800px;
+}
+
+.work-table th {
+    background: #f8f9fa;
+    padding: 10px 8px;
+    text-align: left;
+    border-bottom: 2px solid #dee2e6;
+    font-weight: 600;
+    color: #495057;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.work-table td {
+    padding: 4px;
+    border-bottom: 1px solid #eee;
+    vertical-align: middle;
+}
+
+.work-table td.schedule-cell {
+    border-left: 1px solid #eee;
+}
+
+/* Фиксация первых трёх колонок (№, критичность, название) */
+.work-table th:nth-child(1),
+.work-table td:nth-child(1) {
+    position: sticky;
+    left: 0;
+    z-index: 20;
+    background: white;
+    min-width: 40px;
+    max-width: 40px;
+}
+
+.work-table th:nth-child(2),
+.work-table td:nth-child(2) {
+    position: sticky;
+    left: 40px;
+    z-index: 20;
+    background: white;
+    min-width: 50px;
+    max-width: 50px;
+}
+
+.work-table th:nth-child(3),
+.work-table td:nth-child(3) {
+    position: sticky;
+    left: 90px;
+    z-index: 20;
+    background: white;
+    min-width: 200px;
+}
+
+/* Заголовки фиксированных колонок поверх данных */
+.work-table th:nth-child(1),
+.work-table th:nth-child(2),
+.work-table th:nth-child(3) {
+    z-index: 30;
+}
+
+/* Тень для границы фиксированных колонок */
+.work-table td:nth-child(3)::after,
+.work-table th:nth-child(3)::after {
+    content: '';
+    position: absolute;
+    right: -5px;
+    top: 0;
+    height: 100%;
+    width: 5px;
+    background: linear-gradient(to right, rgba(0, 0, 0, 0.1), transparent);
+    pointer-events: none;
+}
+
+/* Ячейки таблицы */
+.action-col {
+    text-align: center;
+}
+
+.action-col .btn-delete,
+.action-col .btn-edit {
+    display: block;
+    margin: 2px auto;
+}
+
+.criticality-col {
+    text-align: center;
+}
+
+.name-col {
+    display: flex;
+    flex-direction: column;
+}
+
+.name-col .name {
+    font-weight: 500;
+}
+
+.name-col .description {
+    font-weight: 300;
+    overflow: auto;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 2px;
+    background-color: #f8f9fa;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 200px;
+}
+
+.date-col {
+    min-width: 70px;
+    text-align: center;
+    font-size: 0.85rem;
+}
+
+.date-col.weekend {
+    background: #fff3cd;
+}
+
+.date-col.freeze {
+    background: #f8d7da repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 5px,
+            rgba(220, 53, 69, 0.1) 5px,
+            rgba(220, 53, 69, 0.1) 10px
+    );
+}
+
+.date-col.current {
+    background: #e3f2fd !important;
+    border-bottom: 3px solid #2196f3 !important;
+}
+
+.date-col.current.weekend {
+    background: #fff3cd !important;
+    border-bottom: 3px solid #ffc107 !important;
+}
+
+.date-col.current.freeze {
+    background: #f8d7da !important;
+    border-bottom: 3px solid #dc3545 !important;
+}
+
+/* Кнопки в таблице */
+.btn-edit {
+    background: none;
+    border: none;
+    color: #3498db;
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.btn-edit:hover {
+    background: #3498db;
+    color: white;
+}
+
+.btn-delete {
+    background: none;
+    border: none;
+    color: #dc3545;
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.btn-delete:hover {
+    background: #dc3545;
+    color: white;
+}
+
+/* Пустая строка в таблице */
+.empty-row {
+    text-align: center;
+    padding: 40px;
+    color: #999;
+}
+
+/* ------------------------------------------------------------
+   10. Ячейки расписания (schedule-cell)
+   ------------------------------------------------------------ */
+.schedule-cell {
+    min-width: 70px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.2s;
+    position: relative;
+}
+
+.schedule-cell:hover {
+    background: #f0f8ff;
+}
+
+.schedule-cell.weekend {
+    background: #fff8e1;
+}
+
+.schedule-cell.weekend:hover {
+    background: #fff3cd;
+}
+
+.schedule-cell.freeze {
+    background-image: repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 5px,
+            rgba(220, 53, 69, 0.08) 5px,
+            rgba(220, 53, 69, 0.08) 10px
+    );
+}
+
+.schedule-cell.freeze.weekend {
+    background-image: repeating-linear-gradient(
+            45deg,
+            rgba(255, 243, 205, 0.5),
+            rgba(255, 243, 205, 0.5) 5px,
+            rgba(220, 53, 69, 0.08) 5px,
+            rgba(220, 53, 69, 0.08) 10px
+    );
+}
+
+.schedule-cell.current {
+    background: #e3f2fd !important;
+}
+
+.schedule-cell.current:hover {
+    background: #f0f8ff !important;
+}
+
+.schedule-cell.current.weekend {
+    background: #fff3cd !important;
+}
+
+.schedule-cell.current.weekend:hover {
+    background: #fff8e1 !important;
+}
+
+.schedule-cell.current.freeze {
+    background-image: repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 5px,
+            rgba(220, 53, 69, 0.08) 5px,
+            rgba(220, 53, 69, 0.08) 10px
+    ) !important;
+}
+
+.schedule-cell.current.freeze:hover {
+    background-image: repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 5px,
+            rgba(220, 53, 69, 0.08) 5px,
+            rgba(220, 53, 69, 0.08) 10px
+    ) !important;
+}
+
+/* ------------------------------------------------------------
+   11. Информация о назначении в ячейке
+   ------------------------------------------------------------ */
+.schedule-info {
+    padding: 4px 6px;
+    border-radius: 4px;
+    min-height: 30px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    transition: all 0.2s;
+    border: 1px solid #e0e0e0;
+}
+
+.schedule-location {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.schedule-status {
+    font-size: 0.7rem;
+    opacity: 0.8;
+}
+
+.schedule-employee {
+    font-size: 0.7rem;
+    opacity: 0.8;
+}
+
+.schedule-comment {
+    font-size: 0.65rem;
+    font-style: italic;
+}
+
+/* Цветовые схемы статусов */
+.schedule-info.status-new {
+    background: #f8f9fa;
+    color: #6c757d;
+}
+
+.schedule-info.status-planned {
+    background: #ffc107;
+    color: #856404;
+}
+
+.schedule-info.status-rollback {
+    background: #dc3545;
+    color: white;
+}
+
+.schedule-info.status-success {
+    background: #28a745;
+    color: white;
+}
+
+/* ------------------------------------------------------------
+   12. Модальные окна
+   ------------------------------------------------------------ */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 8px;
+    max-width: 500px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+.modal-content textarea {
+    height: 200px;
+}
+
+@keyframes modalSlideIn {
+    from {
+        transform: translateY(-30px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.modal-header {
+    padding: 20px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 1.3rem;
+    color: #2c3e50;
+}
+
+.modal-close {
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #999;
+    transition: color 0.2s;
+}
+
+.modal-close:hover {
+    color: #333;
+}
+
+.modal-content form {
+    padding: 20px;
+}
+
+/* ------------------------------------------------------------
+   13. Настройки (команды, сотрудники, фриз-дни)
+   ------------------------------------------------------------ */
+.settings-container {
+    display: grid;
+    gap: 30px;
+}
+
+.settings-section {
+    background: white;
+    padding: 25px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.settings-section h2 {
+    margin-bottom: 20px;
+    color: #2c3e50;
+}
+
+.add-form {
+    margin-bottom: 20px;
+}
+
+.teams-list {
+    display: grid;
+    gap: 20px;
+}
+
+.team-card {
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 15px;
+    background: #fafafa;
+}
+
+.team-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.team-header h3 {
+    margin: 0;
+    color: #2c3e50;
+}
+
+.executors-list {
+    list-style: none;
+    padding: 0;
+}
+
+.executor-item {
+    padding: 8px 12px;
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    margin-bottom: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.executor-name {
+    font-weight: 500;
+}
+
+/* ------------------------------------------------------------
+   14. Логин
+   ------------------------------------------------------------ */
+.login-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: calc(100vh - 60px);
+}
+
+.login-box {
+    background: white;
+    padding: 40px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 400px;
+}
+
+.flash-message {
+    padding: 10px;
+    margin-bottom: 15px;
+    border-radius: 4px;
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.login-hint {
+    color: #999;
+    font-size: 0.85rem;
+    margin-top: 15px;
+    text-align: center;
+}
+
+/* ------------------------------------------------------------
+   15. Адаптивность (медиа-запросы)
+   ------------------------------------------------------------ */
 @media (max-width: 768px) {
     .nav-menu {
         gap: 10px;
@@ -1054,13 +1033,5 @@ body {
 
     .dropdown-menu {
         max-height: 150px;
-    }
-
-    .filter-actions {
-        flex-direction: column;
-    }
-
-    .filter-actions .btn {
-        width: 100%;
     }
 }
