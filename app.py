@@ -146,8 +146,8 @@ def save_task_api():
     data = request.get_json()
     task_id = data.get('task_id')
     team_id = data.get('team_id')
-    name = data.get('name').strip()
-    description = data.get('description').strip() or None
+    name = data.get('name', '').strip()
+    description = data.get('description', '').strip() or None
     criticality = data.get('criticality', 'medium')
 
     if not team_id or not name:
@@ -211,20 +211,6 @@ def delete_team_api(team_id):
 
 
 # === API для сотрудников ===
-@app.route('/api/employees', methods=['GET'])
-def get_employees_api():
-    """Получить всех сотрудников"""
-    employees = db.get_all_employees()
-    result = [{
-        'id': e['id'],
-        'last_name': e['last_name'],
-        'first_name': e['first_name'],
-        'middle_name': e['middle_name'],
-        'full_name': e['full_name']
-    } for e in employees]
-    return jsonify(result)
-
-
 @app.route('/api/employees', methods=['POST'])
 def create_employee_api():
     """Создать сотрудника"""
@@ -353,28 +339,6 @@ def get_statistics_api(team_id):
         'criticality': criticality_data,
         'status_today': status_counts
     })
-
-
-@app.route('/api/daily-stats/<int:team_id>')
-def get_daily_stats_api(team_id):
-    """API для получения ежедневной статистики"""
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
-
-    if not start_date or not end_date:
-        return jsonify({'error': 'Date range required'}), 400
-
-    if team_id == 0:
-        # Для всех команд - получаем статистику по каждой
-        teams = db.get_all_teams()
-        result = {}
-        for team in teams:
-            stats = db.get_daily_stats(team['id'], start_date, end_date)
-            result[team['name']] = [dict(s) for s in stats]
-        return jsonify(result)
-    else:
-        stats = db.get_daily_stats(team_id, start_date, end_date)
-        return jsonify([dict(s) for s in stats])
 
 
 if __name__ == '__main__':

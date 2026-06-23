@@ -1,14 +1,3 @@
-function restoreFilterState() {
-    const dateFrom = document.getElementById('dateFrom');
-    const dateTo = document.getElementById('dateTo');
-    if (dateFrom && dateTo) {
-        const savedFrom = localStorage.getItem('filterDateFrom');
-        const savedTo = localStorage.getItem('filterDateTo');
-        if (savedFrom) dateFrom.value = savedFrom;
-        if (savedTo) dateTo.value = savedTo;
-    }
-}
-
 // Функции для выпадающих списков с чекбоксами
 function toggleDropdown(dropdownId) {
     const dropdown = document.getElementById(dropdownId);
@@ -109,10 +98,4 @@ document.addEventListener('click', function (e) {
 document.addEventListener('keydown', function (e) {
     closeModalByEscapeBtn(e)
 });
-
-// Загрузка состояния фильтров при загрузке страницы
-document.addEventListener('DOMContentLoaded', function () {
-    restoreFilterState();
-});
-
 

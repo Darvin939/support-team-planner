@@ -40,6 +40,8 @@ def init_db(conn):
     """Инициализация базы данных"""
     cursor = conn.cursor()
 
+    cursor.execute("PRAGMA foreign_keys = ON;")
+
     # Создание таблиц
     # @formatter:off
     cursor.executescript('''
@@ -396,21 +398,6 @@ def get_team_stats(conn, team_id=None):
         'criticality': criticality_stats,
         'status_today': status_today
     }
-
-
-@with_db_connection(commit_on_success=False)
-def get_daily_stats(conn, team_id, start_date, end_date):
-    """Получить статистику по дням в периоде"""
-    return conn.execute(
-        '''SELECT a.date, a.status, COUNT(*) as count
-           FROM assignments a
-               JOIN tasks t
-           ON a.task_id = t.id
-           WHERE t.team_id = ? AND a.date BETWEEN ? AND ?
-           GROUP BY a.date, a.status
-           ORDER BY a.date''',
-        (team_id, start_date, end_date)
-    ).fetchall()
 
 
 def get_all_teams_stats():
