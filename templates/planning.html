@@ -4,7 +4,7 @@
 
 {% block content %}
 <script id="planningData" type="application/json">
-{"team_id": {{ team.id }}, "employees": {{ employees|tojson }}, "freeze_days": {{ freeze_days|tojson }}}
+{"team_id": {{ team.id }}, "employees": {{ employees|tojson }}, "freeze_days": {{ freeze_days|tojson }}, "team_blocks": {{ team_blocks|tojson }}}
 </script>
 
 <div class="page-header">
@@ -127,7 +127,12 @@
 
             <div class="form-group">
                 <label for="assignmentBlock">Блок</label>
-                <input type="text" id="assignmentBlock" placeholder="Например: Блок А, Блок Б">
+                <select id="assignmentBlock">
+                    <option value="">Не выбран</option>
+                    {% for block in team_blocks %}
+                    <option value="{{ block.block_name }}">{{ block.block_name }}</option>
+                    {% endfor %}
+                </select>
             </div>
 
             <div class="form-group">

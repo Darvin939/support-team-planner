@@ -47,6 +47,7 @@ def planning(team_id):
 
     employees = db.get_all_employees()
     freeze_days = db.get_all_freeze_days()
+    team_blocks = db.get_team_blocks(team_id)
 
     # Период по умолчанию
     today = date.today()
@@ -57,6 +58,7 @@ def planning(team_id):
                            team=team,
                            employees=employees,
                            freeze_days=freeze_days,
+                           team_blocks=team_blocks,
                            start_date=start_date.strftime('%Y-%m-%d'),
                            end_date=end_date.strftime('%Y-%m-%d'))
 
@@ -188,6 +190,15 @@ def create_team_api():
         return jsonify({'error': str(e)}), 400
 
 
+@app.route('/api/teams/<int:team_id>', methods=['GET'])
+def get_team_api(team_id):
+    """Получить команду по ID"""
+    team = db.get_team_by_id(team_id)
+    if not team:
+        return jsonify({'error': 'Team not found'}), 404
+    return jsonify({'id': team['id'], 'name': team['name']})
+
+
 @app.route('/api/teams/<int:team_id>', methods=['PUT'])
 def update_team_api(team_id):
     """Обновить команду"""
@@ -208,6 +219,49 @@ def delete_team_api(team_id):
     """Удалить команду"""
     db.delete_team(team_id)
     return jsonify({'success': True})
+
+
+@app.route('/api/teams/<int:team_id>/blocks', methods=['GET'])
+def get_team_blocks_api(team_id):
+    """Получить блоки команды"""
+    blocks = db.get_team_blocks(team_id)
+    result = [{'block_name': b['block_name'], 'schedule_offset': b['schedule_offset']} for b in blocks]
+    return jsonify(result)
+
+
+@app.route('/api/teams/<int:team_id>/blocks', methods=['POST'])
+def save_team_blocks_api(team_id):
+    """Сохранить блоки команды"""
+    data = request.get_json()
+    blocks = data.get('blocks', [])
+    
+    if not isinstance(blocks, list):
+        return jsonify({'error': 'Blocks must be a list'}), 400
+    
+    try:
+        # Валидация и преобразование
+        valid_blocks = []
+        offsets = set()
+        
+        for block in blocks:
+            if isinstance(block, dict) and 'block_name' in block:
+                block_name = str(block['block_name']).strip().upper()
+                offset = int(block.get('schedule_offset', 0))
+                
+                if not block_name:
+                    continue
+                
+                # Проверка дубликатов сдвигов
+                if offset in offsets:
+                    return jsonify({'error': 'Сдвиг ' + str(offset) + ' уже используется другим блоком'}), 400
+                offsets.add(offset)
+                
+                valid_blocks.append((block_name, offset))
+        
+        db.create_team_blocks(team_id, valid_blocks)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
 
 
 # === API для сотрудников ===
@@ -296,9 +350,19 @@ def settings_page():
     teams = db.get_all_teams()
     employees = db.get_all_employees()
     freeze_days = db.get_all_freeze_days()
+    
+    # Загрузить блоки для каждой команды
+    teams_with_blocks = []
+    for team in teams:
+        blocks = db.get_team_blocks(team['id'])
+        teams_with_blocks.append({
+            'id': team['id'],
+            'name': team['name'],
+            'blocks': blocks
+        })
 
     return render_template('settings.html',
-                           teams=teams,
+                           teams=teams_with_blocks,
                            employees=employees,
                            freeze_days=freeze_days)
 

@@ -89,3 +89,4 @@ Thumbs.db
 debug.log
 error.log
 *.spec
+/.gigacode/

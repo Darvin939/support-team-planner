@@ -19,6 +19,9 @@ def with_db_connection(default_return=None, raise_on_error=True, commit_on_succe
         def wrapper(*args, **kwargs):
             conn = get_db_connection()
             try:
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA foreign_keys = ON;")
+
                 result = func(conn, *args, **kwargs)
                 if commit_on_success:
                     conn.commit()
@@ -39,8 +42,6 @@ def with_db_connection(default_return=None, raise_on_error=True, commit_on_succe
 def init_db(conn):
     """Инициализация базы данных"""
     cursor = conn.cursor()
-
-    cursor.execute("PRAGMA foreign_keys = ON;")
 
     # Создание таблиц
     # @formatter:off
@@ -70,6 +71,15 @@ def init_db(conn):
             description text,
             criticality text NOT NULL DEFAULT 'medium',
             FOREIGN key (team_id) REFERENCES teams (id) ON DELETE cascade
+        );
+        
+        CREATE TABLE if NOT EXISTS team_blocks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            team_id INTEGER NOT NULL,
+            block_name TEXT NOT NULL,
+            schedule_offset INTEGER DEFAULT 0,
+            FOREIGN KEY (team_id) REFERENCES teams (id) ON DELETE CASCADE,
+            UNIQUE(team_id, schedule_offset)
         );
         
         CREATE TABLE if NOT EXISTS assignments (
@@ -125,6 +135,31 @@ def update_team(conn, team_id, name):
 def delete_team(conn, team_id):
     """Удалить команду"""
     conn.execute('DELETE FROM teams WHERE id = ?', (team_id,))
+
+
+# === TEAM BLOCKS CRUD ===
+@with_db_connection(commit_on_success=False)
+def get_team_blocks(conn, team_id):
+    """Получить все блоки команды"""
+    blocks = conn.execute(
+        'SELECT block_name, schedule_offset FROM team_blocks WHERE team_id = ? ORDER BY schedule_offset, block_name',
+        (team_id,)).fetchall()
+    return [dict(block) for block in blocks]
+
+
+@with_db_connection()
+def create_team_blocks(conn, team_id, blocks):
+    """Создать блоки команды (список кортежей: [(block_name, offset), ...])"""
+    conn.execute('DELETE FROM team_blocks WHERE team_id = ?', (team_id,))
+    if blocks:
+        conn.executemany('INSERT INTO team_blocks (team_id, block_name, schedule_offset) VALUES (?, ?, ?)',
+                         [(team_id, block_name, offset) for block_name, offset in blocks])
+
+
+@with_db_connection()
+def delete_team_blocks(conn, team_id):
+    """Удалить все блоки команды"""
+    conn.execute('DELETE FROM team_blocks WHERE team_id = ?', (team_id,))
 
 
 # === EMPLOYEES CRUD ===

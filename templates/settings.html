@@ -12,12 +12,9 @@
     <div class="settings-section">
         <h2>Команды</h2>
         <div class="add-form">
-            <div class="form-row">
-                <input type="text" id="teamNameInput" placeholder="Название команды">
-                <button class="btn btn-success" onclick="addTeam()">Добавить команду</button>
-            </div>
+            <button class="btn btn-success" onclick="addTeam()">Добавить команду</button>
         </div>
-        <div id="teamsList">
+        <div id="teamsList" class="teams-list">
             {% for team in teams %}
             <div class="team-card" data-id="{{ team.id }}">
                 <div class="team-header">
@@ -27,6 +24,18 @@
                         <button class="btn btn-danger btn-sm" onclick="deleteTeam({{ team.id }})">🗑️</button>
                     </div>
                 </div>
+                {% if team.blocks and team.blocks|length > 0 %}
+                <div class="team-blocks">
+                    <div class="blocks-table">
+                        {% for block in team.blocks %}
+                        <div class="block-cell">
+                            <span class="block-name">{{ block.block_name }}</span>
+                            <span class="block-offset">+{{ block.schedule_offset }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
             </div>
             {% endfor %}
         </div>

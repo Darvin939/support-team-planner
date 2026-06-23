@@ -1,6 +1,7 @@
 let teamId = null;
 let employees = [];
 let freezeDays = [];
+let teamBlocks = [];
 
 let tasksData = [];
 let assignmentsData = [];
@@ -21,6 +22,7 @@ document.addEventListener('DOMContentLoaded', function () {
         teamId = initData.team_id;
         employees = initData.employees || [];
         freezeDays = initData.freeze_days || [];
+        teamBlocks = initData.team_blocks || [];
     }
 
     initializeTable();
@@ -291,6 +293,18 @@ function openAssignmentModal(taskId, dateStr) {
     const saveBtn = document.getElementById('saveAssignmentBtn');
     const updateBtn = document.getElementById('updateAssignmentBtn');
     const deleteBtn = document.getElementById('deleteAssignmentBtn');
+
+    // Обновляем список блоков
+    const currentBlocks = teamBlocks;
+    if (currentBlocks.length > 0) {
+        let blockOptions = '<option value="">Не выбран</option>';
+        currentBlocks.forEach(block => {
+            blockOptions += `<option value="${block.block_name}">${block.block_name}</option>`;
+        });
+        assignBlock.innerHTML = blockOptions;
+    } else {
+        assignBlock.innerHTML = '<option value="">Блоки не настроены для этой команды</option>';
+    }
 
     const task = tasksData.find(t => t.id === taskId);
     if (!task) return;

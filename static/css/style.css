@@ -1035,3 +1035,90 @@ body {
         max-height: 150px;
     }
 }
+
+/* ------------------------------------------------------------
+   16. Настройки блоков команды
+   ------------------------------------------------------------ */
+.block-item {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 8px;
+    align-items: center;
+}
+
+.block-item input {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.95rem;
+}
+
+.block-name-input {
+    flex: 2;
+    min-width: 100px;
+}
+
+.block-offset-input {
+    flex: 1;
+    max-width: 80px;
+}
+
+.add-block-form {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    align-items: flex-end;
+}
+
+.add-block-form input {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.95rem;
+}
+
+.add-block-form input[type="text"] {
+    flex: 1;
+    min-width: 120px;
+}
+
+.add-block-form input[type="number"] {
+    max-width: 100px;
+}
+
+.blocks-list {
+    margin-bottom: 15px;
+}
+
+/* ------------------------------------------------------------
+   17. Табличное представление блоков команды
+   ------------------------------------------------------------ */
+.team-blocks {
+    margin-bottom: 10px;
+}
+
+.blocks-table {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.block-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 6px 10px;
+    background: #e9ecef;
+    border-radius: 4px;
+    font-size: 0.85rem;
+}
+
+.block-name {
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.block-offset {
+    font-size: 0.75rem;
+    color: #6c757d;
+}
