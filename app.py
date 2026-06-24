@@ -102,10 +102,10 @@ def save_assignment_api():
     assignment_id = data.get('assignment_id')
     task_id = data.get('task_id')
     date_str = data.get('date')
-    block = data.get('block', '').strip() or None
+    block = (data.get('block') or '').strip() or None
     status = data.get('status', 'new')
     employee_id = data.get('employee_id')
-    comment = data.get('comment', '').strip() or None
+    comment = (data.get('comment') or '').strip() or None
 
     if not task_id:
         return jsonify({'error': 'Task ID required'}), 400

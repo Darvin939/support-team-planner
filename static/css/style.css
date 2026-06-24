@@ -342,6 +342,183 @@ body {
 }
 
 /* ------------------------------------------------------------
+   Переключатель (toggle switch)
+   ------------------------------------------------------------ */
+.toggle-switch-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    font-weight: 500;
+    color: #2c3e50;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    border-radius: 24px;
+    transition: 0.2s;
+}
+
+.toggle-slider::before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    border-radius: 50%;
+    transition: 0.2s;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background-color: #3498db;
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+    transform: translateX(20px);
+}
+
+/* ------------------------------------------------------------
+   Таблица автораспределения блоков
+   ------------------------------------------------------------ */
+.auto-schedule-wrapper {
+    overflow-x: auto;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+}
+
+.auto-schedule-table {
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    width: max-content;
+}
+
+.auto-schedule-table th,
+.auto-schedule-table td {
+    min-width: 60px;
+    text-align: center;
+    padding: 6px 4px;
+    border-bottom: 1px solid #eee;
+    border-left: 1px solid #eee;
+}
+
+.auto-schedule-table thead th {
+    background: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+    font-weight: 600;
+    color: #495057;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+/* Только первая (подписная) колонка фиксируется при горизонтальной прокрутке */
+.auto-schedule-table th:first-child,
+.auto-schedule-table td:first-child {
+    position: sticky;
+    left: 0;
+    background: white;
+    border-left: none;
+    z-index: 15;
+}
+
+.auto-schedule-table thead th:first-child {
+    background: #f8f9fa;
+    z-index: 25;
+}
+
+.auto-block-cell {
+    cursor: pointer;
+    transition: background 0.2s;
+    vertical-align: top;
+    padding: 4px !important;
+    height: 58px;
+}
+
+.auto-block-cell:hover {
+    background: #f0f8ff;
+}
+
+.auto-block-cell.occupied {
+    box-shadow: inset 0 0 0 2px #e67e22;
+}
+
+.auto-block-badge {
+    display: inline-block;
+    background: #3498db;
+    color: white;
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin: 2px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.2s;
+}
+
+.auto-block-badge:hover {
+    background: #2980b9;
+}
+
+.auto-block-badge.selected {
+    background: #e67e22;
+    box-shadow: 0 0 0 2px #d35400;
+}
+
+.auto-schedule-hint {
+    margin-top: 6px;
+    font-size: 0.8rem;
+    color: #6c757d;
+}
+
+.auto-schedule-hint > div + div {
+    margin-top: 4px;
+}
+
+.auto-schedule-hint > div > .auto-schedule-legend-item {
+    margin-left: 0;
+}
+
+.auto-schedule-legend-item {
+    margin-left: 10px;
+    padding: 3px 6px;
+    border-radius: 3px;
+}
+
+.auto-schedule-legend-occupied {
+    box-shadow: inset 0 0 0 2px #e67e22;
+}
+
+.auto-assign-row-label {
+    font-weight: 600;
+    color: #2c3e50;
+    white-space: nowrap;
+    padding: 6px 10px !important;
+    text-align: left !important;
+}
+
+/* ------------------------------------------------------------
    6. Селектор команды
    ------------------------------------------------------------ */
 .team-selector {
@@ -925,7 +1102,6 @@ body {
 }
 
 .team-card {
-    margin-top: 10px;
     border: 1px solid #e9ecef;
     border-radius: 6px;
     padding: 15px;
@@ -950,7 +1126,6 @@ body {
 }
 
 .executor-item {
-    margin-top: 10px;
     padding: 8px 12px;
     background: white;
     border: 1px solid #e9ecef;

@@ -85,6 +85,11 @@ function closeDropdownMenuByClick(e) {
 }
 
 document.addEventListener('click', function (e) {
+    // Если только что был drag-scroll — не закрываем модалку этим кликом
+    if (window.__suppressModalClose) {
+        return;
+    }
+
     const selection = window.getSelection();
     if (selection && selection.toString().length > 0) {
         return;

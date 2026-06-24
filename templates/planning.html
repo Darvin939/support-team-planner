@@ -126,11 +126,39 @@
             </div>
 
             <div class="form-group">
+                <label class="toggle-switch-label">
+                    <span>Автоназначение по графику</span>
+                    <span class="toggle-switch">
+                        <input type="checkbox" id="autoAssignToggle" onchange="toggleAutoAssign()">
+                        <span class="toggle-slider"></span>
+                    </span>
+                </label>
+            </div>
+
+            <div class="form-group" id="manualBlockGroup">
                 <label>Блок</label>
                 <div id="assignmentBlockList" class="block-checkbox-list"></div>
             </div>
 
-            <div class="form-group">
+            <div class="form-group" id="autoBlockGroup" style="display:none;">
+                <label>Блок (автораспределение по графику)</label>
+                <div class="auto-schedule-wrapper" id="autoScheduleWrapper">
+                    <table class="auto-schedule-table">
+                        <thead>
+                        <tr id="autoScheduleHeader"></tr>
+                        </thead>
+                        <tbody>
+                        <tr id="autoScheduleRow"></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="auto-schedule-hint">
+                    <div>Нажмите на блок, затем на нужную дату — блок переместится туда.</div>
+                    <div><span class="auto-schedule-legend-item auto-schedule-legend-occupied">уже есть назначение</span></div>
+                </div>
+            </div>
+
+            <div class="form-group" id="assignmentStatusGroup">
                 <label for="assignmentStatus">Статус</label>
                 <select id="assignmentStatus">
                     <option value="new">Новый</option>
@@ -140,7 +168,7 @@
                 </select>
             </div>
 
-            <div class="form-group">
+            <div class="form-group" id="assignmentEmployeeGroup">
                 <label for="assignmentEmployee">Исполнитель</label>
                 <select id="assignmentEmployee">
                     <option value="">Не выбран</option>
@@ -152,7 +180,7 @@
                 </select>
             </div>
 
-            <div class="form-group">
+            <div class="form-group" id="assignmentCommentGroup">
                 <label for="assignmentComment">Комментарий</label>
                 <input type="text" id="assignmentComment" placeholder="Комментарий..." maxlength="45">
             </div>

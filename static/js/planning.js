@@ -7,6 +7,11 @@ let tasksData = [];
 let assignmentsData = [];
 let currentDateRange = {start: null, end: null};
 
+// Состояние автоназначения по графику команды
+let autoAssignDates = {};      // blockId -> dateStr
+let autoAssignBaseDate = null;
+let autoAssignSelected = null; // id блока, "взятого в руки" для перемещения
+
 const statusMap = {
     'new': 'Новый',
     'planned': 'Запланировано',
@@ -27,6 +32,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     initializeTable();
     setupDragScroll();
+    setupAutoScheduleDragScroll();
 
     // Загрузка данных
     loadData();
@@ -37,6 +43,15 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('searchText').addEventListener('input', applyFilters);
     // document.getElementById('criticalityDropdown').addEventListener('change', applyFilters);
     // document.getElementById('statusDropdown').addEventListener('change', applyFilters);
+
+    // При смене даты назначения пересчитываем автографик (если он включен)
+    document.getElementById('assignmentDate').addEventListener('change', function () {
+        if (document.getElementById('autoAssignToggle').checked) {
+            autoAssignSelected = null;
+            recomputeAutoAssignSchedule();
+            renderAutoScheduleTable();
+        }
+    });
 });
 
 function dropdownOnChange(dropdownId) {
@@ -303,6 +318,203 @@ function getSelectedBlocks() {
     return Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
 }
 
+function addDaysStr(dateStr, days) {
+    const d = new Date(dateStr);
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split('T')[0];
+}
+
+function computeAutoAssignDates(baseDateStr) {
+    // Сортируем блоки по возрастанию сдвига. При попадании на день фриза
+    // блок сдвигается на следующий не-фризовый день, а накопленный сдвиг
+    // (offset) применяется и к последующим блокам, чтобы сохранить
+    // относительный интервал между ними.
+    const sorted = [...teamBlocks].sort((a, b) => a.shift_days - b.shift_days);
+    let offset = 0;
+    const result = {};
+
+    sorted.forEach(block => {
+        let dateStr = addDaysStr(baseDateStr, block.shift_days + offset);
+        while (freezeDays.includes(dateStr)) {
+            dateStr = addDaysStr(dateStr, 1);
+            offset += 1;
+        }
+        result[block.id] = dateStr;
+    });
+
+    return result;
+}
+
+function recomputeAutoAssignSchedule() {
+    const baseDateStr = document.getElementById('assignmentDate').value;
+    if (!baseDateStr) return;
+    autoAssignBaseDate = baseDateStr;
+    autoAssignDates = computeAutoAssignDates(baseDateStr);
+}
+
+function getAutoScheduleDateRange() {
+    let maxDate = new Date(autoAssignBaseDate);
+    Object.values(autoAssignDates).forEach(dateStr => {
+        const d = new Date(dateStr);
+        if (d > maxDate) maxDate = d;
+    });
+    // Небольшой запас дат справа, чтобы можно было вручную подвинуть блок дальше графика
+    maxDate.setDate(maxDate.getDate() + 5);
+
+    const dates = [];
+    let cur = new Date(autoAssignBaseDate);
+    while (cur <= maxDate) {
+        dates.push(cur.toISOString().split('T')[0]);
+        cur.setDate(cur.getDate() + 1);
+    }
+    return dates;
+}
+
+function renderAutoScheduleTable() {
+    const header = document.getElementById('autoScheduleHeader');
+    const row = document.getElementById('autoScheduleRow');
+
+    if (!teamBlocks || teamBlocks.length === 0) {
+        header.innerHTML = '<th>Блок</th>';
+        row.innerHTML = '<td class="checkbox-item-empty">У команды нет блоков раскатки</td>';
+        return;
+    }
+
+    if (!autoAssignBaseDate) {
+        header.innerHTML = '';
+        row.innerHTML = '';
+        return;
+    }
+
+    const dates = getAutoScheduleDateRange();
+    const todayStr = new Date().toISOString().split('T')[0];
+    const taskId = parseInt(document.getElementById('assignmentTaskId').value);
+    const assignmentIdVal = document.getElementById('assignmentId').value;
+    const currentAssignmentId = assignmentIdVal ? parseInt(assignmentIdVal) : null;
+
+    let headerHtml = '<th>Блок</th>';
+    let rowHtml = '<td class="auto-assign-row-label">Дата</td>';
+
+    dates.forEach(dateStr => {
+        const d = new Date(dateStr);
+        const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+        const isFreeze = freezeDays.includes(dateStr);
+        const isToday = dateStr === todayStr;
+
+        let headerCls = 'date-col';
+        if (isWeekend) headerCls += ' weekend';
+        if (isFreeze) headerCls += ' freeze';
+        if (isToday) headerCls += ' current';
+        const label = d.getDate().toString().padStart(2, '0') + '.' + (d.getMonth() + 1).toString().padStart(2, '0');
+        headerHtml += `<th class="${headerCls}">${label}</th>`;
+
+        let cellCls = 'schedule-cell auto-block-cell';
+        if (isWeekend) cellCls += ' weekend';
+        if (isFreeze) cellCls += ' freeze';
+        if (isToday) cellCls += ' current';
+
+        const existing = assignmentsData.find(a => a.task_id === taskId && a.date === dateStr);
+        const isOccupied = existing && existing.id !== currentAssignmentId;
+        if (isOccupied) cellCls += ' occupied';
+
+        const blocksHere = teamBlocks.filter(b => autoAssignDates[b.id] === dateStr);
+        let badges = '';
+        blocksHere.forEach(b => {
+            const selectedCls = autoAssignSelected === b.id ? ' selected' : '';
+            badges += `<span class="auto-block-badge${selectedCls}" onclick="event.stopPropagation(); pickAutoBlock(${b.id})">${b.name}</span>`;
+        });
+
+        rowHtml += `<td class="${cellCls}" onclick="placeAutoBlock('${dateStr}')">${badges}</td>`;
+    });
+
+    header.innerHTML = headerHtml;
+    row.innerHTML = rowHtml;
+}
+
+function pickAutoBlock(blockId) {
+    autoAssignSelected = (autoAssignSelected === blockId) ? null : blockId;
+    renderAutoScheduleTable();
+}
+
+function placeAutoBlock(dateStr) {
+    if (autoAssignSelected === null) return;
+    autoAssignDates[autoAssignSelected] = dateStr;
+    autoAssignSelected = null;
+    renderAutoScheduleTable();
+}
+
+function setupAutoScheduleDragScroll() {
+    const wrapper = document.getElementById('autoScheduleWrapper');
+    if (!wrapper || wrapper._dragScrollSetup) return;
+    wrapper._dragScrollSetup = true;
+
+    let isDown = false;
+    let startX = 0;
+    let scrollLeft = 0;
+    let dragged = false;
+
+    wrapper.style.cursor = 'grab';
+
+    wrapper.addEventListener('mousedown', function (e) {
+        isDown = true;
+        dragged = false;
+        startX = e.pageX - wrapper.offsetLeft;
+        scrollLeft = wrapper.scrollLeft;
+    });
+
+    document.addEventListener('mousemove', function (e) {
+        if (!isDown) return;
+        const x = e.pageX - wrapper.offsetLeft;
+        const walk = x - startX;
+        if (Math.abs(walk) > 5) {
+            dragged = true;
+            wrapper.style.cursor = 'grabbing';
+            wrapper.style.userSelect = 'none';
+            wrapper.scrollLeft = scrollLeft - walk;
+        }
+    });
+
+    document.addEventListener('mouseup', function () {
+        if (!isDown) return;
+        isDown = false;
+        wrapper.style.cursor = 'grab';
+        wrapper.style.userSelect = '';
+        // Если был драг — не дать последующему клику закрыть модалку
+        if (dragged) {
+            window.__suppressModalClose = true;
+            setTimeout(() => { window.__suppressModalClose = false; }, 0);
+        }
+    });
+
+    // Если был драг — гасим последующий клик, чтобы он не выбрал/не переместил блок
+    wrapper.addEventListener('click', function (e) {
+        if (dragged) {
+            e.stopPropagation();
+            e.preventDefault();
+            dragged = false;
+        }
+    }, true);
+}
+
+function toggleAutoAssign() {
+    const enabled = document.getElementById('autoAssignToggle').checked;
+
+    document.getElementById('manualBlockGroup').style.display = enabled ? 'none' : '';
+    document.getElementById('autoBlockGroup').style.display = enabled ? '' : 'none';
+    document.getElementById('assignmentEmployeeGroup').style.display = enabled ? 'none' : '';
+    document.getElementById('assignmentCommentGroup').style.display = enabled ? 'none' : '';
+
+    const statusSelect = document.getElementById('assignmentStatus');
+    statusSelect.disabled = enabled;
+
+    if (enabled) {
+        statusSelect.value = 'new';
+        autoAssignSelected = null;
+        recomputeAutoAssignSchedule();
+        renderAutoScheduleTable();
+    }
+}
+
 function openAssignmentModal(taskId, dateStr) {
     const modal = document.getElementById('assignmentModal');
     const title = document.getElementById('modalTitle');
@@ -325,6 +537,17 @@ function openAssignmentModal(taskId, dateStr) {
     taskCrit.value = task.criticality;
     taskIdField.value = taskId;
     taskDateField.value = dateStr;
+
+    // Сбрасываем переключатель автоназначения к выключенному состоянию
+    document.getElementById('autoAssignToggle').checked = false;
+    document.getElementById('manualBlockGroup').style.display = '';
+    document.getElementById('autoBlockGroup').style.display = 'none';
+    document.getElementById('assignmentEmployeeGroup').style.display = '';
+    document.getElementById('assignmentCommentGroup').style.display = '';
+    assignStatus.disabled = false;
+    autoAssignSelected = null;
+    autoAssignDates = {};
+    autoAssignBaseDate = null;
 
     const assignment = assignmentsData.find(a => a.task_id === taskId && a.date === dateStr);
 
@@ -362,6 +585,12 @@ function openAssignmentModal(taskId, dateStr) {
 function saveAssignment(event) {
     event.preventDefault();
 
+    const autoEnabled = document.getElementById('autoAssignToggle').checked;
+    if (autoEnabled) {
+        saveAutoAssignment();
+        return;
+    }
+
     const taskId = document.getElementById('assignmentTaskId').value;
     const assignmentId = document.getElementById('assignmentId').value;
     const date = document.getElementById('assignmentDate').value;
@@ -393,6 +622,72 @@ function saveAssignment(event) {
         .catch(error => {
             console.error('Error saving assignment:', error);
             alert('Ошибка при сохранении');
+        });
+}
+
+function saveAutoAssignment() {
+    const taskId = parseInt(document.getElementById('assignmentTaskId').value);
+    const assignmentIdVal = document.getElementById('assignmentId').value;
+    const currentAssignmentId = assignmentIdVal ? parseInt(assignmentIdVal) : null;
+
+    if (!teamBlocks || teamBlocks.length === 0) {
+        alert('У команды нет блоков раскатки для автоназначения');
+        return;
+    }
+
+    // Группируем блоки по итоговым датам
+    const groups = {};
+    teamBlocks.forEach(block => {
+        const d = autoAssignDates[block.id];
+        if (!d) return;
+        groups[d] = groups[d] || [];
+        groups[d].push(block.name);
+    });
+
+    const dates = Object.keys(groups).sort();
+    if (dates.length === 0) {
+        alert('Нет блоков для автоназначения');
+        return;
+    }
+
+    // Проверяем, не занята ли уже какая-то из дат другим назначением
+    const conflictDates = dates.filter(d => {
+        const existing = assignmentsData.find(a => a.task_id === taskId && a.date === d);
+        return existing && existing.id !== currentAssignmentId;
+    });
+
+    if (conflictDates.length > 0) {
+        const proceed = confirm(
+            `На дату(ы) ${conflictDates.join(', ')} уже есть назначение(я).\nПерезаписать их?`
+        );
+        if (!proceed) return;
+    }
+
+    const requests = dates.map(d => {
+        const existing = assignmentsData.find(a => a.task_id === taskId && a.date === d);
+        return fetch('/api/assignment', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                assignment_id: existing ? existing.id : null,
+                task_id: taskId,
+                date: d,
+                block: groups[d].join(', '),
+                status: 'new',
+                employee_id: null,
+                comment: null
+            })
+        });
+    });
+
+    Promise.all(requests)
+        .then(() => {
+            closeModal('assignmentModal');
+            loadData();
+        })
+        .catch(error => {
+            console.error('Error saving auto assignment:', error);
+            alert('Ошибка при автоназначении');
         });
 }
 
