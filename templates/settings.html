@@ -3,6 +3,10 @@
 {% block title %}Настройки{% endblock %}
 
 {% block content %}
+<script id="settingsData" type="application/json">
+{"teams": {{ teams|tojson }}, "employees": {{ employees|tojson }}}
+</script>
+
 <div class="page-header">
     <h1>Настройки</h1>
 </div>

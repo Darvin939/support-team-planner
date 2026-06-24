@@ -155,15 +155,15 @@ def ensure_schema(conn):
 @with_db_connection(commit_on_success=False)
 def get_all_teams(conn):
     """Получить все команды"""
-    return conn.execute('SELECT * FROM teams ORDER BY name').fetchall()
+    return conn.execute('SELECT id, name FROM teams ORDER BY name').fetchall()
 
 
 @with_db_connection(commit_on_success=False)
 def get_all_teams_with_blocks(conn):
     """Получить все команды вместе с их блоками раскатки"""
-    teams = conn.execute('SELECT * FROM teams ORDER BY name').fetchall()
+    teams = conn.execute('SELECT id, name FROM teams ORDER BY name').fetchall()
     blocks = conn.execute(
-        'SELECT * FROM team_blocks ORDER BY schedule_offset ASC, block_name ASC'
+        'SELECT id, team_id, block_name, schedule_offset FROM team_blocks ORDER BY schedule_offset ASC, block_name ASC'
     ).fetchall()
 
     blocks_by_team = {}
@@ -187,14 +187,14 @@ def get_all_teams_with_blocks(conn):
 @with_db_connection(commit_on_success=False)
 def get_team_by_id(conn, team_id):
     """Получить команду по ID"""
-    return conn.execute('SELECT * FROM teams WHERE id = ?', (team_id,)).fetchone()
+    return conn.execute('SELECT id, name FROM teams WHERE id = ?', (team_id,)).fetchone()
 
 
 @with_db_connection(commit_on_success=False)
 def get_team_blocks(conn, team_id):
     """Получить блоки раскатки команды (сортировка по возрастанию сдвига)"""
     rows = conn.execute(
-        'SELECT * FROM team_blocks WHERE team_id = ? ORDER BY schedule_offset ASC, block_name ASC',
+        'SELECT id, block_name, schedule_offset FROM team_blocks WHERE team_id = ? ORDER BY schedule_offset ASC, block_name ASC',
         (team_id,)
     ).fetchall()
     return [{'id': r['id'], 'name': r['block_name'], 'shift_days': r['schedule_offset']} for r in rows]
@@ -244,7 +244,7 @@ def delete_team(conn, team_id):
 @with_db_connection(commit_on_success=False)
 def get_all_employees(conn):
     """Получить всех сотрудников"""
-    employees = conn.execute('SELECT * FROM employees ORDER BY last_name, first_name, middle_name').fetchall()
+    employees = conn.execute('SELECT id, last_name, first_name, middle_name FROM employees ORDER BY last_name, first_name, middle_name').fetchall()
     return [dict(emp) for emp in employees]
 
 
@@ -292,6 +292,16 @@ def get_all_freeze_days(conn):
     return [day['date'] for day in days]
 
 
+@with_db_connection(commit_on_success=False)
+def get_freeze_days_in_period(conn, start_date, end_date):
+    """Получить дни фриза в заданном периоде"""
+    days = conn.execute(
+        'SELECT date FROM freeze_days WHERE date BETWEEN ? AND ? ORDER BY date',
+        (start_date, end_date)
+    ).fetchall()
+    return [day['date'] for day in days]
+
+
 @with_db_connection(default_return=False, raise_on_error=False)
 def add_freeze_day(conn, date_str):
     """Добавить день фриза"""
@@ -329,7 +339,7 @@ def remove_freeze_day(conn, date_str):
 def get_tasks_by_team(conn, team_id):
     """Получить все задачи команды"""
     return conn.execute(
-        '''SELECT *
+        '''SELECT id, name, description, criticality
            FROM tasks
            WHERE team_id = ?
            ORDER BY CASE criticality
@@ -343,9 +353,9 @@ def get_tasks_by_team(conn, team_id):
 
 
 @with_db_connection(commit_on_success=False)
-def get_task_by_id(conn, task_id):
-    """Получить задачу по ID"""
-    return conn.execute('SELECT * FROM tasks WHERE id = ?', (task_id,)).fetchone()
+def task_exists(conn, task_id):
+    """Проверить существование задачи"""
+    return conn.execute('SELECT 1 FROM tasks WHERE id = ?', (task_id,)).fetchone()
 
 
 @with_db_connection(commit_on_success=False)
@@ -383,7 +393,7 @@ def delete_task(conn, task_id):
 def get_assignment(conn, task_id, date_str):
     """Получить назначение на задачу на конкретную дату"""
     return conn.execute(
-        '''SELECT a.*,
+        '''SELECT a.id, a.task_id, a.date, a.block, a.status, a.employee_id, a.comment,
                   e.last_name   as employee_last_name,
                   e.first_name  as employee_first_name,
                   e.middle_name as employee_middle_name
@@ -399,7 +409,7 @@ def get_assignment(conn, task_id, date_str):
 def get_assignments_by_team_in_period(conn, team_id, start_date, end_date):
     """Получить все назначения команды в период"""
     return conn.execute(
-        '''SELECT a.*,
+        '''SELECT a.id, a.task_id, a.date, a.block, a.status, a.employee_id, a.comment,
                   e.last_name   as employee_last_name,
                   e.first_name  as employee_first_name,
                   e.middle_name as employee_middle_name
@@ -410,23 +420,6 @@ def get_assignments_by_team_in_period(conn, team_id, start_date, end_date):
              AND a.date BETWEEN ? AND ?
            ORDER BY a.date, t.id''',
         (team_id, start_date, end_date)
-    ).fetchall()
-
-
-@with_db_connection(commit_on_success=False)
-def get_assignments_by_team(conn, team_id):
-    """Получить все назначения команды"""
-    return conn.execute(
-        '''SELECT a.*,
-                  e.last_name   as employee_last_name,
-                  e.first_name  as employee_first_name,
-                  e.middle_name as employee_middle_name
-           FROM assignments a
-                    JOIN tasks t ON a.task_id = t.id
-                    LEFT JOIN employees e ON a.employee_id = e.id
-           WHERE t.team_id = ?
-           ORDER BY a.date, t.id''',
-        (team_id,)
     ).fetchall()
 
 

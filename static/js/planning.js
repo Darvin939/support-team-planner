@@ -1,5 +1,4 @@
 let teamId = null;
-let employees = [];
 let freezeDays = [];
 let teamBlocks = [];
 
@@ -25,7 +24,6 @@ document.addEventListener('DOMContentLoaded', function () {
     if (dataEl) {
         const initData = JSON.parse(dataEl.textContent);
         teamId = initData.team_id;
-        employees = initData.employees || [];
         freezeDays = initData.freeze_days || [];
         teamBlocks = initData.team_blocks || [];
     }

@@ -89,12 +89,16 @@ def planning(request: Request, team_id: int):
         return RedirectResponse(url='/', status_code=302)
 
     employees = db.get_all_employees()
-    freeze_days = db.get_all_freeze_days()
     team_blocks = db.get_team_blocks(team_id)
 
     today = date.today()
     start_date = today - timedelta(days=7)
     end_date = today + timedelta(days=30)
+
+    freeze_days = db.get_freeze_days_in_period(
+        start_date.strftime('%Y-%m-%d'),
+        (end_date + timedelta(days=60)).strftime('%Y-%m-%d')
+    )
 
     return templates.TemplateResponse(request, 'planning.html', {
         'team': team,
@@ -134,10 +138,11 @@ def statistics_page(request: Request):
 @app.get('/api/assignments/{team_id}')
 def get_assignments_api(team_id: int, start_date: Optional[str] = None, end_date: Optional[str] = None):
     """API для получения назначений команды"""
-    if start_date and end_date:
-        assignments = db.get_assignments_by_team_in_period(team_id, start_date, end_date)
-    else:
-        assignments = db.get_assignments_by_team(team_id)
+    if not start_date or not end_date:
+        today = date.today()
+        start_date = start_date or (today - timedelta(days=30)).strftime('%Y-%m-%d')
+        end_date = end_date or (today + timedelta(days=60)).strftime('%Y-%m-%d')
+    assignments = db.get_assignments_by_team_in_period(team_id, start_date, end_date)
 
     result = []
     for a in assignments:
@@ -167,8 +172,7 @@ def save_assignment_api(data: AssignmentIn):
     if not data.task_id:
         return JSONResponse({'error': 'Task ID required'}, status_code=400)
 
-    task = db.get_task_by_id(data.task_id)
-    if not task:
+    if not db.task_exists(data.task_id):
         return JSONResponse({'error': 'Task not found'}, status_code=404)
 
     db.create_or_update_assignment(data.assignment_id, data.task_id, data.date, block, data.status, data.employee_id, comment)

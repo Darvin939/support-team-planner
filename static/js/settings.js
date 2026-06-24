@@ -1,11 +1,8 @@
     let teamBlockRowSeq = 0;
-    let teamsData = [];
 
-    // Подгружаем команды с блоками для модалки редактирования
-    fetch('/api/teams')
-        .then(response => response.json())
-        .then(data => { teamsData = data; })
-        .catch(error => console.error('Error loading teams:', error));
+    const settingsDataEl = document.getElementById('settingsData');
+    const settingsInit = settingsDataEl ? JSON.parse(settingsDataEl.textContent) : {};
+    let teamsData = settingsInit.teams || [];
 
     function addTeamBlockRow(name, shiftDays) {
         const list = document.getElementById('teamBlocksList');
@@ -141,12 +138,7 @@
         document.getElementById(modalId).style.display = 'none';
     }
 
-    let employeesData = [];
-
-    fetch('/api/employees')
-        .then(response => response.json())
-        .then(data => { employeesData = data; })
-        .catch(error => console.error('Error loading employees:', error));
+    let employeesData = settingsInit.employees || [];
 
     function openEmployeeModal(employeeId) {
         const modal = document.getElementById('employeeModal');
