@@ -9,7 +9,7 @@
 
 <div class="team-selector">
     <label for="statsTeamSelect">Команда:</label>
-    <select id="statsTeamSelect" onchange="loadStatistics()">
+    <select id="statsTeamSelect" onchange="loadAll()">
         <option value="0">Все команды</option>
         {% for team in teams %}
         <option value="{{ team.id }}">{{ team.name }}</option>
@@ -17,57 +17,58 @@
     </select>
 </div>
 
-<div id="statisticsContent">
-    <div class="stats-container">
-        <div class="stats-card">
-            <h3>Общая статистика</h3>
-            <div class="stats-grid" id="summaryStats">
-                <div class="stats-item">
-                    <div class="stats-number" id="totalActive">0</div>
-                    <div class="stats-label">Активных работ</div>
-                </div>
-            </div>
+<!-- Активные работы за период -->
+<div class="stats-section">
+    <h2>Активные работы за период</h2>
+    <div class="filter-row" style="margin-bottom: 15px;">
+        <div class="filter-group">
+            <label for="statsDateFrom">От</label>
+            <input type="date" id="statsDateFrom" class="filter-input" min="2000-01-01" max="2099-12-31">
         </div>
+        <div class="filter-group">
+            <label for="statsDateTo">до</label>
+            <input type="date" id="statsDateTo" class="filter-input" min="2000-01-01" max="2099-12-31">
+        </div>
+    </div>
+    <div class="stats-counters" id="periodCounters"></div>
+    <div class="stats-table-wrapper">
+        <table class="stats-table">
+            <thead>
+            <tr>
+                <th>Работа</th>
+                <th>Крит.</th>
+                <th>Дата</th>
+                <th>Блок</th>
+                <th>Статус</th>
+                <th>Исполнитель</th>
+                <th>Комментарий</th>
+            </tr>
+            </thead>
+            <tbody id="periodTableBody">
+            </tbody>
+        </table>
+    </div>
+</div>
 
-        <div class="stats-card">
-            <h3>Распределение по критичности</h3>
-            <div class="stats-grid" id="criticalityStats">
-                <div class="stats-item criticality-high">
-                    <div class="stats-number" id="critHigh">0</div>
-                    <div class="stats-label">Высокая</div>
-                </div>
-                <div class="stats-item criticality-medium">
-                    <div class="stats-number" id="critMedium">0</div>
-                    <div class="stats-label">Средняя</div>
-                </div>
-                <div class="stats-item criticality-low">
-                    <div class="stats-number" id="critLow">0</div>
-                    <div class="stats-label">Низкая</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="stats-card">
-            <h3>Статусы на сегодня</h3>
-            <div class="stats-grid" id="statusStats">
-                <div class="stats-item" style="background: #ffffff;">
-                    <div class="stats-number" id="statusNew">0</div>
-                    <div class="stats-label">Новый</div>
-                </div>
-                <div class="stats-item" style="background: #fff3cd;">
-                    <div class="stats-number" id="statusPlanned">0</div>
-                    <div class="stats-label">Запланировано</div>
-                </div>
-                <div class="stats-item" style="background: #f8d7da;">
-                    <div class="stats-number" id="statusRollback">0</div>
-                    <div class="stats-label">Откат</div>
-                </div>
-                <div class="stats-item" style="background: #d4edda;">
-                    <div class="stats-number" id="statusSuccess">0</div>
-                    <div class="stats-label">Успешно</div>
-                </div>
-            </div>
-        </div>
+<!-- Активные работы на сегодня -->
+<div class="stats-section">
+    <h2>Активные работы на сегодня</h2>
+    <div class="stats-counters" id="todayCounters"></div>
+    <div class="stats-table-wrapper">
+        <table class="stats-table">
+            <thead>
+            <tr>
+                <th>Работа</th>
+                <th>Крит.</th>
+                <th>Блок</th>
+                <th>Статус</th>
+                <th>Исполнитель</th>
+                <th>Комментарий</th>
+            </tr>
+            </thead>
+            <tbody id="todayTableBody">
+            </tbody>
+        </table>
     </div>
 </div>
 

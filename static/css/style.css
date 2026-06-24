@@ -616,6 +616,76 @@ body {
     margin-top: 5px;
 }
 
+/* Страница статистики — секции, счётчики, таблица */
+.stats-section {
+    background: white;
+    padding: 25px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.stats-section h2 {
+    margin: 0 0 15px;
+    font-size: 1.2rem;
+}
+
+.stats-counters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 15px;
+}
+
+.counter-group-label {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #555;
+    align-self: center;
+}
+
+.counter-item {
+    padding: 6px 14px;
+    border-radius: 6px;
+    background: #f8f9fa;
+    font-size: 0.9rem;
+}
+
+.counter-status-new { background: #e8f4fd; }
+.counter-status-planned { background: #fff3cd; }
+.counter-crit-high { background: #f8d7da; }
+.counter-crit-medium { background: #fff3cd; }
+.counter-crit-low { background: #d4edda; }
+
+.stats-table-wrapper {
+    overflow-x: auto;
+}
+
+.stats-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.stats-table th,
+.stats-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.stats-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+}
+
+.stats-table tbody tr:hover {
+    background: #f0f4ff;
+}
+
 /* ------------------------------------------------------------
    8. Критичность (бейджи + статистика)
    ------------------------------------------------------------ */

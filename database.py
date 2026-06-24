@@ -1,6 +1,6 @@
 import os
 import sqlite3
-from datetime import datetime, date, timedelta
+from datetime import datetime, timedelta
 from functools import wraps
 
 DB_PATH = 'database.db'
@@ -456,60 +456,31 @@ def delete_assignment(conn, assignment_id):
 
 # === STATISTICS ===
 @with_db_connection(commit_on_success=False)
-def get_team_stats(conn, team_id=None):
-    """Получить статистику по команде или всем командам"""
-    today = date.today().strftime('%Y-%m-%d')
+def get_active_assignments_in_period(conn, team_id, start_date, end_date):
+    """Получить активные назначения (new/planned) за период с данными задач и сотрудников"""
+    # @formatter:off
+    query = '''SELECT a.id, t.name AS task_name, t.criticality,
+                      a.date, a.block, a.status, a.employee_id, a.comment,
+                      e.last_name  AS employee_last_name,
+                      e.first_name AS employee_first_name,
+                      e.middle_name AS employee_middle_name
+               FROM assignments a
+                   JOIN tasks t ON a.task_id = t.id
+                   LEFT JOIN employees e ON a.employee_id = e.id
+               WHERE a.status IN ('new', 'planned')
+                 AND a.date BETWEEN ? AND ?'''
+    # @formatter:on
+    params = [start_date, end_date]
 
-    # Активные задачи (с назначениями статус new или planned)
-    where_clause = ''
-    params = []
     if team_id:
-        where_clause = 'AND t.team_id = ?'
+        query += ' AND t.team_id = ?'
         params.append(team_id)
 
-    # Общее количество активных задач
-    tasks_count = conn.execute(
-        f'''SELECT COUNT(DISTINCT t.id) as count 
-           FROM tasks t 
-           JOIN assignments a ON t.id = a.task_id 
-           WHERE a.status IN ('new', 'planned') {where_clause}''',
-        tuple(params)
-    ).fetchone()['count']
+    query += (" ORDER BY a.date,"
+              " CASE t.criticality WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 3 END,"
+              " t.name")
 
-    # Распределение по критичности (активные задачи)
-    criticality_stats = conn.execute(
-        f'''SELECT t.criticality, COUNT(DISTINCT t.id) as count 
-           FROM tasks t 
-           JOIN assignments a ON t.id = a.task_id 
-           WHERE a.status IN ('new', 'planned') {where_clause}
-           GROUP BY t.criticality''',
-        tuple(params)
-    ).fetchall()
-
-    # Распределение по статусам за сегодня
-    params_today = []
-    if team_id:
-        params_today.append(team_id)
-    status_today = conn.execute(
-        f'''SELECT a.status, COUNT(*) as count 
-           FROM assignments a 
-           JOIN tasks t ON a.task_id = t.id 
-           WHERE a.date = ? AND a.status IN ('new', 'planned', 'rollback', 'success') 
-           {f'AND t.team_id = ?' if team_id else ''}
-           GROUP BY a.status''',
-        tuple([today] + params_today)
-    ).fetchall()
-
-    return {
-        'total_active': tasks_count,
-        'criticality': criticality_stats,
-        'status_today': status_today
-    }
-
-
-def get_all_teams_stats():
-    """Получить статистику по всем командам"""
-    return get_team_stats()
+    return conn.execute(query, tuple(params)).fetchall()
 
 
 # === Инициализация БД при импорте ===

@@ -51,6 +51,27 @@ function linkify(text) {
     });
 }
 
+// Ограничение периода дат
+const MAX_PERIOD_DAYS = 60;
+
+function clampDateRange(fromId, toId) {
+    const fromInput = document.getElementById(fromId);
+    const toInput = document.getElementById(toId);
+    if (!fromInput || !toInput || !fromInput.value || !toInput.value) return;
+
+    const from = new Date(fromInput.value);
+    const to = new Date(toInput.value);
+    const diffDays = Math.round((to - from) / 86400000);
+
+    if (diffDays > MAX_PERIOD_DAYS) {
+        const clamped = new Date(from);
+        clamped.setDate(clamped.getDate() + MAX_PERIOD_DAYS);
+        toInput.value = clamped.toISOString().split('T')[0];
+    } else if (diffDays < 0) {
+        toInput.value = fromInput.value;
+    }
+}
+
 // Закрытие модального окна по Escape
 function closeModalByEscapeBtn(e) {
     if (e.key === 'Escape') {

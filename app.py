@@ -347,32 +347,31 @@ def delete_freeze_day_api(date_str: str):
 
 # === API для статистики ===
 
-@app.get('/api/statistics/{team_id}')
-def get_statistics_api(team_id: int):
-    """API для получения статистики по команде"""
-    if team_id == 0:
-        stats = db.get_all_teams_stats()
-    else:
-        stats = db.get_team_stats(team_id)
+@app.get('/api/active-assignments/{team_id}')
+def get_active_assignments_api(team_id: int, start_date: Optional[str] = None, end_date: Optional[str] = None):
+    """Активные назначения (new/planned) за период"""
+    today_str = date.today().strftime('%Y-%m-%d')
+    start_date = start_date or today_str
+    end_date = end_date or today_str
 
-    criticality_data = {}
-    for item in stats['criticality']:
-        criticality_data[item['criticality']] = item['count']
+    assignments = db.get_active_assignments_in_period(team_id, start_date, end_date)
 
-    status_data = {}
-    for item in stats['status_today']:
-        status_data[item['status']] = item['count']
-
-    all_statuses = ['new', 'planned', 'rollback', 'success']
-    status_counts = {}
-    for s in all_statuses:
-        status_counts[s] = status_data.get(s, 0)
-
-    return {
-        'total_active': stats['total_active'],
-        'criticality': criticality_data,
-        'status_today': status_counts
-    }
+    result = []
+    for a in assignments:
+        employee_name = utils.format_employee_name(
+            a['employee_last_name'], a['employee_first_name'], a['employee_middle_name']
+        )
+        result.append({
+            'id': a['id'],
+            'task_name': a['task_name'],
+            'criticality': a['criticality'],
+            'date': a['date'],
+            'block': a['block'],
+            'status': a['status'],
+            'employee_name': employee_name,
+            'comment': a['comment'],
+        })
+    return result
 
 
 if __name__ == '__main__':

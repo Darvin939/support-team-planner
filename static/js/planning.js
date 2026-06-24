@@ -68,28 +68,8 @@ function initializeTable() {
     updateDropdownLabel('statusDropdown');
 }
 
-const MAX_PERIOD_DAYS = 60;
-
-function clampDateRange() {
-    const fromInput = document.getElementById('dateFrom');
-    const toInput = document.getElementById('dateTo');
-    if (!fromInput.value || !toInput.value) return;
-
-    const from = new Date(fromInput.value);
-    const to = new Date(toInput.value);
-    const diffDays = Math.round((to - from) / 86400000);
-
-    if (diffDays > MAX_PERIOD_DAYS) {
-        const clamped = new Date(from);
-        clamped.setDate(clamped.getDate() + MAX_PERIOD_DAYS);
-        toInput.value = clamped.toISOString().split('T')[0];
-    } else if (diffDays < 0) {
-        toInput.value = fromInput.value;
-    }
-}
-
 function loadData() {
-    clampDateRange();
+    clampDateRange('dateFrom', 'dateTo');
 
     const dateFrom = document.getElementById('dateFrom').value;
     const dateTo = document.getElementById('dateTo').value;
@@ -111,6 +91,48 @@ function loadData() {
             applyFilters();
         })
         .catch(error => console.error('Error loading data:', error));
+
+    loadTodayCounters();
+}
+
+function loadTodayCounters() {
+    const today = localDateStr(new Date());
+
+    fetch(`/api/active-assignments/${teamId}?start_date=${today}&end_date=${today}`)
+        .then(r => r.json())
+        .then(data => {
+            const statusLabels = {new: 'Новый', planned: 'Запланировано'};
+            const critLabels = {high: 'Высокая', medium: 'Средняя', low: 'Низкая'};
+            const statusCounts = {new: 0, planned: 0};
+            const critCounts = {high: 0, medium: 0, low: 0};
+
+            data.forEach(a => {
+                if (statusCounts[a.status] !== undefined) statusCounts[a.status]++;
+                if (critCounts[a.criticality] !== undefined) critCounts[a.criticality]++;
+            });
+
+            let html = `<span class="counter-item">На сегодня: <b>${data.length}</b></span>`;
+
+            html += `<span class="counter-group-label">Статус:</span>`;
+            for (const [key, label] of Object.entries(statusLabels)) {
+                html += `<span class="counter-item counter-status-${key}">${label}: <b>${statusCounts[key]}</b></span>`;
+            }
+
+            html += `<span class="counter-group-label">Критичность:</span>`;
+            for (const [key, label] of Object.entries(critLabels)) {
+                html += `<span class="counter-item counter-crit-${key}">${label}: <b>${critCounts[key]}</b></span>`;
+            }
+
+            document.getElementById('planningCounters').innerHTML = html;
+        })
+        .catch(e => console.error('Error loading today counters:', e));
+}
+
+function localDateStr(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
 }
 
 function renderTable() {
