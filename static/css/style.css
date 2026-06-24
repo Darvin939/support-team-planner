@@ -1044,12 +1044,10 @@ body {
 
 .schedule-status {
     font-size: 0.7rem;
-    opacity: 0.8;
 }
 
 .schedule-employee {
     font-size: 0.7rem;
-    opacity: 0.8;
 }
 
 .schedule-comment {
@@ -1059,23 +1057,27 @@ body {
 
 /* Цветовые схемы статусов */
 .schedule-info.status-new {
-    background: #f8f9fa;
-    color: #6c757d;
+    background: #e9ecef;
+    color: #495057;
+    border-color: #ced4da;
 }
 
 .schedule-info.status-planned {
-    background: #ffc107;
-    color: #856404;
+    background: #fff3cd;
+    color: #664d03;
+    border-color: #ffe69c;
 }
 
 .schedule-info.status-rollback {
-    background: #dc3545;
-    color: white;
+    background: #f8d7da;
+    color: #842029;
+    border-color: #f1aeb5;
 }
 
 .schedule-info.status-success {
-    background: #28a745;
-    color: white;
+    background: #d1e7dd;
+    color: #0f5132;
+    border-color: #a3cfbb;
 }
 
 /* ------------------------------------------------------------
