@@ -231,61 +231,57 @@
             });
     }
 
-    function addFreezeDay() {
-        const date = document.getElementById('freezeDateInput').value;
-        if (!date) {
-            alert('Выберите дату');
-            return;
-        }
-
-        fetch('/api/freeze-days', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({date: date})
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('Ошибка при добавлении дня фриза');
-                }
-            })
-            .catch(error => {
-                console.error('Error adding freeze day:', error);
-                alert('Ошибка при добавлении дня фриза');
-            });
+    function openFreezeModal() {
+        document.getElementById('freezeRangeToggle').checked = false;
+        document.getElementById('freezeDate').value = '';
+        document.getElementById('freezeDateFrom').value = '';
+        document.getElementById('freezeDateTo').value = '';
+        toggleFreezeRange();
+        document.getElementById('freezeModal').style.display = 'flex';
     }
 
-    function addFreezeRange() {
-        const start = document.getElementById('freezeDateFrom').value;
-        const end = document.getElementById('freezeDateTo').value;
-        if (!start || !end) {
-            alert('Выберите диапазон дат');
-            return;
-        }
+    function toggleFreezeRange() {
+        const isRange = document.getElementById('freezeRangeToggle').checked;
+        document.getElementById('freezeSingleGroup').style.display = isRange ? 'none' : '';
+        document.getElementById('freezeRangeGroup').style.display = isRange ? '' : 'none';
+        document.getElementById('freezeDate').required = !isRange;
+        document.getElementById('freezeDateFrom').required = isRange;
+        document.getElementById('freezeDateTo').required = isRange;
+    }
 
-        if (start > end) {
-            alert('Начальная дата должна быть раньше конечной');
-            return;
+    function saveFreeze(event) {
+        event.preventDefault();
+        const isRange = document.getElementById('freezeRangeToggle').checked;
+        let body;
+
+        if (isRange) {
+            const start = document.getElementById('freezeDateFrom').value;
+            const end = document.getElementById('freezeDateTo').value;
+            if (!start || !end) { alert('Выберите диапазон дат'); return; }
+            if (start > end) { alert('Начальная дата должна быть раньше конечной'); return; }
+            body = {start_date: start, end_date: end};
+        } else {
+            const date = document.getElementById('freezeDate').value;
+            if (!date) { alert('Выберите дату'); return; }
+            body = {date: date};
         }
 
         fetch('/api/freeze-days', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({start_date: start, end_date: end})
+            body: JSON.stringify(body)
         })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
                     location.reload();
                 } else {
-                    alert('Ошибка при добавлении диапазона');
+                    alert('Ошибка при добавлении');
                 }
             })
             .catch(error => {
-                console.error('Error adding freeze range:', error);
-                alert('Ошибка при добавлении диапазона');
+                console.error('Error adding freeze days:', error);
+                alert('Ошибка при добавлении');
             });
     }
 
