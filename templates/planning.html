@@ -9,7 +9,7 @@
 
 <div class="team-selector">
     <label for="teamSelect">Команда:</label>
-    <select id="teamSelect" onchange="if(this.value) window.location.href='/planning/'+this.value; else window.location.href='/planning'">
+    <select id="teamSelect" onchange="saveTeamId(this.value); if(this.value) window.location.href='/planning/'+this.value; else window.location.href='/planning'">
         <option value="">-- Выберите команду --</option>
         {% for t in teams %}
         <option value="{{ t.id }}" {% if team and team.id == t.id %}selected{% endif %}>{{ t.name }}</option>
@@ -248,6 +248,10 @@
 </div>
 {% else %}
 <p class="empty-state-hint">Выберите команду для начала планирования</p>
+<script>
+    const savedTeam = localStorage.getItem('selectedTeamId');
+    if (savedTeam && savedTeam !== '0') window.location.replace('/planning/' + savedTeam);
+</script>
 {% endif %}
 {% endblock %}
 

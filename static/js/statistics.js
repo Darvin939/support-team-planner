@@ -10,12 +10,20 @@ function localDateStr(d) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    const today = new Date();
-    const from = new Date(today);
-    from.setDate(from.getDate() - 7);
+    const saved = getSavedDateRange();
+    if (saved.from && saved.to) {
+        document.getElementById('statsDateFrom').value = saved.from;
+        document.getElementById('statsDateTo').value = saved.to;
+    } else {
+        const today = new Date();
+        const from = new Date(today);
+        from.setDate(from.getDate() - 7);
+        document.getElementById('statsDateFrom').value = localDateStr(from);
+        document.getElementById('statsDateTo').value = localDateStr(today);
+    }
 
-    document.getElementById('statsDateFrom').value = localDateStr(from);
-    document.getElementById('statsDateTo').value = localDateStr(today);
+    const savedTeam = getSavedTeamId();
+    if (savedTeam) document.getElementById('statsTeamSelect').value = savedTeam;
 
     document.getElementById('statsDateFrom').addEventListener('change', loadPeriodData);
     document.getElementById('statsDateTo').addEventListener('change', loadPeriodData);
@@ -32,6 +40,7 @@ function loadPeriodData() {
     clampDateRange('statsDateFrom', 'statsDateTo');
 
     const teamId = document.getElementById('statsTeamSelect').value;
+    saveDateRange(document.getElementById('statsDateFrom').value, document.getElementById('statsDateTo').value);
     const from = document.getElementById('statsDateFrom').value;
     const to = document.getElementById('statsDateTo').value;
     if (!from || !to) return;

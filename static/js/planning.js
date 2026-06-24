@@ -26,7 +26,12 @@ document.addEventListener('DOMContentLoaded', function () {
         teamId = initData.team_id;
         freezeDays = initData.freeze_days || [];
         teamBlocks = initData.team_blocks || [];
+        saveTeamId(teamId);
     }
+
+    const saved = getSavedDateRange();
+    if (saved.from) document.getElementById('dateFrom').value = saved.from;
+    if (saved.to) document.getElementById('dateTo').value = saved.to;
 
     initializeTable();
     setupDragScroll();
@@ -75,6 +80,8 @@ function loadData() {
     const dateTo = document.getElementById('dateTo').value;
 
     if (!dateFrom || !dateTo) return;
+
+    saveDateRange(dateFrom, dateTo);
 
     // Загружаем задачи
     fetch(`/api/tasks/${teamId}`)

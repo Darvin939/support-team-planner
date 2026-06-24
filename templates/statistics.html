@@ -9,7 +9,7 @@
 
 <div class="team-selector">
     <label for="statsTeamSelect">Команда:</label>
-    <select id="statsTeamSelect" onchange="loadAll()">
+    <select id="statsTeamSelect" onchange="saveTeamId(this.value); loadAll()">
         <option value="0">Все команды</option>
         {% for team in teams %}
         <option value="{{ team.id }}">{{ team.name }}</option>

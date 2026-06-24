@@ -443,6 +443,19 @@ body {
     z-index: 15;
 }
 
+/* Тень для границы фиксированных колонок */
+.auto-schedule-table th:first-child::after,
+.auto-schedule-table td:first-child::after {
+    content: '';
+    position: absolute;
+    right: -5px;
+    top: 0;
+    height: 100%;
+    width: 5px;
+    background: linear-gradient(to right, rgba(0, 0, 0, 0.1), transparent);
+    pointer-events: none;
+}
+
 .auto-schedule-table thead th:first-child {
     background: #f8f9fa;
     z-index: 25;

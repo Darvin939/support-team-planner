@@ -51,6 +51,21 @@ function linkify(text) {
     });
 }
 
+// Сохранение фильтров в localStorage
+const STORAGE_TEAM_ID = 'selectedTeamId';
+const STORAGE_DATE_FROM = 'filterDateFrom';
+const STORAGE_DATE_TO = 'filterDateTo';
+
+function saveTeamId(teamId) { localStorage.setItem(STORAGE_TEAM_ID, teamId); }
+function getSavedTeamId() { return localStorage.getItem(STORAGE_TEAM_ID); }
+function saveDateRange(from, to) {
+    if (from) localStorage.setItem(STORAGE_DATE_FROM, from);
+    if (to) localStorage.setItem(STORAGE_DATE_TO, to);
+}
+function getSavedDateRange() {
+    return { from: localStorage.getItem(STORAGE_DATE_FROM), to: localStorage.getItem(STORAGE_DATE_TO) };
+}
+
 // Ограничение периода дат
 const MAX_PERIOD_DAYS = 60;
 
