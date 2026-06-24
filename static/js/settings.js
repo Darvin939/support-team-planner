@@ -1,14 +1,107 @@
-    function addTeam() {
+    let teamBlockRowSeq = 0;
+    let teamsData = [];
+
+    // Подгружаем команды с блоками для модалки редактирования
+    fetch('/api/teams')
+        .then(response => response.json())
+        .then(data => { teamsData = data; })
+        .catch(error => console.error('Error loading teams:', error));
+
+    function addTeamBlockRow(name, shiftDays) {
+        const list = document.getElementById('teamBlocksList');
+        const rowId = 'blockRow_' + (teamBlockRowSeq++);
+        const row = document.createElement('div');
+        row.className = 'team-block-row';
+        row.id = rowId;
+        row.innerHTML = `
+            <input type="text" class="block-name-input" placeholder="Название блока (например: ГФ, Б1)" value="${name ? name.replace(/"/g, '&quot;') : ''}">
+            <input type="number" class="block-shift-input" placeholder="Сдвиг, дни" value="${shiftDays !== undefined && shiftDays !== null ? shiftDays : 0}">
+            <button type="button" class="btn btn-danger btn-sm btn-remove-block" onclick="document.getElementById('${rowId}').remove()">🗑️</button>
+        `;
+        list.appendChild(row);
+    }
+
+    function collectTeamBlocks() {
+        const rows = document.querySelectorAll('#teamBlocksList .team-block-row');
+        const blocks = [];
+        rows.forEach(row => {
+            const name = row.querySelector('.block-name-input').value.trim();
+            const shiftRaw = row.querySelector('.block-shift-input').value;
+            if (!name) return;
+            const shift_days = parseInt(shiftRaw, 10) || 0;
+            blocks.push({name: name, shift_days: shift_days});
+        });
+        return blocks;
+    }
+
+    function openTeamModal(teamId) {
+        const modal = document.getElementById('teamModal');
+        const title = document.getElementById('teamModalTitle');
+        const teamIdField = document.getElementById('teamId');
+        const nameField = document.getElementById('teamNameInput');
+        const saveBtn = document.getElementById('saveTeamBtn');
+        const updateBtn = document.getElementById('updateTeamBtn');
+        const blocksList = document.getElementById('teamBlocksList');
+
+        blocksList.innerHTML = '';
+        teamIdField.value = teamId || '';
+
+        if (teamId) {
+            const team = teamsData.find(t => t.id === teamId);
+            title.textContent = 'Редактирование команды';
+            nameField.value = team ? team.name : '';
+            saveBtn.style.display = 'none';
+            updateBtn.style.display = 'inline-block';
+
+            const renderBlocks = (blocks) => {
+                if (blocks && blocks.length) {
+                    blocks.forEach(b => addTeamBlockRow(b.name, b.shift_days));
+                } else {
+                    addTeamBlockRow();
+                }
+            };
+
+            if (team) {
+                renderBlocks(team.blocks);
+            } else {
+                // На случай, если локальный кэш не успел загрузиться
+                fetch(`/api/teams/${teamId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        nameField.value = data.name || '';
+                        renderBlocks(data.blocks);
+                    });
+            }
+        } else {
+            title.textContent = 'Добавить команду';
+            nameField.value = '';
+            saveBtn.style.display = 'inline-block';
+            updateBtn.style.display = 'none';
+            addTeamBlockRow();
+        }
+
+        modal.style.display = 'flex';
+    }
+
+    function saveTeam(event) {
+        event.preventDefault();
+
+        const teamId = document.getElementById('teamId').value;
         const name = document.getElementById('teamNameInput').value.trim();
+        const blocks = collectTeamBlocks();
+
         if (!name) {
             alert('Введите название команды');
             return;
         }
 
-        fetch('/api/teams', {
-            method: 'POST',
+        const url = teamId ? `/api/teams/${teamId}` : '/api/teams';
+        const method = teamId ? 'PUT' : 'POST';
+
+        fetch(url, {
+            method: method,
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({name: name})
+            body: JSON.stringify({name: name, blocks: blocks})
         })
             .then(response => response.json())
             .then(data => {
@@ -19,36 +112,9 @@
                 }
             })
             .catch(error => {
-                console.error('Error adding team:', error);
-                alert('Ошибка при добавлении команды');
+                console.error('Error saving team:', error);
+                alert('Ошибка при сохранении команды');
             });
-    }
-
-    function editTeam(teamId) {
-        const team = document.querySelector(`.team-card[data-id="${teamId}"] h3`);
-        if (!team) return;
-
-        const currentName = team.textContent;
-        const newName = prompt('Новое название команды:', currentName);
-        if (newName && newName.trim()) {
-            fetch(`/api/teams/${teamId}`, {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({name: newName.trim()})
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        location.reload();
-                    } else {
-                        alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
-                    }
-                })
-                .catch(error => {
-                    console.error('Error updating team:', error);
-                    alert('Ошибка при обновлении команды');
-                });
-        }
     }
 
     function deleteTeam(teamId) {
@@ -71,7 +137,53 @@
             });
     }
 
-    function addEmployee() {
+    function closeModal(modalId) {
+        document.getElementById(modalId).style.display = 'none';
+    }
+
+    let employeesData = [];
+
+    fetch('/api/employees')
+        .then(response => response.json())
+        .then(data => { employeesData = data; })
+        .catch(error => console.error('Error loading employees:', error));
+
+    function openEmployeeModal(employeeId) {
+        const modal = document.getElementById('employeeModal');
+        const title = document.getElementById('employeeModalTitle');
+        const idField = document.getElementById('employeeId');
+        const lastNameField = document.getElementById('employeeLastName');
+        const firstNameField = document.getElementById('employeeFirstName');
+        const middleNameField = document.getElementById('employeeMiddleName');
+        const saveBtn = document.getElementById('saveEmployeeBtn');
+        const updateBtn = document.getElementById('updateEmployeeBtn');
+
+        idField.value = employeeId || '';
+
+        if (employeeId) {
+            const emp = employeesData.find(e => e.id === employeeId);
+            title.textContent = 'Редактирование сотрудника';
+            lastNameField.value = emp ? emp.last_name : '';
+            firstNameField.value = emp ? emp.first_name : '';
+            middleNameField.value = emp ? (emp.middle_name || '') : '';
+            saveBtn.style.display = 'none';
+            updateBtn.style.display = 'inline-block';
+        } else {
+            title.textContent = 'Добавить сотрудника';
+            lastNameField.value = '';
+            firstNameField.value = '';
+            middleNameField.value = '';
+            saveBtn.style.display = 'inline-block';
+            updateBtn.style.display = 'none';
+        }
+
+        modal.style.display = 'flex';
+    }
+
+    function saveEmployee(event) {
+        event.preventDefault();
+
+        const employeeId = document.getElementById('employeeId').value;
         const lastName = document.getElementById('employeeLastName').value.trim();
         const firstName = document.getElementById('employeeFirstName').value.trim();
         const middleName = document.getElementById('employeeMiddleName').value.trim();
@@ -81,8 +193,11 @@
             return;
         }
 
-        fetch('/api/employees', {
-            method: 'POST',
+        const url = employeeId ? `/api/employees/${employeeId}` : '/api/employees';
+        const method = employeeId ? 'PUT' : 'POST';
+
+        fetch(url, {
+            method: method,
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 last_name: lastName,
@@ -99,52 +214,8 @@
                 }
             })
             .catch(error => {
-                console.error('Error adding employee:', error);
-                alert('Ошибка при добавлении сотрудника');
-            });
-    }
-
-    function editEmployee(employeeId) {
-        const item = document.querySelector(`.executor-item[data-id="${employeeId}"]`);
-        if (!item) return;
-
-        const nameParts = item.querySelector('.executor-name').textContent.trim().split(' ');
-        const lastName = nameParts[0] || '';
-        const firstName = nameParts[1] || '';
-        const middleName = nameParts.slice(2).join(' ') || '';
-
-        const newLastName = prompt('Фамилия:', lastName);
-        if (newLastName === null) return;
-        const newFirstName = prompt('Имя:', firstName);
-        if (newFirstName === null) return;
-        const newMiddleName = prompt('Отчество (оставьте пустым если нет):', middleName);
-        if (newMiddleName === null) return;
-
-        if (!newLastName.trim() || !newFirstName.trim()) {
-            alert('Фамилия и имя обязательны');
-            return;
-        }
-
-        fetch(`/api/employees/${employeeId}`, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                last_name: newLastName.trim(),
-                first_name: newFirstName.trim(),
-                middle_name: newMiddleName.trim() || null
-            })
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
-                }
-            })
-            .catch(error => {
-                console.error('Error updating employee:', error);
-                alert('Ошибка при обновлении сотрудника');
+                console.error('Error saving employee:', error);
+                alert('Ошибка при сохранении сотрудника');
             });
     }
 

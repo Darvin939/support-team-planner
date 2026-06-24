@@ -47,6 +47,7 @@ def planning(team_id):
 
     employees = db.get_all_employees()
     freeze_days = db.get_all_freeze_days()
+    team_blocks = db.get_team_blocks(team_id)
 
     # Период по умолчанию
     today = date.today()
@@ -57,6 +58,7 @@ def planning(team_id):
                            team=team,
                            employees=employees,
                            freeze_days=freeze_days,
+                           team_blocks=team_blocks,
                            start_date=start_date.strftime('%Y-%m-%d'),
                            end_date=end_date.strftime('%Y-%m-%d'))
 
@@ -167,22 +169,32 @@ def delete_task_api(task_id):
 # === API для команд ===
 @app.route('/api/teams', methods=['GET'])
 def get_teams_api():
-    """Получить все команды"""
-    teams = db.get_all_teams()
-    result = [{'id': t['id'], 'name': t['name']} for t in teams]
-    return jsonify(result)
+    """Получить все команды с их блоками"""
+    teams = db.get_all_teams_with_blocks()
+    return jsonify(teams)
+
+
+@app.route('/api/teams/<int:team_id>', methods=['GET'])
+def get_team_api(team_id):
+    """Получить одну команду с блоками (для модалки редактирования)"""
+    team = db.get_team_by_id(team_id)
+    if not team:
+        return jsonify({'error': 'Team not found'}), 404
+    blocks = db.get_team_blocks(team_id)
+    return jsonify({'id': team['id'], 'name': team['name'], 'blocks': blocks})
 
 
 @app.route('/api/teams', methods=['POST'])
 def create_team_api():
     """Создать команду"""
     data = request.get_json()
-    name = data.get('name')
+    name = (data.get('name') or '').strip()
+    blocks = data.get('blocks') or []
     if not name:
         return jsonify({'error': 'Name required'}), 400
 
     try:
-        team_id = db.create_team(name)
+        team_id = db.create_team(name, blocks)
         return jsonify({'id': team_id, 'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 400
@@ -192,12 +204,13 @@ def create_team_api():
 def update_team_api(team_id):
     """Обновить команду"""
     data = request.get_json()
-    name = data.get('name')
+    name = (data.get('name') or '').strip()
+    blocks = data.get('blocks') or []
     if not name:
         return jsonify({'error': 'Name required'}), 400
 
     try:
-        db.update_team(team_id, name)
+        db.update_team(team_id, name, blocks)
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 400
@@ -205,12 +218,19 @@ def update_team_api(team_id):
 
 @app.route('/api/teams/<int:team_id>', methods=['DELETE'])
 def delete_team_api(team_id):
-    """Удалить команду"""
+    """Удалить команду (каскадно удаляются задачи и блоки)"""
     db.delete_team(team_id)
     return jsonify({'success': True})
 
 
 # === API для сотрудников ===
+@app.route('/api/employees', methods=['GET'])
+def get_employees_api():
+    """Получить всех сотрудников"""
+    employees = db.get_all_employees()
+    return jsonify(employees)
+
+
 @app.route('/api/employees', methods=['POST'])
 def create_employee_api():
     """Создать сотрудника"""
@@ -293,7 +313,7 @@ def delete_freeze_day_api(date_str):
 @app.route('/settings')
 def settings_page():
     """Страница настроек"""
-    teams = db.get_all_teams()
+    teams = db.get_all_teams_with_blocks()
     employees = db.get_all_employees()
     freeze_days = db.get_all_freeze_days()
 

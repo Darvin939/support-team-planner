@@ -10,6 +10,7 @@ def get_db_connection():
     """Получить соединение с базой данных"""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    conn.execute('PRAGMA foreign_keys = ON;')
     return conn
 
 
@@ -49,6 +50,16 @@ def init_db(conn):
             id INTEGER PRIMARY key autoincrement,
             name text NOT NULL UNIQUE
         );
+
+        CREATE TABLE IF NOT EXISTS team_blocks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            team_id INTEGER NOT NULL,
+            block_name TEXT NOT NULL,
+            schedule_offset INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (team_id) REFERENCES teams (id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_team_blocks_team_id ON team_blocks (team_id);
 
         CREATE TABLE IF NOT EXISTS employees (
             id INTEGER PRIMARY key autoincrement,
@@ -93,11 +104,84 @@ def init_db(conn):
     # @formatter:on
 
 
+@with_db_connection()
+def ensure_schema(conn):
+    """Догоняющая миграция: создаёт/чинит таблицу team_blocks на уже существующей БД.
+
+    На некоторых БД таблица team_blocks могла быть создана раньше с
+    ограничением UNIQUE(team_id, schedule_offset), которое не позволяет
+    указать несколько блоков с одинаковым сдвигом. Если такое ограничение
+    обнаружено, таблица пересобирается без него, данные сохраняются.
+    """
+    conn.execute('PRAGMA foreign_keys = OFF;')
+
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='team_blocks'"
+    ).fetchone()
+
+    if row is None:
+        conn.executescript('''
+            CREATE TABLE team_blocks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                team_id INTEGER NOT NULL,
+                block_name TEXT NOT NULL,
+                schedule_offset INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY (team_id) REFERENCES teams (id) ON DELETE CASCADE
+            );
+        ''')
+    else:
+        existing_sql = (row['sql'] or row[0] or '')
+        has_bad_unique = 'UNIQUE' in existing_sql.upper() and 'SCHEDULE_OFFSET' in existing_sql.upper()
+        if has_bad_unique:
+            conn.executescript('''
+                ALTER TABLE team_blocks RENAME TO team_blocks_old;
+                CREATE TABLE team_blocks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    team_id INTEGER NOT NULL,
+                    block_name TEXT NOT NULL,
+                    schedule_offset INTEGER NOT NULL DEFAULT 0,
+                    FOREIGN KEY (team_id) REFERENCES teams (id) ON DELETE CASCADE
+                );
+                INSERT INTO team_blocks (id, team_id, block_name, schedule_offset)
+                    SELECT id, team_id, block_name, schedule_offset FROM team_blocks_old;
+                DROP TABLE team_blocks_old;
+            ''')
+
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_team_blocks_team_id ON team_blocks (team_id);')
+    conn.execute('PRAGMA foreign_keys = ON;')
+
+
 # === TEAMS CRUD ===
 @with_db_connection(commit_on_success=False)
 def get_all_teams(conn):
     """Получить все команды"""
     return conn.execute('SELECT * FROM teams ORDER BY name').fetchall()
+
+
+@with_db_connection(commit_on_success=False)
+def get_all_teams_with_blocks(conn):
+    """Получить все команды вместе с их блоками раскатки"""
+    teams = conn.execute('SELECT * FROM teams ORDER BY name').fetchall()
+    blocks = conn.execute(
+        'SELECT * FROM team_blocks ORDER BY schedule_offset ASC, block_name ASC'
+    ).fetchall()
+
+    blocks_by_team = {}
+    for b in blocks:
+        blocks_by_team.setdefault(b['team_id'], []).append({
+            'id': b['id'],
+            'name': b['block_name'],
+            'shift_days': b['schedule_offset']
+        })
+
+    result = []
+    for t in teams:
+        result.append({
+            'id': t['id'],
+            'name': t['name'],
+            'blocks': blocks_by_team.get(t['id'], [])
+        })
+    return result
 
 
 @with_db_connection(commit_on_success=False)
@@ -107,23 +191,52 @@ def get_team_by_id(conn, team_id):
 
 
 @with_db_connection(commit_on_success=False)
-def create_team(conn, name):
-    """Создать команду"""
+def get_team_blocks(conn, team_id):
+    """Получить блоки раскатки команды (сортировка по возрастанию сдвига)"""
+    rows = conn.execute(
+        'SELECT * FROM team_blocks WHERE team_id = ? ORDER BY schedule_offset ASC, block_name ASC',
+        (team_id,)
+    ).fetchall()
+    return [{'id': r['id'], 'name': r['block_name'], 'shift_days': r['schedule_offset']} for r in rows]
+
+
+def _set_team_blocks(conn, team_id, blocks):
+    """Заменить набор блоков команды (внутренняя функция, без коммита)"""
+    conn.execute('DELETE FROM team_blocks WHERE team_id = ?', (team_id,))
+    for b in (blocks or []):
+        block_name = (b.get('name') or '').strip()
+        if not block_name:
+            continue
+        try:
+            shift_days = int(b.get('shift_days', 0) or 0)
+        except (TypeError, ValueError):
+            shift_days = 0
+        conn.execute(
+            'INSERT INTO team_blocks (team_id, block_name, schedule_offset) VALUES (?, ?, ?)',
+            (team_id, block_name, shift_days)
+        )
+
+
+@with_db_connection(commit_on_success=False)
+def create_team(conn, name, blocks=None):
+    """Создать команду вместе с блоками раскатки"""
     cursor = conn.execute('INSERT INTO teams (name) VALUES (?)', (name,))
-    conn.commit()
     team_id = cursor.lastrowid
+    _set_team_blocks(conn, team_id, blocks)
+    conn.commit()
     return team_id
 
 
 @with_db_connection()
-def update_team(conn, team_id, name):
-    """Обновить команду"""
+def update_team(conn, team_id, name, blocks=None):
+    """Обновить команду и её блоки раскатки"""
     conn.execute('UPDATE teams SET name = ? WHERE id = ?', (name, team_id))
+    _set_team_blocks(conn, team_id, blocks)
 
 
 @with_db_connection()
 def delete_team(conn, team_id):
-    """Удалить команду"""
+    """Удалить команду (блоки и задачи удаляются каскадно)"""
     conn.execute('DELETE FROM teams WHERE id = ?', (team_id,))
 
 
@@ -147,7 +260,7 @@ def create_employee(conn, last_name, first_name, middle_name=None):
     return employee_id
 
 
-@with_db_connection()
+@with_db_connection(default_return=False, raise_on_error=False)
 def update_employee(conn, employee_id, last_name, first_name, middle_name=None):
     """Обновить сотрудника"""
     conn.execute(
@@ -156,6 +269,7 @@ def update_employee(conn, employee_id, last_name, first_name, middle_name=None):
                first_name  = ?,
                middle_name = ?
            WHERE id = ?''', (last_name, first_name, middle_name, employee_id))
+    return True
 
 
 @with_db_connection()
@@ -408,3 +522,5 @@ def get_all_teams_stats():
 # === Инициализация БД при импорте ===
 if not os.path.exists(DB_PATH):
     init_db()
+else:
+    ensure_schema()

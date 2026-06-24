@@ -1,6 +1,7 @@
 let teamId = null;
 let employees = [];
 let freezeDays = [];
+let teamBlocks = [];
 
 let tasksData = [];
 let assignmentsData = [];
@@ -21,6 +22,7 @@ document.addEventListener('DOMContentLoaded', function () {
         teamId = initData.team_id;
         employees = initData.employees || [];
         freezeDays = initData.freeze_days || [];
+        teamBlocks = initData.team_blocks || [];
     }
 
     initializeTable();
@@ -275,6 +277,32 @@ function getStatusDisplay(status) {
     return map[status] || status;
 }
 
+function renderBlockCheckboxes(selectedNames) {
+    const container = document.getElementById('assignmentBlockList');
+    container.innerHTML = '';
+
+    if (!teamBlocks || teamBlocks.length === 0) {
+        container.innerHTML = '<div class="checkbox-item-empty">Не выбрано (у команды нет блоков)</div>';
+        return;
+    }
+
+    teamBlocks.forEach(block => {
+        const checked = selectedNames.includes(block.name) ? 'checked' : '';
+        const label = document.createElement('label');
+        label.className = 'checkbox-item';
+        label.innerHTML = `
+            <input type="checkbox" value="${block.name.replace(/"/g, '&quot;')}" ${checked}>
+            ${block.name} (сдвиг: ${block.shift_days})
+        `;
+        container.appendChild(label);
+    });
+}
+
+function getSelectedBlocks() {
+    const checkboxes = document.querySelectorAll('#assignmentBlockList input[type="checkbox"]');
+    return Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+}
+
 function openAssignmentModal(taskId, dateStr) {
     const modal = document.getElementById('assignmentModal');
     const title = document.getElementById('modalTitle');
@@ -283,7 +311,6 @@ function openAssignmentModal(taskId, dateStr) {
     const assignmentIdField = document.getElementById('assignmentId');
     const taskCrit = document.getElementById('taskCriticality');
     const assignDate = document.getElementById('assignmentDate');
-    const assignBlock = document.getElementById('assignmentBlock');
     const assignStatus = document.getElementById('assignmentStatus');
     const assignEmployee = document.getElementById('assignmentEmployee');
     const assignComment = document.getElementById('assignmentComment');
@@ -301,11 +328,16 @@ function openAssignmentModal(taskId, dateStr) {
 
     const assignment = assignmentsData.find(a => a.task_id === taskId && a.date === dateStr);
 
+    // Текущие значения блока в назначении (из текстового поля, через запятую)
+    const selectedBlockNames = assignment && assignment.block
+        ? assignment.block.split(',').map(s => s.trim()).filter(Boolean)
+        : [];
+    renderBlockCheckboxes(selectedBlockNames);
+
     if (assignment) {
         title.textContent = `Редактирование: ${task.name}`;
         assignmentIdField.value = assignment.id;
         assignDate.value = assignment.date;
-        assignBlock.value = assignment.block || '';
         assignStatus.value = assignment.status;
         assignEmployee.value = assignment.employee_id || '';
         assignComment.value = assignment.comment || '';
@@ -316,7 +348,6 @@ function openAssignmentModal(taskId, dateStr) {
         title.textContent = `Новая запись: ${task.name}`;
         assignmentIdField.value = '';
         assignDate.value = dateStr;
-        assignBlock.value = '';
         assignStatus.value = 'new';
         assignEmployee.value = '';
         assignComment.value = '';
@@ -334,7 +365,7 @@ function saveAssignment(event) {
     const taskId = document.getElementById('assignmentTaskId').value;
     const assignmentId = document.getElementById('assignmentId').value;
     const date = document.getElementById('assignmentDate').value;
-    const block = document.getElementById('assignmentBlock').value;
+    const block = getSelectedBlocks().join(', ');
     const status = document.getElementById('assignmentStatus').value;
     const employeeId = document.getElementById('assignmentEmployee').value;
     const comment = document.getElementById('assignmentComment').value;
