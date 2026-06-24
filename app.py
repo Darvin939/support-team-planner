@@ -1,81 +1,144 @@
 from datetime import date, timedelta
+from typing import Optional, List
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
 import database as db
 import utils
 
-app = Flask(__name__)
+app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
+
+
+# === Pydantic-модели для тела запросов ===
+
+class AssignmentIn(BaseModel):
+    assignment_id: Optional[int] = None
+    task_id: Optional[int] = None
+    date: Optional[str] = None
+    block: Optional[str] = None
+    status: str = "new"
+    employee_id: Optional[int] = None
+    comment: Optional[str] = None
+
+
+class TaskIn(BaseModel):
+    task_id: Optional[int] = None
+    team_id: Optional[int] = None
+    name: str = ""
+    description: Optional[str] = None
+    criticality: str = "medium"
+
+
+class TeamIn(BaseModel):
+    name: str = ""
+    blocks: Optional[List[dict]] = None
+
+
+class EmployeeIn(BaseModel):
+    last_name: str = ""
+    first_name: str = ""
+    middle_name: Optional[str] = None
+
+
+class FreezeDayIn(BaseModel):
+    date: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 # === Роуты ===
-@app.route('/')
-def index():
+
+@app.get('/', response_class=HTMLResponse)
+def index(request: Request):
     """Главная страница со статистикой"""
     teams = db.get_all_teams()
     stats = db.get_all_teams_stats()
 
-    # Преобразование критичности для отображения
     criticality_data = {}
     for item in stats['criticality']:
         criticality_data[item['criticality']] = item['count']
 
-    # Статусы сегодня
     status_data = {}
     for item in stats['status_today']:
         status_data[item['status']] = item['count']
 
-    # Все статусы для заполнения нулями
     all_statuses = ['new', 'planned', 'rollback', 'success']
     status_counts = {}
     for s in all_statuses:
         status_counts[s] = status_data.get(s, 0)
 
-    return render_template('index.html',
-                           teams=teams,
-                           total_active=stats['total_active'],
-                           criticality_data=criticality_data,
-                           status_counts=status_counts)
+    return templates.TemplateResponse(request, 'index.html', {
+        'teams': teams,
+        'total_active': stats['total_active'],
+        'criticality_data': criticality_data,
+        'status_counts': status_counts,
+    })
 
 
-@app.route('/planning/<int:team_id>')
-def planning(team_id):
+@app.get('/planning/{team_id}', response_class=HTMLResponse)
+def planning(request: Request, team_id: int):
     """Страница планирования команды"""
     team = db.get_team_by_id(team_id)
     if not team:
-        return redirect(url_for('index'))
+        return RedirectResponse(url='/', status_code=302)
 
     employees = db.get_all_employees()
     freeze_days = db.get_all_freeze_days()
     team_blocks = db.get_team_blocks(team_id)
 
-    # Период по умолчанию
     today = date.today()
     start_date = today - timedelta(days=7)
     end_date = today + timedelta(days=30)
 
-    return render_template('planning.html',
-                           team=team,
-                           employees=employees,
-                           freeze_days=freeze_days,
-                           team_blocks=team_blocks,
-                           start_date=start_date.strftime('%Y-%m-%d'),
-                           end_date=end_date.strftime('%Y-%m-%d'))
+    return templates.TemplateResponse(request, 'planning.html', {
+        'team': team,
+        'employees': employees,
+        'freeze_days': freeze_days,
+        'team_blocks': team_blocks,
+        'start_date': start_date.strftime('%Y-%m-%d'),
+        'end_date': end_date.strftime('%Y-%m-%d'),
+    })
+
+
+@app.get('/settings', response_class=HTMLResponse)
+def settings_page(request: Request):
+    """Страница настроек"""
+    teams = db.get_all_teams_with_blocks()
+    employees = db.get_all_employees()
+    freeze_days = db.get_all_freeze_days()
+
+    return templates.TemplateResponse(request, 'settings.html', {
+        'teams': teams,
+        'employees': employees,
+        'freeze_days': freeze_days,
+    })
+
+
+@app.get('/statistics', response_class=HTMLResponse)
+def statistics_page(request: Request):
+    """Страница статистики"""
+    teams = db.get_all_teams()
+    return templates.TemplateResponse(request, 'statistics.html', {
+        'teams': teams,
+    })
 
 
 # === API для назначений ===
-@app.route('/api/assignments/<int:team_id>')
-def get_assignments_api(team_id):
-    """API для получения назначений команды"""
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
 
+@app.get('/api/assignments/{team_id}')
+def get_assignments_api(team_id: int, start_date: Optional[str] = None, end_date: Optional[str] = None):
+    """API для получения назначений команды"""
     if start_date and end_date:
         assignments = db.get_assignments_by_team_in_period(team_id, start_date, end_date)
     else:
         assignments = db.get_assignments_by_team(team_id)
 
-    # Преобразование для JSON
     result = []
     for a in assignments:
         employee_name = utils.format_employee_name(a['employee_last_name'],
@@ -92,43 +155,37 @@ def get_assignments_api(team_id):
             'comment': a['comment']
         })
 
-    return jsonify(result)
+    return result
 
 
-@app.route('/api/assignment', methods=['POST'])
-def save_assignment_api():
+@app.post('/api/assignment')
+def save_assignment_api(data: AssignmentIn):
     """API для сохранения назначения"""
-    data = request.get_json()
-    assignment_id = data.get('assignment_id')
-    task_id = data.get('task_id')
-    date_str = data.get('date')
-    block = (data.get('block') or '').strip() or None
-    status = data.get('status', 'new')
-    employee_id = data.get('employee_id')
-    comment = (data.get('comment') or '').strip() or None
+    block = (data.block or '').strip() or None
+    comment = (data.comment or '').strip() or None
 
-    if not task_id:
-        return jsonify({'error': 'Task ID required'}), 400
+    if not data.task_id:
+        return JSONResponse({'error': 'Task ID required'}, status_code=400)
 
-    # Проверяем существование задачи
-    task = db.get_task_by_id(task_id)
+    task = db.get_task_by_id(data.task_id)
     if not task:
-        return jsonify({'error': 'Task not found'}), 404
+        return JSONResponse({'error': 'Task not found'}, status_code=404)
 
-    # Сохраняем
-    db.create_or_update_assignment(assignment_id, task_id, date_str, block, status, employee_id, comment)
-    return jsonify({'success': True})
+    db.create_or_update_assignment(data.assignment_id, data.task_id, data.date, block, data.status, data.employee_id, comment)
+    return {'success': True}
 
 
-@app.route('/api/assignment/<int:assignment_id>', methods=['DELETE'])
-def delete_assignment_api(assignment_id):
+@app.delete('/api/assignment/{assignment_id}')
+def delete_assignment_api(assignment_id: int):
     """API для удаления назначения"""
     db.delete_assignment(assignment_id)
-    return jsonify({'success': True})
+    return {'success': True}
 
 
-@app.route('/api/tasks/<int:team_id>')
-def get_tasks_api(team_id):
+# === API для задач ===
+
+@app.get('/api/tasks/{team_id}')
+def get_tasks_api(team_id: int):
     """API для получения задач команды"""
     tasks = db.get_tasks_by_team(team_id)
     result = []
@@ -139,212 +196,175 @@ def get_tasks_api(team_id):
             'description': t['description'],
             'criticality': t['criticality']
         })
-    return jsonify(result)
+    return result
 
 
-@app.route('/api/task', methods=['POST'])
-def save_task_api():
+@app.post('/api/task')
+def save_task_api(data: TaskIn):
     """API для сохранения задачи"""
-    data = request.get_json()
-    task_id = data.get('task_id')
-    team_id = data.get('team_id')
-    name = data.get('name', '').strip()
-    description = data.get('description', '').strip() or None
-    criticality = data.get('criticality', 'medium')
+    name = data.name.strip()
+    description = (data.description or '').strip() or None
 
-    if not team_id or not name:
-        return jsonify({'error': 'Team ID and name required'}), 400
+    if not data.team_id or not name:
+        return JSONResponse({'error': 'Team ID and name required'}, status_code=400)
 
-    task_id = db.create_or_update_task(task_id, team_id, name, description, criticality)
-    return jsonify({'id': task_id, 'success': True})
+    task_id = db.create_or_update_task(data.task_id, data.team_id, name, description, data.criticality)
+    return {'id': task_id, 'success': True}
 
 
-@app.route('/api/task/<int:task_id>', methods=['DELETE'])
-def delete_task_api(task_id):
+@app.delete('/api/task/{task_id}')
+def delete_task_api(task_id: int):
     """API для удаления задачи"""
     db.delete_task(task_id)
-    return jsonify({'success': True})
+    return {'success': True}
 
 
 # === API для команд ===
-@app.route('/api/teams', methods=['GET'])
+
+@app.get('/api/teams')
 def get_teams_api():
     """Получить все команды с их блоками"""
-    teams = db.get_all_teams_with_blocks()
-    return jsonify(teams)
+    return db.get_all_teams_with_blocks()
 
 
-@app.route('/api/teams/<int:team_id>', methods=['GET'])
-def get_team_api(team_id):
-    """Получить одну команду с блоками (для модалки редактирования)"""
+@app.get('/api/teams/{team_id}')
+def get_team_api(team_id: int):
+    """Получить одну команду с блоками"""
     team = db.get_team_by_id(team_id)
     if not team:
-        return jsonify({'error': 'Team not found'}), 404
+        return JSONResponse({'error': 'Team not found'}, status_code=404)
     blocks = db.get_team_blocks(team_id)
-    return jsonify({'id': team['id'], 'name': team['name'], 'blocks': blocks})
+    return {'id': team['id'], 'name': team['name'], 'blocks': blocks}
 
 
-@app.route('/api/teams', methods=['POST'])
-def create_team_api():
+@app.post('/api/teams')
+def create_team_api(data: TeamIn):
     """Создать команду"""
-    data = request.get_json()
-    name = (data.get('name') or '').strip()
-    blocks = data.get('blocks') or []
+    name = (data.name or '').strip()
+    blocks = data.blocks or []
     if not name:
-        return jsonify({'error': 'Name required'}), 400
+        return JSONResponse({'error': 'Name required'}, status_code=400)
 
     try:
         team_id = db.create_team(name, blocks)
-        return jsonify({'id': team_id, 'success': True})
+        return {'id': team_id, 'success': True}
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        return JSONResponse({'error': str(e)}, status_code=400)
 
 
-@app.route('/api/teams/<int:team_id>', methods=['PUT'])
-def update_team_api(team_id):
+@app.put('/api/teams/{team_id}')
+def update_team_api(team_id: int, data: TeamIn):
     """Обновить команду"""
-    data = request.get_json()
-    name = (data.get('name') or '').strip()
-    blocks = data.get('blocks') or []
+    name = (data.name or '').strip()
+    blocks = data.blocks or []
     if not name:
-        return jsonify({'error': 'Name required'}), 400
+        return JSONResponse({'error': 'Name required'}, status_code=400)
 
     try:
         db.update_team(team_id, name, blocks)
-        return jsonify({'success': True})
+        return {'success': True}
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        return JSONResponse({'error': str(e)}, status_code=400)
 
 
-@app.route('/api/teams/<int:team_id>', methods=['DELETE'])
-def delete_team_api(team_id):
+@app.delete('/api/teams/{team_id}')
+def delete_team_api(team_id: int):
     """Удалить команду (каскадно удаляются задачи и блоки)"""
     db.delete_team(team_id)
-    return jsonify({'success': True})
+    return {'success': True}
 
 
 # === API для сотрудников ===
-@app.route('/api/employees', methods=['GET'])
+
+@app.get('/api/employees')
 def get_employees_api():
     """Получить всех сотрудников"""
-    employees = db.get_all_employees()
-    return jsonify(employees)
+    return db.get_all_employees()
 
 
-@app.route('/api/employees', methods=['POST'])
-def create_employee_api():
+@app.post('/api/employees')
+def create_employee_api(data: EmployeeIn):
     """Создать сотрудника"""
-    data = request.get_json()
-    last_name = data.get('last_name', '').strip()
-    first_name = data.get('first_name', '').strip()
-    middle_name = data.get('middle_name', '').strip() or None
+    last_name = data.last_name.strip()
+    first_name = data.first_name.strip()
+    middle_name = (data.middle_name or '').strip() or None
 
     if not last_name or not first_name:
-        return jsonify({'error': 'Фамилия и имя обязательны'}), 400
+        return JSONResponse({'error': 'Фамилия и имя обязательны'}, status_code=400)
 
     employee_id = db.create_employee(last_name, first_name, middle_name)
     if employee_id:
-        return jsonify({'id': employee_id, 'success': True})
+        return {'id': employee_id, 'success': True}
     else:
-        return jsonify({'error': 'Сотрудник с таким ФИО уже существует'}), 400
+        return JSONResponse({'error': 'Сотрудник с таким ФИО уже существует'}, status_code=400)
 
 
-@app.route('/api/employees/<int:employee_id>', methods=['PUT'])
-def update_employee_api(employee_id):
+@app.put('/api/employees/{employee_id}')
+def update_employee_api(employee_id: int, data: EmployeeIn):
     """Обновить сотрудника"""
-    data = request.get_json()
-    last_name = data.get('last_name', '').strip()
-    first_name = data.get('first_name', '').strip()
-    middle_name = data.get('middle_name', '').strip() or None
+    last_name = data.last_name.strip()
+    first_name = data.first_name.strip()
+    middle_name = (data.middle_name or '').strip() or None
 
     if not last_name or not first_name:
-        return jsonify({'error': 'Фамилия и имя обязательны'}), 400
+        return JSONResponse({'error': 'Фамилия и имя обязательны'}, status_code=400)
 
     success = db.update_employee(employee_id, last_name, first_name, middle_name)
     if success:
-        return jsonify({'success': True})
+        return {'success': True}
     else:
-        return jsonify({'error': 'Сотрудник с таким ФИО уже существует'}), 400
+        return JSONResponse({'error': 'Сотрудник с таким ФИО уже существует'}, status_code=400)
 
 
-@app.route('/api/employees/<int:employee_id>', methods=['DELETE'])
-def delete_employee_api(employee_id):
+@app.delete('/api/employees/{employee_id}')
+def delete_employee_api(employee_id: int):
     """Удалить сотрудника"""
     db.delete_employee(employee_id)
-    return jsonify({'success': True})
+    return {'success': True}
 
 
 # === API для дней фризов ===
-@app.route('/api/freeze-days', methods=['GET'])
+
+@app.get('/api/freeze-days')
 def get_freeze_days_api():
     """Получить все дни фриза"""
-    days = db.get_all_freeze_days()
-    return jsonify(days)
+    return db.get_all_freeze_days()
 
 
-@app.route('/api/freeze-days', methods=['POST'])
-def add_freeze_day_api():
+@app.post('/api/freeze-days')
+def add_freeze_day_api(data: FreezeDayIn):
     """Добавить день фриза"""
-    data = request.get_json()
-    date_str = data.get('date')
-    start_date = data.get('start_date')
-    end_date = data.get('end_date')
-
-    if date_str:
-        # Добавление одной даты
-        success = db.add_freeze_day(date_str)
-        return jsonify({'success': success})
-    elif start_date and end_date:
-        # Добавление диапазона
-        count = db.add_freeze_range(start_date, end_date)
-        return jsonify({'success': True, 'count': count})
+    if data.date:
+        success = db.add_freeze_day(data.date)
+        return {'success': success}
+    elif data.start_date and data.end_date:
+        count = db.add_freeze_range(data.start_date, data.end_date)
+        return {'success': True, 'count': count}
     else:
-        return jsonify({'error': 'Date or range required'}), 400
+        return JSONResponse({'error': 'Date or range required'}, status_code=400)
 
 
-@app.route('/api/freeze-days/<path:date_str>', methods=['DELETE'])
-def delete_freeze_day_api(date_str):
+@app.delete('/api/freeze-days/{date_str:path}')
+def delete_freeze_day_api(date_str: str):
     """Удалить день фриза"""
     db.remove_freeze_day(date_str)
-    return jsonify({'success': True})
+    return {'success': True}
 
 
-# === Страницы настроек и статистики ===
-@app.route('/settings')
-def settings_page():
-    """Страница настроек"""
-    teams = db.get_all_teams_with_blocks()
-    employees = db.get_all_employees()
-    freeze_days = db.get_all_freeze_days()
+# === API для статистики ===
 
-    return render_template('settings.html',
-                           teams=teams,
-                           employees=employees,
-                           freeze_days=freeze_days)
-
-
-@app.route('/statistics')
-def statistics_page():
-    """Страница статистики"""
-    teams = db.get_all_teams()
-    return render_template('statistics.html',
-                           teams=teams)
-
-
-@app.route('/api/statistics/<int:team_id>')
-def get_statistics_api(team_id):
+@app.get('/api/statistics/{team_id}')
+def get_statistics_api(team_id: int):
     """API для получения статистики по команде"""
-    if team_id == 0:  # Все команды
+    if team_id == 0:
         stats = db.get_all_teams_stats()
     else:
         stats = db.get_team_stats(team_id)
 
-    # Преобразование критичности
     criticality_data = {}
     for item in stats['criticality']:
         criticality_data[item['criticality']] = item['count']
 
-    # Статусы сегодня
     status_data = {}
     for item in stats['status_today']:
         status_data[item['status']] = item['count']
@@ -354,12 +374,13 @@ def get_statistics_api(team_id):
     for s in all_statuses:
         status_counts[s] = status_data.get(s, 0)
 
-    return jsonify({
+    return {
         'total_active': stats['total_active'],
         'criticality': criticality_data,
         'status_today': status_counts
-    })
+    }
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    import uvicorn
+    uvicorn.run(app, host='0.0.0.0', port=5000)

@@ -4,16 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Планировщик работ{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 <nav class="navbar">
     <div class="nav-container">
-        <a href="{{ url_for('index') }}" class="nav-brand">📋 Планировщик работ</a>
+        <a href="/" class="nav-brand">📋 Планировщик работ</a>
         <ul class="nav-menu">
-            <li><a href="{{ url_for('index') }}">Главная</a></li>
-            <li><a href="{{ url_for('statistics_page') }}">Статистика</a></li>
-            <li><a href="{{ url_for('settings_page') }}">Настройки</a></li>
+            <li><a href="/">Главная</a></li>
+            <li><a href="/statistics">Статистика</a></li>
+            <li><a href="/settings">Настройки</a></li>
         </ul>
     </div>
 </nav>
@@ -22,7 +22,7 @@
     {% block content %}{% endblock %}
 </div>
 
-<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+<script src="/static/js/script.js"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

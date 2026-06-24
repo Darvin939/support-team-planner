@@ -4,23 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Вход в систему</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 <div class="login-container">
     <div class="login-box">
         <h1>📋 Планировщик работ</h1>
         <h2>Вход в систему</h2>
-        {% with messages = get_flashed_messages() %}
-        {% if messages %}
+        {% if error_message %}
         <div class="flash-message">
-            {% for message in messages %}
-            <p>{{ message }}</p>
-            {% endfor %}
+            <p>{{ error_message }}</p>
         </div>
         {% endif %}
-        {% endwith %}
-        <form method="POST" action="{{ url_for('login') }}">
+        <form method="POST" action="/login">
             <div class="form-group">
                 <label for="password">Пароль администратора:</label>
                 <input type="password" id="password" name="password" required>
@@ -28,7 +24,7 @@
             <button type="submit" class="btn btn-primary">Войти</button>
         </form>
         <p class="login-hint">Для обычного пользователя нажмите "Продолжить как гость"</p>
-        <form method="POST" action="{{ url_for('login') }}">
+        <form method="POST" action="/login">
             <button type="submit" class="btn btn-primary">Продолжить как гость</button>
         </form>
     </div>
