@@ -73,6 +73,13 @@ function initializeTable() {
     updateDropdownLabel('statusDropdown');
 }
 
+function scrollToToday() {
+    const wrapper = document.getElementById('tableWrapper');
+    const todayTh = document.querySelector('#tableHeader th.current');
+    if (!wrapper || !todayTh) return;
+    wrapper.scrollLeft = todayTh.offsetLeft - wrapper.offsetWidth / 2 + todayTh.offsetWidth / 2;
+}
+
 function loadData() {
     clampDateRange('dateFrom', 'dateTo');
 
@@ -96,6 +103,7 @@ function loadData() {
             assignmentsData = data;
             renderTable();
             applyFilters();
+            scrollToToday();
         })
         .catch(error => console.error('Error loading data:', error));
 

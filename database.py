@@ -204,7 +204,7 @@ def _set_team_blocks(conn, team_id, blocks):
     """Заменить набор блоков команды (внутренняя функция, без коммита)"""
     conn.execute('DELETE FROM team_blocks WHERE team_id = ?', (team_id,))
     for b in (blocks or []):
-        block_name = (b.get('name') or '').strip()
+        block_name = (b.get('name') or '').strip().upper()
         if not block_name:
             continue
         try:

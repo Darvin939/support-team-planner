@@ -1070,7 +1070,7 @@ body {
 
 /* Цветовые схемы статусов */
 .schedule-info.status-new {
-    background: #e9ecef;
+    background: #e8f4fd;
     color: #495057;
     border-color: #ced4da;
 }
