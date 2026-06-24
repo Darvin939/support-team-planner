@@ -55,38 +55,27 @@ class FreezeDayIn(BaseModel):
 # === Роуты ===
 
 @app.get('/', response_class=HTMLResponse)
-def index(request: Request):
-    """Главная страница со статистикой"""
+def root():
+    return RedirectResponse(url='/planning', status_code=302)
+
+
+@app.get('/planning', response_class=HTMLResponse)
+def planning_select(request: Request):
+    """Страница планирования — выбор команды"""
     teams = db.get_all_teams()
-    stats = db.get_all_teams_stats()
-
-    criticality_data = {}
-    for item in stats['criticality']:
-        criticality_data[item['criticality']] = item['count']
-
-    status_data = {}
-    for item in stats['status_today']:
-        status_data[item['status']] = item['count']
-
-    all_statuses = ['new', 'planned', 'rollback', 'success']
-    status_counts = {}
-    for s in all_statuses:
-        status_counts[s] = status_data.get(s, 0)
-
-    return templates.TemplateResponse(request, 'index.html', {
+    return templates.TemplateResponse(request, 'planning.html', {
         'teams': teams,
-        'total_active': stats['total_active'],
-        'criticality_data': criticality_data,
-        'status_counts': status_counts,
+        'team': None,
     })
 
 
 @app.get('/planning/{team_id}', response_class=HTMLResponse)
 def planning(request: Request, team_id: int):
     """Страница планирования команды"""
+    teams = db.get_all_teams()
     team = db.get_team_by_id(team_id)
     if not team:
-        return RedirectResponse(url='/', status_code=302)
+        return RedirectResponse(url='/planning', status_code=302)
 
     employees = db.get_all_employees()
     team_blocks = db.get_team_blocks(team_id)
@@ -101,6 +90,7 @@ def planning(request: Request, team_id: int):
     )
 
     return templates.TemplateResponse(request, 'planning.html', {
+        'teams': teams,
         'team': team,
         'employees': employees,
         'freeze_days': freeze_days,

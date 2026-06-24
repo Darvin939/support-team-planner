@@ -1,15 +1,26 @@
 {% extends "base.html" %}
 
-{% block title %}Планирование - {{ team.name }}{% endblock %}
+{% block title %}{% if team %}Планирование - {{ team.name }}{% else %}Планирование{% endif %}{% endblock %}
 
 {% block content %}
+<div class="page-header">
+    <h1>Планирование</h1>
+</div>
+
+<div class="team-selector">
+    <label for="teamSelect">Команда:</label>
+    <select id="teamSelect" onchange="if(this.value) window.location.href='/planning/'+this.value; else window.location.href='/planning'">
+        <option value="">-- Выберите команду --</option>
+        {% for t in teams %}
+        <option value="{{ t.id }}" {% if team and team.id == t.id %}selected{% endif %}>{{ t.name }}</option>
+        {% endfor %}
+    </select>
+</div>
+
+{% if team %}
 <script id="planningData" type="application/json">
 {"team_id": {{ team.id }}, "freeze_days": {{ freeze_days|tojson }}, "team_blocks": {{ team_blocks|tojson }}}
 </script>
-
-<div class="page-header">
-    <h1>Планирование: {{ team.name }}</h1>
-</div>
 
 <div class="filter-section">
     <h3>Фильтры</h3>
@@ -233,8 +244,13 @@
         </form>
     </div>
 </div>
+{% else %}
+<p class="empty-state-hint">Выберите команду для начала планирования</p>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
+{% if team %}
 <script src="/static/js/planning.js"></script>
+{% endif %}
 {% endblock %}
