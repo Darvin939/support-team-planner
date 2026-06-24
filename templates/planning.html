@@ -16,11 +16,11 @@
     <div class="filter-row">
         <div class="filter-group">
             <label for="dateFrom">Период от</label>
-            <input type="date" id="dateFrom" class="filter-input" value="{{ start_date }}">
+            <input type="date" id="dateFrom" class="filter-input" value="{{ start_date }}" min="2000-01-01" max="2099-12-31">
         </div>
         <div class="filter-group">
             <label for="dateTo">до</label>
-            <input type="date" id="dateTo" class="filter-input" value="{{ end_date }}">
+            <input type="date" id="dateTo" class="filter-input" value="{{ end_date }}" min="2000-01-01" max="2099-12-31">
         </div>
         <div class="filter-group">
             <label for="searchText">Поиск по описанию</label>
@@ -122,7 +122,7 @@
 
             <div class="form-group">
                 <label for="assignmentDate">Дата</label>
-                <input type="date" id="assignmentDate">
+                <input type="date" id="assignmentDate" min="2000-01-01" max="2099-12-31">
             </div>
 
             <div class="form-group">

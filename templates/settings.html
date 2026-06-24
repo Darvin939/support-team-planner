@@ -133,13 +133,13 @@
         <h2>Дни фриза</h2>
         <div class="add-form">
             <div class="form-row">
-                <input type="date" id="freezeDateInput">
+                <input type="date" id="freezeDateInput" min="2000-01-01" max="2099-12-31">
                 <button class="btn btn-success" onclick="addFreezeDay()">Добавить день</button>
             </div>
             <div class="form-row" style="margin-top:10px;">
-                <input type="date" id="freezeDateFrom">
+                <input type="date" id="freezeDateFrom" min="2000-01-01" max="2099-12-31">
                 <span>—</span>
-                <input type="date" id="freezeDateTo">
+                <input type="date" id="freezeDateTo" min="2000-01-01" max="2099-12-31">
                 <button class="btn btn-success" onclick="addFreezeRange()">Добавить диапазон</button>
             </div>
         </div>

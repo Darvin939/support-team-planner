@@ -68,7 +68,29 @@ function initializeTable() {
     updateDropdownLabel('statusDropdown');
 }
 
+const MAX_PERIOD_DAYS = 60;
+
+function clampDateRange() {
+    const fromInput = document.getElementById('dateFrom');
+    const toInput = document.getElementById('dateTo');
+    if (!fromInput.value || !toInput.value) return;
+
+    const from = new Date(fromInput.value);
+    const to = new Date(toInput.value);
+    const diffDays = Math.round((to - from) / 86400000);
+
+    if (diffDays > MAX_PERIOD_DAYS) {
+        const clamped = new Date(from);
+        clamped.setDate(clamped.getDate() + MAX_PERIOD_DAYS);
+        toInput.value = clamped.toISOString().split('T')[0];
+    } else if (diffDays < 0) {
+        toInput.value = fromInput.value;
+    }
+}
+
 function loadData() {
+    clampDateRange();
+
     const dateFrom = document.getElementById('dateFrom').value;
     const dateTo = document.getElementById('dateTo').value;
 
