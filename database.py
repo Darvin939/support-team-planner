@@ -336,20 +336,45 @@ def remove_freeze_day(conn, date_str):
 
 # === TASKS CRUD ===
 @with_db_connection(commit_on_success=False)
-def get_tasks_by_team(conn, team_id):
-    """Получить все задачи команды"""
+def get_tasks_by_team(conn, team_id, offset=0, limit=20, search=None):
+    """Получить задачи команды с пагинацией и поиском"""
+    search_clause = "AND (name LIKE ? OR description LIKE ?)" if search else ""
+    params = [team_id]
+    if search:
+        like = f"%{search}%"
+        params += [like, like]
+    params += [limit, offset]
+    # @formatter:off
     return conn.execute(
-        '''SELECT id, name, description, criticality
-           FROM tasks
-           WHERE team_id = ?
-           ORDER BY CASE criticality
-                        WHEN 'high' THEN 0
-                        WHEN 'medium' THEN 1
-                        WHEN 'low' THEN 2
-                        ELSE 3
-                        END''',
-        (team_id,)
+        f'''SELECT id, name, description, criticality
+            FROM tasks
+            WHERE team_id = ?
+            {search_clause}
+            ORDER BY CASE criticality
+                         WHEN 'high'   THEN 0
+                         WHEN 'medium' THEN 1
+                         WHEN 'low'    THEN 2
+                         ELSE 3
+                         END,
+                     id
+            LIMIT ? OFFSET ?''',
+        params
     ).fetchall()
+    # @formatter:on
+
+
+@with_db_connection(commit_on_success=False)
+def get_tasks_count_by_team(conn, team_id, search=None):
+    """Получить общее количество задач команды (с учётом поиска)"""
+    search_clause = "AND (name LIKE ? OR description LIKE ?)" if search else ""
+    params = [team_id]
+    if search:
+        like = f"%{search}%"
+        params += [like, like]
+    return conn.execute(
+        f"SELECT COUNT(*) FROM tasks WHERE team_id = ? {search_clause}",
+        params
+    ).fetchone()[0]
 
 
 @with_db_connection(commit_on_success=False)

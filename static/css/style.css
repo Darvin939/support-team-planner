@@ -1272,6 +1272,54 @@ body {
     flex-shrink: 0;
 }
 
+/* Пагинация */
+.pagination-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 12px 0 4px;
+    flex-wrap: wrap;
+}
+
+.page-btn {
+    padding: 5px 11px;
+    border: 1px solid #dee2e6;
+    background: white;
+    color: #3498db;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    min-width: 34px;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.page-btn:hover:not(:disabled) {
+    background: #3498db;
+    color: white;
+    border-color: #3498db;
+}
+
+.page-btn.active {
+    background: #3498db;
+    color: white;
+    border-color: #3498db;
+    font-weight: bold;
+}
+
+.page-btn:disabled {
+    color: #adb5bd;
+    cursor: default;
+    background: #f8f9fa;
+    border-color: #dee2e6;
+}
+
+.page-ellipsis {
+    padding: 5px 4px;
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
 /* ------------------------------------------------------------
    14. Логин
    ------------------------------------------------------------ */

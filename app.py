@@ -179,18 +179,15 @@ def delete_assignment_api(assignment_id: int):
 # === API для задач ===
 
 @app.get('/api/tasks/{team_id}')
-def get_tasks_api(team_id: int):
-    """API для получения задач команды"""
-    tasks = db.get_tasks_by_team(team_id)
-    result = []
-    for t in tasks:
-        result.append({
-            'id': t['id'],
-            'name': t['name'],
-            'description': t['description'],
-            'criticality': t['criticality']
-        })
-    return result
+def get_tasks_api(team_id: int, offset: int = 0, limit: int = 20, search: str = ""):
+    """API для получения задач команды с пагинацией"""
+    search_val = search.strip() or None
+    tasks = db.get_tasks_by_team(team_id, offset=offset, limit=limit, search=search_val)
+    total = db.get_tasks_count_by_team(team_id, search=search_val)
+    return {
+        'tasks': [{'id': t['id'], 'name': t['name'], 'description': t['description'], 'criticality': t['criticality']} for t in tasks],
+        'total': total
+    }
 
 
 @app.post('/api/task')

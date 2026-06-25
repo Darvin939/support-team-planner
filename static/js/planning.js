@@ -6,6 +6,11 @@ let tasksData = [];
 let assignmentsData = [];
 let currentDateRange = {start: null, end: null};
 
+let currentPage = 1;
+const PAGE_SIZE = 20;
+let totalTasksCount = 0;
+let searchDebounceTimer = null;
+
 // Состояние автоназначения по графику команды
 let autoAssignDates = {};      // blockId -> dateStr
 let autoAssignBaseDate = null;
@@ -41,9 +46,12 @@ document.addEventListener('DOMContentLoaded', function () {
     loadData();
 
     // Обработчики для фильтров
-    document.getElementById('dateFrom').addEventListener('change', loadData);
-    document.getElementById('dateTo').addEventListener('change', loadData);
-    document.getElementById('searchText').addEventListener('input', applyFilters);
+    document.getElementById('dateFrom').addEventListener('change', () => { currentPage = 1; loadData(); });
+    document.getElementById('dateTo').addEventListener('change', () => { currentPage = 1; loadData(); });
+    document.getElementById('searchText').addEventListener('input', () => {
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = setTimeout(() => { currentPage = 1; loadData(); }, 300);
+    });
     // document.getElementById('criticalityDropdown').addEventListener('change', applyFilters);
     // document.getElementById('statusDropdown').addEventListener('change', applyFilters);
 
@@ -98,11 +106,15 @@ function loadData() {
 
     saveDateRange(dateFrom, dateTo);
 
+    const search = document.getElementById('searchText').value.trim();
+    const offset = (currentPage - 1) * PAGE_SIZE;
+
     // Загружаем задачи
-    fetch(`/api/tasks/${teamId}`)
+    fetch(`/api/tasks/${teamId}?offset=${offset}&limit=${PAGE_SIZE}&search=${encodeURIComponent(search)}`)
         .then(response => response.json())
         .then(data => {
-            tasksData = data;
+            tasksData = data.tasks;
+            totalTasksCount = data.total;
             // Загружаем назначения
             return fetch(`/api/assignments/${teamId}?start_date=${dateFrom}&end_date=${dateTo}`);
         })
@@ -110,6 +122,7 @@ function loadData() {
         .then(data => {
             assignmentsData = data;
             renderTable();
+            renderPagination();
             applyFilters();
             scrollToToday();
         })
@@ -280,8 +293,6 @@ function renderTable() {
 }
 
 function applyFilters() {
-    const searchText = document.getElementById('searchText').value.toLowerCase();
-
     const criticalityCheckboxes = document.querySelectorAll('#criticalityDropdown input[type="checkbox"]');
     const criticalityFilter = Array.from(criticalityCheckboxes)
         .filter(cb => cb.checked)
@@ -301,13 +312,12 @@ function applyFilters() {
         const nameCell = row.querySelector('.name-col');
         if (!nameCell) return;
 
-        const name = nameCell.textContent.toLowerCase();
         const critCell = row.querySelector('.criticality-col .criticality-badge');
         const critValue = critCell ?
             (critCell.classList.contains('criticality-high') ? 'high' :
                 critCell.classList.contains('criticality-medium') ? 'medium' : 'low') : 'medium';
 
-        let matches = !searchText || name.includes(searchText);
+        let matches = true;
 
         if (criticalityFilter.length > 0) {
             matches = matches && criticalityFilter.includes(critValue);
@@ -334,7 +344,40 @@ function applyFilters() {
     });
 
     document.getElementById('visibleTasks').textContent = visibleCount;
-    document.getElementById('totalTasks').textContent = tasksData.length;
+    document.getElementById('totalTasks').textContent = totalTasksCount;
+}
+
+function renderPagination() {
+    const totalPages = Math.ceil(totalTasksCount / PAGE_SIZE);
+    const container = document.getElementById('pagination');
+    if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+
+    const pagesToShow = new Set([1, totalPages]);
+    for (let p = currentPage - 1; p <= currentPage + 1; p++) {
+        if (p > 1 && p < totalPages) pagesToShow.add(p);
+    }
+    const sorted = [...pagesToShow].sort((a, b) => a - b);
+
+    let html = `<button class="page-btn" onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>←</button>`;
+    let prev = 0;
+    sorted.forEach(p => {
+        if (prev && p - prev > 1) html += `<span class="page-ellipsis">…</span>`;
+        html += `<button class="page-btn${p === currentPage ? ' active' : ''}" onclick="goToPage(${p})">${p}</button>`;
+        prev = p;
+    });
+    html += `<button class="page-btn" onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>→</button>`;
+
+    container.innerHTML = html;
+}
+
+function goToPage(page) {
+    const totalPages = Math.ceil(totalTasksCount / PAGE_SIZE);
+    if (page < 1 || page > totalPages) return;
+    currentPage = page;
+    loadData();
 }
 
 function getStatusColor(status) {
