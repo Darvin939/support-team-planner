@@ -136,12 +136,12 @@
                 <button class="btn btn-success" onclick="openFreezeModal()">Добавить</button>
             </div>
         </div>
-        <div id="freezeDaysList">
+        <div id="freezeDaysList" class="chips-list">
             {% for day in freeze_days %}
-            <div class="executor-item" data-date="{{ day }}">
-                <span>{{ day }}</span>
-                <button class="btn btn-danger btn-sm" onclick="deleteFreezeDay('{{ day }}')">🗑️</button>
-            </div>
+            <span class="chip" data-date="{{ day }}">
+                {{ day }}
+                <button class="chip-remove" onclick="deleteFreezeDay('{{ day }}')" title="Удалить">×</button>
+            </span>
             {% endfor %}
         </div>
     </div>
