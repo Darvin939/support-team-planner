@@ -349,9 +349,11 @@ function applyFilters() {
 
 function renderPagination() {
     const totalPages = Math.ceil(totalTasksCount / PAGE_SIZE);
-    const container = document.getElementById('pagination');
+    const bottom = document.getElementById('pagination');
+    const top = document.getElementById('pagination-top');
     if (totalPages <= 1) {
-        container.innerHTML = '';
+        bottom.innerHTML = '';
+        top.innerHTML = '';
         return;
     }
 
@@ -370,7 +372,8 @@ function renderPagination() {
     });
     html += `<button class="page-btn" onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>→</button>`;
 
-    container.innerHTML = html;
+    bottom.innerHTML = html;
+    top.innerHTML = html;
 }
 
 function goToPage(page) {
@@ -379,6 +382,15 @@ function goToPage(page) {
     currentPage = page;
     loadData();
 }
+
+document.addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    const tag = document.activeElement.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    e.preventDefault();
+    if (e.key === 'ArrowLeft') goToPage(currentPage - 1);
+    else goToPage(currentPage + 1);
+});
 
 function getStatusColor(status) {
     const colors = {
