@@ -822,6 +822,7 @@ body {
     z-index: 20;
     background: white;
     min-width: 200px;
+    max-width: 500px;
 }
 
 /* Заголовки фиксированных колонок поверх данных */
@@ -1194,6 +1195,7 @@ body {
 }
 
 .team-card {
+    margin-top: 5px;
     border: 1px solid #e9ecef;
     border-radius: 6px;
     padding: 15px;
