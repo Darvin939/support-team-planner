@@ -228,11 +228,6 @@ body {
     min-width: 120px;
 }
 
-.filter-input[multiple] {
-    min-height: 60px;
-    min-width: 130px;
-}
-
 /* Выпадающие списки с чекбоксами */
 .filter-dropdown {
     position: relative;
@@ -565,70 +560,6 @@ body {
 /* ------------------------------------------------------------
    7. Статистика (главная и страница статистики)
    ------------------------------------------------------------ */
-.stats-summary {
-    display: flex;
-    gap: 20px;
-    background: white;
-    padding: 15px 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-}
-
-.stat-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.stat-label {
-    font-weight: 600;
-    color: #666;
-}
-
-.stat-value {
-    font-weight: bold;
-    font-size: 1.1rem;
-}
-
-.stats-container {
-    display: grid;
-    gap: 20px;
-}
-
-.stats-card {
-    background: white;
-    padding: 25px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 15px;
-    margin-bottom: 20px;
-}
-
-.stats-item {
-    text-align: center;
-    padding: 15px;
-    background: #f8f9fa;
-    border-radius: 6px;
-}
-
-.stats-number {
-    font-size: 2rem;
-    font-weight: bold;
-}
-
-.stats-label {
-    color: #666;
-    font-size: 0.9rem;
-    margin-top: 5px;
-}
-
 /* Страница статистики — секции, счётчики, таблица */
 .stats-section {
     background: white;
@@ -1165,6 +1096,13 @@ body {
     padding: 20px;
 }
 
+.modal-footer {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 16px;
+}
+
 /* ------------------------------------------------------------
    13. Настройки (команды, сотрудники, фриз-дни)
    ------------------------------------------------------------ */
@@ -1187,47 +1125,6 @@ body {
 
 .add-form {
     margin-bottom: 20px;
-}
-
-.teams-list {
-    display: grid;
-    gap: 20px;
-}
-
-.chips-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 4px 0;
-    min-height: 32px;
-}
-
-.chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 10px 3px 12px;
-    background: #e9ecef;
-    border-radius: 20px;
-    font-size: 0.85rem;
-    white-space: nowrap;
-    color: #495057;
-}
-
-.chip-remove {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0 2px;
-    font-size: 1.1rem;
-    color: #6c757d;
-    line-height: 1;
-    display: inline-flex;
-    align-items: center;
-}
-
-.chip-remove:hover {
-    color: #dc3545;
 }
 
 .team-card {
@@ -1485,13 +1382,6 @@ body {
     background: #dc3545;
     color: white !important;
     font-weight: 600;
-}
-
-.modal-footer {
-    display: flex;
-    gap: 8px;
-    justify-content: flex-end;
-    margin-top: 16px;
 }
 
 /* ------------------------------------------------------------
