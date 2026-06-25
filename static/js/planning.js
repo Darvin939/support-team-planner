@@ -76,8 +76,16 @@ function initializeTable() {
 function scrollToToday() {
     const wrapper = document.getElementById('tableWrapper');
     const todayTh = document.querySelector('#tableHeader th.current');
+    const actionTh = document.querySelector('#tableHeader th:nth-child(1)');
+    const criticalityTh = document.querySelector('#tableHeader th:nth-child(2)');
+    const nameTh = document.querySelector('#tableHeader th:nth-child(3)');
     if (!wrapper || !todayTh) return;
-    wrapper.scrollLeft = todayTh.offsetLeft - wrapper.offsetWidth / 2 + todayTh.offsetWidth / 2;
+    wrapper.scrollLeft = todayTh.offsetLeft
+        - wrapper.offsetWidth / 2
+        + todayTh.offsetWidth / 2
+        - actionTh.offsetWidth / 2
+        - criticalityTh.offsetWidth / 2
+        - nameTh.offsetWidth / 2;
 }
 
 function loadData() {
