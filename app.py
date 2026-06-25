@@ -28,7 +28,7 @@ class AssignmentIn(BaseModel):
 
 
 class TaskIn(BaseModel):
-    task_id: Optional[int] = None
+    task_id: Optional[int | str] = None
     team_id: Optional[int] = None
     name: str = ""
     description: Optional[str] = None
