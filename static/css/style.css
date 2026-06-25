@@ -834,17 +834,17 @@ body {
 
 .date-col.current {
     background: #e3f2fd !important;
-    border-bottom: 3px solid #2196f3 !important;
+    box-shadow: inset 0 -3px 0 #2196f3;
 }
 
 .date-col.current.weekend {
     background: #fff3cd !important;
-    border-bottom: 3px solid #ffc107 !important;
+    box-shadow: inset 0 -3px 0 #ffc107;
 }
 
 .date-col.current.freeze {
     background: #f8d7da !important;
-    border-bottom: 3px solid #dc3545 !important;
+    box-shadow: inset 0 -3px 0 #dc3545;
 }
 
 /* Кнопки в таблице */
