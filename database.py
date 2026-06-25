@@ -334,6 +334,21 @@ def remove_freeze_day(conn, date_str):
     conn.execute('DELETE FROM freeze_days WHERE date = ?', (date_str,))
 
 
+@with_db_connection()
+def delete_freeze_days_by_month(conn, year, month):
+    prefix = f"{year}-{month:02d}-%"
+    conn.execute("DELETE FROM freeze_days WHERE date LIKE ?", (prefix,))
+
+
+@with_db_connection()
+def set_freeze_days_for_month(conn, year, month, days):
+    prefix = f"{year}-{month:02d}-%"
+    conn.execute("DELETE FROM freeze_days WHERE date LIKE ?", (prefix,))
+    for day in days:
+        date_str = f"{year}-{month:02d}-{day:02d}"
+        conn.execute("INSERT OR IGNORE INTO freeze_days (date) VALUES (?)", (date_str,))
+
+
 # === TASKS CRUD ===
 @with_db_connection(commit_on_success=False)
 def get_tasks_by_team(conn, team_id, offset=0, limit=20, search=None):

@@ -1189,13 +1189,9 @@ body {
     margin-bottom: 20px;
 }
 
-.teams-list,
-#teamsList {
+.teams-list {
     display: grid;
     gap: 20px;
-    max-height: 70vh;
-    overflow-y: auto;
-    padding-right: 4px;
 }
 
 .chips-list {
@@ -1396,7 +1392,110 @@ body {
 }
 
 /* ------------------------------------------------------------
-   15. Адаптивность (медиа-запросы)
+   15. Календарь дней фриза
+   ------------------------------------------------------------ */
+#freezeMonthModal .modal-content {
+    max-width: 350px;
+}
+
+.freeze-months-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+
+.freeze-month-card {
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 12px;
+    background: #fafafa;
+}
+
+.freeze-month-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.freeze-calendar {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    text-align: center;
+}
+
+.freeze-calendar th {
+    color: #6c757d;
+    padding: 2px;
+    font-weight: 500;
+}
+
+.freeze-calendar td {
+    padding: 3px 1px;
+    width: 14.28%;
+    color: #212529;
+}
+
+/* Внутренний span — носитель круга */
+.cal-day-inner {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    line-height: 1;
+}
+
+/* День фриза — красный круг */
+.freeze-day-marked {
+    background: #dc3545;
+    color: white !important;
+    font-weight: 600;
+}
+
+/* Выходные — жёлтый фон ячейки */
+.freeze-calendar td.cal-weekend {
+    background: #fff3cd;
+}
+
+/* Сегодня — синий обвод, если не фриз и не выбран */
+.freeze-calendar td.cal-today .cal-day-inner:not(.freeze-day-marked):not(.selected) {
+    background: #e3f2fd;
+    border: 2px solid #2196f3;
+    color: #1565c0;
+    font-weight: 600;
+}
+
+/* Интерактивный: курсор на ячейках с днём */
+.freeze-calendar.interactive td[data-day] {
+    cursor: pointer;
+}
+
+/* Интерактивный: hover */
+.freeze-calendar.interactive td[data-day]:hover .cal-day-inner:not(.selected) {
+    background: #f8d7da;
+}
+
+/* Интерактивный: выбранный день — красный круг */
+.freeze-calendar.interactive .cal-day-inner.selected {
+    background: #dc3545;
+    color: white !important;
+    font-weight: 600;
+}
+
+.modal-footer {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 16px;
+}
+
+/* ------------------------------------------------------------
+   16. Адаптивность (медиа-запросы)
    ------------------------------------------------------------ */
 @media (max-width: 768px) {
     .nav-menu {
@@ -1423,6 +1522,10 @@ body {
 
     .stats-grid {
         grid-template-columns: 1fr 1fr;
+    }
+
+    .freeze-months-grid {
+        grid-template-columns: repeat(2, 1fr);
     }
 
     .form-row {

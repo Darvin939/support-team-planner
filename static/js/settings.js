@@ -231,76 +231,179 @@ function deleteEmployee(employeeId) {
         });
 }
 
-function openFreezeModal() {
-    document.getElementById('freezeRangeToggle').checked = false;
-    document.getElementById('freezeDate').value = '';
-    document.getElementById('freezeDateFrom').value = '';
-    document.getElementById('freezeDateTo').value = '';
-    toggleFreezeRange();
-    document.getElementById('freezeModal').style.display = 'flex';
-}
+const MONTH_NAMES = ['Январь','Февраль','Март','Апрель','Май','Июнь',
+                     'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const CURRENT_YEAR = new Date().getFullYear();
+let allFreezeDays = settingsInit.freeze_days || [];
+let modalMonth = null;
+let modalSelectedDays = new Set();
 
-function toggleFreezeRange() {
-    const isRange = document.getElementById('freezeRangeToggle').checked;
-    document.getElementById('freezeSingleGroup').style.display = isRange ? 'none' : '';
-    document.getElementById('freezeRangeGroup').style.display = isRange ? '' : 'none';
-    document.getElementById('freezeDate').required = !isRange;
-    document.getElementById('freezeDateFrom').required = isRange;
-    document.getElementById('freezeDateTo').required = isRange;
-}
+function buildCalendarTable(year, month, markedDays, interactive) {
+    const daysInMonth = new Date(year, month, 0).getDate();
+    let firstDow = new Date(year, month - 1, 1).getDay();
+    firstDow = firstDow === 0 ? 6 : firstDow - 1;
 
-function saveFreeze(event) {
-    event.preventDefault();
-    const isRange = document.getElementById('freezeRangeToggle').checked;
-    let body;
+    const cls = 'freeze-calendar' + (interactive ? ' interactive' : '');
+    let html = `<table class="${cls}"><thead><tr>`;
+    ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].forEach(d => html += `<th>${d}</th>`);
+    html += '</tr></thead><tbody><tr>';
 
-    if (isRange) {
-        const start = document.getElementById('freezeDateFrom').value;
-        const end = document.getElementById('freezeDateTo').value;
-        if (!start || !end) { alert('Выберите диапазон дат'); return; }
-        if (start > end) { alert('Начальная дата должна быть раньше конечной'); return; }
-        body = {start_date: start, end_date: end};
-    } else {
-        const date = document.getElementById('freezeDate').value;
-        if (!date) { alert('Выберите дату'); return; }
-        body = {date: date};
+    for (let i = 0; i < firstDow; i++) html += '<td></td>';
+
+    const today = new Date();
+
+    for (let d = 1; d <= daysInMonth; d++) {
+        const col = (firstDow + d - 1) % 7;
+        if (col === 0 && d > 1) html += '</tr><tr>';
+
+        const isMarked = markedDays.has(d);
+        const isWeekend = col === 5 || col === 6;
+        const isToday = year === today.getFullYear() && month === (today.getMonth() + 1) && d === today.getDate();
+        const tdClasses = [isWeekend ? 'cal-weekend' : '', isToday ? 'cal-today' : ''].filter(Boolean).join(' ');
+
+        if (interactive) {
+            const selClass = isMarked ? ' selected' : '';
+            html += `<td data-day="${d}" class="${tdClasses}" onclick="toggleModalDay(${d})">` +
+                    `<span class="cal-day-inner${selClass}">${d}</span></td>`;
+        } else {
+            const markClass = isMarked ? ' freeze-day-marked' : '';
+            html += `<td class="${tdClasses}"><span class="cal-day-inner${markClass}">${d}</span></td>`;
+        }
     }
 
-    fetch('/api/freeze-days', {
-        method: 'POST',
+    const lastCol = (firstDow + daysInMonth - 1) % 7;
+    for (let i = lastCol + 1; i < 7; i++) html += '<td></td>';
+    html += '</tr></tbody></table>';
+    return html;
+}
+
+function getFreezeDaysByMonth() {
+    const byMonth = {};
+    const prefix = String(CURRENT_YEAR);
+    allFreezeDays.forEach(dateStr => {
+        if (!dateStr.startsWith(prefix)) return;
+        const month = parseInt(dateStr.substring(5, 7), 10);
+        const day = parseInt(dateStr.substring(8, 10), 10);
+        if (!byMonth[month]) byMonth[month] = new Set();
+        byMonth[month].add(day);
+    });
+    return byMonth;
+}
+
+function renderFreezeMonthsGrid() {
+    const grid = document.getElementById('freezeMonthsGrid');
+    if (!grid) return;
+    const byMonth = getFreezeDaysByMonth();
+    const months = Object.keys(byMonth).map(Number).sort((a, b) => a - b);
+
+    if (months.length === 0) {
+        grid.innerHTML = '<p style="color:#6c757d;">Нет дней фриза</p>';
+        return;
+    }
+
+    let html = '';
+    months.forEach(m => {
+        const days = byMonth[m];
+        html += '<div class="freeze-month-card">';
+        html += '<div class="freeze-month-header">';
+        html += `<span>${MONTH_NAMES[m - 1]}</span>`;
+        html += '<div>';
+        html += `<button class="btn btn-primary btn-sm" onclick="openFreezeMonthModal(${m})">✏️</button> `;
+        html += `<button class="btn btn-danger btn-sm" onclick="deleteFreezeMonth(${m})">🗑️</button>`;
+        html += '</div></div>';
+        html += buildCalendarTable(CURRENT_YEAR, m, days, false);
+        html += '</div>';
+    });
+    grid.innerHTML = html;
+}
+
+function openFreezeMonthModal(month) {
+    const selectorEl = document.getElementById('freezeMonthSelector');
+    const titleEl = document.getElementById('freezeMonthModalTitle');
+    const byMonth = getFreezeDaysByMonth();
+
+    if (month === null) {
+        titleEl.textContent = 'Добавить дни фриза';
+        const usedMonths = new Set(Object.keys(byMonth).map(Number));
+        let defaultMonth = null;
+        for (let m = 1; m <= 12; m++) {
+            if (!usedMonths.has(m)) { defaultMonth = m; break; }
+        }
+        if (defaultMonth === null) defaultMonth = 1;
+
+        let selectHtml = '<label>Месяц</label><select id="freezeMonthSelect" onchange="onFreezeMonthSelectChange()">';
+        for (let m = 1; m <= 12; m++) {
+            const sel = m === defaultMonth ? ' selected' : '';
+            selectHtml += `<option value="${m}"${sel}>${MONTH_NAMES[m - 1]}</option>`;
+        }
+        selectHtml += '</select>';
+        selectorEl.innerHTML = selectHtml;
+        selectorEl.style.display = '';
+
+        modalMonth = defaultMonth;
+        modalSelectedDays = new Set();
+    } else {
+        titleEl.textContent = 'Редактирование: ' + MONTH_NAMES[month - 1];
+        selectorEl.style.display = 'none';
+        selectorEl.innerHTML = '';
+        modalMonth = month;
+        modalSelectedDays = new Set(byMonth[month] || []);
+    }
+
+    renderModalCalendar();
+    document.getElementById('freezeMonthModal').style.display = 'flex';
+}
+
+function onFreezeMonthSelectChange() {
+    const sel = document.getElementById('freezeMonthSelect');
+    modalMonth = parseInt(sel.value, 10);
+    const byMonth = getFreezeDaysByMonth();
+    modalSelectedDays = new Set(byMonth[modalMonth] || []);
+    renderModalCalendar();
+}
+
+function renderModalCalendar() {
+    document.getElementById('freezeModalCalendar').innerHTML =
+        buildCalendarTable(CURRENT_YEAR, modalMonth, modalSelectedDays, true);
+}
+
+function toggleModalDay(day) {
+    if (modalSelectedDays.has(day)) {
+        modalSelectedDays.delete(day);
+    } else {
+        modalSelectedDays.add(day);
+    }
+    const cell = document.querySelector(`#freezeModalCalendar td[data-day="${day}"]`);
+    if (cell) {
+        const span = cell.querySelector('.cal-day-inner');
+        if (span) span.classList.toggle('selected');
+    }
+}
+
+function saveFreezeMonth() {
+    const days = Array.from(modalSelectedDays).sort((a, b) => a - b);
+    fetch('/api/freeze-days/month', {
+        method: 'PUT',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(body)
+        body: JSON.stringify({year: CURRENT_YEAR, month: modalMonth, days: days})
     })
-        .then(response => response.json())
+        .then(r => r.json())
         .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert('Ошибка при добавлении');
-            }
+            if (data.success) location.reload();
+            else alert('Ошибка при сохранении');
         })
-        .catch(error => {
-            console.error('Error adding freeze days:', error);
-            alert('Ошибка при добавлении');
-        });
+        .catch(() => alert('Ошибка при сохранении'));
 }
 
-function deleteFreezeDay(date) {
-    if (!confirm(`Удалить день фриза ${date}?`)) return;
-
-    fetch(`/api/freeze-days/${encodeURIComponent(date)}`, {
-        method: 'DELETE'
-    })
-        .then(response => response.json())
+function deleteFreezeMonth(month) {
+    if (!confirm(`Удалить все дни фриза за ${MONTH_NAMES[month - 1]}?`)) return;
+    fetch(`/api/freeze-days/month/${CURRENT_YEAR}/${month}`, {method: 'DELETE'})
+        .then(r => r.json())
         .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert('Ошибка при удалении дня фриза');
-            }
+            if (data.success) location.reload();
+            else alert('Ошибка при удалении');
         })
-        .catch(error => {
-            console.error('Error deleting freeze day:', error);
-            alert('Ошибка при удалении дня фриза');
-        });
+        .catch(() => alert('Ошибка при удалении'));
 }
+
+renderFreezeMonthsGrid();

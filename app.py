@@ -52,6 +52,12 @@ class FreezeDayIn(BaseModel):
     end_date: Optional[str] = None
 
 
+class FreezeDayMonthIn(BaseModel):
+    year: int
+    month: int
+    days: List[int] = []
+
+
 # === Роуты ===
 
 @app.get('/', response_class=HTMLResponse)
@@ -333,6 +339,18 @@ def add_freeze_day_api(data: FreezeDayIn):
         return {'success': True, 'count': count}
     else:
         return JSONResponse({'error': 'Date or range required'}, status_code=400)
+
+
+@app.put('/api/freeze-days/month')
+def set_freeze_month_api(data: FreezeDayMonthIn):
+    db.set_freeze_days_for_month(data.year, data.month, data.days)
+    return {'success': True}
+
+
+@app.delete('/api/freeze-days/month/{year}/{month}')
+def delete_freeze_month_api(year: int, month: int):
+    db.delete_freeze_days_by_month(year, month)
+    return {'success': True}
 
 
 @app.delete('/api/freeze-days/{date_str:path}')

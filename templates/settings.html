@@ -4,7 +4,7 @@
 
 {% block content %}
 <script id="settingsData" type="application/json">
-{"teams": {{ teams|tojson }}, "employees": {{ employees|tojson }}}
+{"teams": {{ teams|tojson }}, "employees": {{ employees|tojson }}, "freeze_days": {{ freeze_days|tojson }}}
 </script>
 
 <div class="page-header">
@@ -133,58 +133,27 @@
         <h2>Дни фриза</h2>
         <div class="add-form">
             <div class="form-row">
-                <button class="btn btn-success" onclick="openFreezeModal()">Добавить</button>
+                <button class="btn btn-success" onclick="openFreezeMonthModal(null)">Добавить месяц</button>
             </div>
         </div>
-        <div id="freezeDaysList" class="chips-list">
-            {% for day in freeze_days %}
-            <span class="chip" data-date="{{ day }}">
-                {{ day }}
-                <button class="chip-remove" onclick="deleteFreezeDay('{{ day }}')" title="Удалить">×</button>
-            </span>
-            {% endfor %}
-        </div>
+        <div id="freezeMonthsGrid" class="freeze-months-grid"></div>
     </div>
 
-    <!-- Модальное окно дней фриза -->
-    <div class="modal" id="freezeModal">
+    <!-- Модальное окно дней фриза (календарь месяца) -->
+    <div class="modal" id="freezeMonthModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Добавить дни фриза</h2>
-                <span class="modal-close" onclick="closeModal('freezeModal')">&times;</span>
+                <h2 id="freezeMonthModalTitle">Дни фриза</h2>
+                <span class="modal-close" onclick="closeModal('freezeMonthModal')">&times;</span>
             </div>
-            <form onsubmit="saveFreeze(event)">
-                <div class="form-group">
-                    <label class="toggle-switch-label">
-                        <span>Диапазон дат</span>
-                        <span class="toggle-switch">
-                            <input type="checkbox" id="freezeRangeToggle" onchange="toggleFreezeRange()">
-                            <span class="toggle-slider"></span>
-                        </span>
-                    </label>
+            <div style="padding: 20px;">
+                <div id="freezeMonthSelector" class="form-group"></div>
+                <div id="freezeModalCalendar"></div>
+                <div class="modal-footer">
+                    <button class="btn btn-success" onclick="saveFreezeMonth()">Сохранить</button>
+                    <button class="btn btn-secondary" onclick="closeModal('freezeMonthModal')">Отмена</button>
                 </div>
-
-                <div class="form-group" id="freezeSingleGroup">
-                    <label for="freezeDate">Дата</label>
-                    <input type="date" id="freezeDate" min="2000-01-01" max="2099-12-31" required>
-                </div>
-
-                <div id="freezeRangeGroup" style="display:none;">
-                    <div class="form-group">
-                        <label for="freezeDateFrom">Дата начала</label>
-                        <input type="date" id="freezeDateFrom" min="2000-01-01" max="2099-12-31">
-                    </div>
-                    <div class="form-group">
-                        <label for="freezeDateTo">Дата окончания</label>
-                        <input type="date" id="freezeDateTo" min="2000-01-01" max="2099-12-31">
-                    </div>
-                </div>
-
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-success">Добавить</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('freezeModal')">Закрыть</button>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
 </div>
