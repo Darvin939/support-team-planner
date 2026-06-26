@@ -131,6 +131,11 @@ document.addEventListener('click', function (e) {
         return;
     }
 
+    const active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') && active.selectionStart !== active.selectionEnd) {
+        return;
+    }
+
     closeModalByClick(e);
     closeDropdownMenuByClick(e);
 });
