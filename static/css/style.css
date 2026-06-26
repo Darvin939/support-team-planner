@@ -330,14 +330,14 @@ body {
     overflow-y: auto;
 }
 
-.block-checkbox-list .checkbox-item-empty {
+.checkbox-item-empty {
     padding: 6px 12px;
     color: #999;
     font-size: 0.9rem;
 }
 
 /* ------------------------------------------------------------
-   Переключатель (toggle switch)
+   5б. Переключатель (toggle switch)
    ------------------------------------------------------------ */
 .toggle-switch-label {
     display: flex;
@@ -395,7 +395,7 @@ body {
 }
 
 /* ------------------------------------------------------------
-   Таблица автораспределения блоков
+   5в. Таблица автораспределения блоков
    ------------------------------------------------------------ */
 .auto-schedule-wrapper {
     overflow-x: auto;
@@ -527,7 +527,7 @@ body {
 }
 
 /* ------------------------------------------------------------
-   6. Селектор команды
+   6. Селектор команды и пустое состояние
    ------------------------------------------------------------ */
 .team-selector {
     background: white;
@@ -660,25 +660,13 @@ body {
     background: #dc3545;
 }
 
-.criticality-high .stat-value {
-    color: #dc3545;
-}
-
 .criticality-medium {
     background: #ffc107;
     color: #333;
 }
 
-.criticality-medium .stat-value {
-    color: #ffc107;
-}
-
 .criticality-low {
     background: #28a745;
-}
-
-.criticality-low .stat-value {
-    color: #28a745;
 }
 
 /* ------------------------------------------------------------
@@ -1081,16 +1069,6 @@ body {
     ) !important;
 }
 
-.schedule-cell.current.freeze:hover {
-    background-image: repeating-linear-gradient(
-            45deg,
-            transparent,
-            transparent 5px,
-            rgba(220, 53, 69, 0.08) 5px,
-            rgba(220, 53, 69, 0.08) 10px
-    ) !important;
-}
-
 /* ------------------------------------------------------------
    11. Информация о назначении в ячейке
    ------------------------------------------------------------ */
@@ -1379,42 +1357,7 @@ body {
 }
 
 /* ------------------------------------------------------------
-   14. Логин
-   ------------------------------------------------------------ */
-.login-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: calc(100vh - 60px);
-}
-
-.login-box {
-    background: white;
-    padding: 40px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    width: 100%;
-    max-width: 400px;
-}
-
-.flash-message {
-    padding: 10px;
-    margin-bottom: 15px;
-    border-radius: 4px;
-    background: #f8d7da;
-    color: #721c24;
-    border: 1px solid #f5c6cb;
-}
-
-.login-hint {
-    color: #999;
-    font-size: 0.85rem;
-    margin-top: 15px;
-    text-align: center;
-}
-
-/* ------------------------------------------------------------
-   15. Календарь дней фриза
+   14. Календарь дней фриза
    ------------------------------------------------------------ */
 #freezeMonthModal .modal-content {
     max-width: 350px;
@@ -1510,7 +1453,7 @@ body {
 }
 
 /* ------------------------------------------------------------
-   16. Адаптивность (медиа-запросы)
+   15. Адаптивность (медиа-запросы)
    ------------------------------------------------------------ */
 @media (max-width: 768px) {
     .nav-menu {
@@ -1533,10 +1476,6 @@ body {
 
     .filter-input {
         width: 100%;
-    }
-
-    .stats-grid {
-        grid-template-columns: 1fr 1fr;
     }
 
     .freeze-months-grid {
