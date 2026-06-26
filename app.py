@@ -182,6 +182,10 @@ def save_assignment_api(data: AssignmentIn):
     if not db.task_exists(data.task_id):
         return JSONResponse({'error': 'Task not found'}, status_code=404)
 
+    task = db.get_task_status(data.task_id)
+    if task and task['task_status'] in ('done', 'cancelled'):
+        return JSONResponse({'error': 'Нельзя изменять назначения завершённой или отменённой задачи'}, status_code=400)
+
     db.create_or_update_assignment(data.assignment_id, data.task_id, data.date, block, data.status, data.employee_id, comment)
     if data.status == 'planned':
         db.maybe_advance_task_to_in_progress(data.task_id)
@@ -191,6 +195,9 @@ def save_assignment_api(data: AssignmentIn):
 @app.delete('/api/assignment/{assignment_id}')
 def delete_assignment_api(assignment_id: int):
     """API для удаления назначения"""
+    task = db.get_task_status_by_assignment(assignment_id)
+    if task and task['task_status'] in ('done', 'cancelled'):
+        return JSONResponse({'error': 'Нельзя изменять назначения завершённой или отменённой задачи'}, status_code=400)
     db.delete_assignment(assignment_id)
     return {'success': True}
 
@@ -218,6 +225,11 @@ def save_task_api(data: TaskIn):
     if not data.team_id or not name:
         return JSONResponse({'error': 'Team ID and name required'}, status_code=400)
 
+    if data.task_id:
+        task = db.get_task_status(data.task_id)
+        if task and task['task_status'] in ('done', 'cancelled'):
+            return JSONResponse({'error': 'Нельзя редактировать завершённую или отменённую задачу'}, status_code=400)
+
     task_id = db.create_or_update_task(data.task_id, data.team_id, name, description, data.criticality)
     return {'id': task_id, 'success': True}
 
@@ -225,6 +237,9 @@ def save_task_api(data: TaskIn):
 @app.delete('/api/task/{task_id}')
 def delete_task_api(task_id: int):
     """API для удаления задачи"""
+    task = db.get_task_status(task_id)
+    if task and task['task_status'] in ('done', 'cancelled'):
+        return JSONResponse({'error': 'Нельзя удалить завершённую или отменённую задачу'}, status_code=400)
     db.delete_task(task_id)
     return {'success': True}
 

@@ -238,7 +238,7 @@ function renderTable() {
         const allSuccess = taskAssignments.length > 0 && taskAssignments.every(a => a.status === 'success');
         if (allSuccess && taskStatus === 'in_progress') row.classList.add('task-all-success');
 
-        const statusBadge = `<span class="task-status-badge task-status-${taskStatus}">${TASK_STATUS_LABELS[taskStatus] || taskStatus}</span>`;
+        const statusBadge = taskStatus === 'new' ? '' : `<span class="task-status-badge task-status-${taskStatus}">${TASK_STATUS_LABELS[taskStatus] || taskStatus}</span>`;
         const transitions = VALID_TASK_TRANSITIONS[taskStatus] || [];
         const transitionBtns = transitions.map(s => {
             const highlighted = s === 'done' && allSuccess;
@@ -249,16 +249,20 @@ function renderTable() {
             ? `<div class="task-info-row-3"><div class="description">${linkify(task.description)}</div></div>`
             : '';
 
+        const isTerminal = taskStatus === 'done' || taskStatus === 'cancelled';
+        const editBtn = isTerminal ? '' : `<button class="btn-edit" onclick="openTaskModal(${task.id})" title="Редактировать">✏️</button>`;
+        const deleteBtn = isTerminal ? '' : `<button class="btn-delete" onclick="deleteTask(${task.id})" title="Удалить">🗑️</button>`;
+
         const infoCell = document.createElement('td');
         infoCell.className = 'task-info-col';
         infoCell.innerHTML = `
             <div class="task-info-row-1">
-                <button class="btn-edit" onclick="openTaskModal(${task.id})" title="Редактировать">✏️</button>
+                ${editBtn}
                 <span class="criticality-badge ${critClass}">${critDisplay}</span>
                 <span class="task-name">${task.name}</span>
             </div>
             <div class="task-info-row-2">
-                <button class="btn-delete" onclick="deleteTask(${task.id})" title="Удалить">🗑️</button>
+                ${deleteBtn}
                 ${statusBadge}${transitionBtns}
             </div>
             ${descBlock}
@@ -1093,10 +1097,14 @@ function setupDragScroll() {
         const taskId = row.dataset.taskId;
         if (!taskId) return;
 
+        // Терминальные задачи — только чтение
+        const task = tasksData.find(t => t.id === parseInt(taskId));
+        if (task && (task.task_status === 'done' || task.task_status === 'cancelled')) return;
+
         // Получаем дату из заголовка колонки
         const colIndex = Array.from(row.children).indexOf(cell);
         const headerCells = document.querySelectorAll('#tableHeader th');
-        if (colIndex < 3 || colIndex >= headerCells.length) return;
+        if (colIndex < 1 || colIndex >= headerCells.length) return;
 
         // Проверяем, есть ли дата в заголовке
         const headerCell = headerCells[colIndex];

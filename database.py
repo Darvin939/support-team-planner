@@ -450,6 +450,15 @@ def get_task_status(conn, task_id):
     return conn.execute('SELECT task_status FROM tasks WHERE id = ?', (task_id,)).fetchone()
 
 
+@with_db_connection(commit_on_success=False)
+def get_task_status_by_assignment(conn, assignment_id):
+    """Получить статус задачи по ID назначения"""
+    return conn.execute(
+        'SELECT t.task_status FROM assignments a JOIN tasks t ON a.task_id = t.id WHERE a.id = ?',
+        (assignment_id,)
+    ).fetchone()
+
+
 @with_db_connection()
 def update_task_status(conn, task_id, new_status):
     """Обновить статус задачи"""

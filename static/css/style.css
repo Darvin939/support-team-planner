@@ -746,7 +746,7 @@ body {
     left: 0;
     z-index: 20;
     background: white;
-    min-width: 260px;
+    min-width: 310px;
     max-width: 500px;
 }
 
@@ -968,6 +968,9 @@ body {
     animation: taskRowFadeOut 1s forwards;
     pointer-events: none;
 }
+
+.task-row-status-done    .schedule-cell,
+.task-row-status-cancelled .schedule-cell { cursor: not-allowed; opacity: 0.6; }
 
 /* Кнопки в таблице */
 .btn-edit {
