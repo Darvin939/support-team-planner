@@ -58,6 +58,17 @@ class FreezeDayMonthIn(BaseModel):
     days: List[int] = []
 
 
+class TaskStatusIn(BaseModel):
+    status: str
+
+
+VALID_TASK_TRANSITIONS = {
+    'new': {'ready', 'in_progress', 'cancelled'},
+    'ready': {'in_progress', 'cancelled'},
+    'in_progress': {'done', 'cancelled'},
+}
+
+
 # === Роуты ===
 
 @app.get('/', response_class=HTMLResponse)
@@ -172,6 +183,8 @@ def save_assignment_api(data: AssignmentIn):
         return JSONResponse({'error': 'Task not found'}, status_code=404)
 
     db.create_or_update_assignment(data.assignment_id, data.task_id, data.date, block, data.status, data.employee_id, comment)
+    if data.status == 'planned':
+        db.maybe_advance_task_to_in_progress(data.task_id)
     return {'success': True}
 
 
@@ -185,13 +198,13 @@ def delete_assignment_api(assignment_id: int):
 # === API для задач ===
 
 @app.get('/api/tasks/{team_id}')
-def get_tasks_api(team_id: int, offset: int = 0, limit: int = 20, search: str = ""):
+def get_tasks_api(team_id: int, offset: int = 0, limit: int = 20, search: str = "", show_completed: bool = False):
     """API для получения задач команды с пагинацией"""
     search_val = search.strip() or None
-    tasks = db.get_tasks_by_team(team_id, offset=offset, limit=limit, search=search_val)
-    total = db.get_tasks_count_by_team(team_id, search=search_val)
+    tasks = db.get_tasks_by_team(team_id, offset=offset, limit=limit, search=search_val, show_completed=show_completed)
+    total = db.get_tasks_count_by_team(team_id, search=search_val, show_completed=show_completed)
     return {
-        'tasks': [{'id': t['id'], 'name': t['name'], 'description': t['description'], 'criticality': t['criticality']} for t in tasks],
+        'tasks': [{'id': t['id'], 'name': t['name'], 'description': t['description'], 'criticality': t['criticality'], 'task_status': t['task_status']} for t in tasks],
         'total': total
     }
 
@@ -213,6 +226,20 @@ def save_task_api(data: TaskIn):
 def delete_task_api(task_id: int):
     """API для удаления задачи"""
     db.delete_task(task_id)
+    return {'success': True}
+
+
+@app.patch('/api/tasks/{task_id}/status')
+def update_task_status_api(task_id: int, data: TaskStatusIn):
+    """Обновить статус задачи"""
+    task = db.get_task_status(task_id)
+    if not task:
+        return JSONResponse({'error': 'Task not found'}, status_code=404)
+    current_status = task['task_status']
+    allowed = VALID_TASK_TRANSITIONS.get(current_status, set())
+    if data.status not in allowed:
+        return JSONResponse({'error': f'Недопустимый переход: {current_status} → {data.status}'}, status_code=400)
+    db.update_task_status(task_id, data.status)
     return {'success': True}
 
 

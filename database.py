@@ -148,6 +148,11 @@ def ensure_schema(conn):
             ''')
 
     conn.execute('CREATE INDEX IF NOT EXISTS idx_team_blocks_team_id ON team_blocks (team_id);')
+
+    cols = {r[1] for r in conn.execute('PRAGMA table_info(tasks)')}
+    if 'task_status' not in cols:
+        conn.execute("ALTER TABLE tasks ADD COLUMN task_status TEXT NOT NULL DEFAULT 'new'")
+
     conn.execute('PRAGMA foreign_keys = ON;')
 
 
@@ -351,8 +356,9 @@ def set_freeze_days_for_month(conn, year, month, days):
 
 # === TASKS CRUD ===
 @with_db_connection(commit_on_success=False)
-def get_tasks_by_team(conn, team_id, offset=0, limit=20, search=None):
+def get_tasks_by_team(conn, team_id, offset=0, limit=20, search=None, show_completed=False):
     """Получить задачи команды с пагинацией и поиском"""
+    completed_clause = "" if show_completed else "AND task_status NOT IN ('done', 'cancelled')"
     search_clause = "AND (name LIKE ? OR description LIKE ?)" if search else ""
     params = [team_id]
     if search:
@@ -361,15 +367,24 @@ def get_tasks_by_team(conn, team_id, offset=0, limit=20, search=None):
     params += [limit, offset]
     # @formatter:off
     return conn.execute(
-        f'''SELECT id, name, description, criticality
+        f'''SELECT id, name, description, criticality, task_status
             FROM tasks
             WHERE team_id = ?
+            {completed_clause}
             {search_clause}
             ORDER BY CASE criticality
                          WHEN 'high'   THEN 0
                          WHEN 'medium' THEN 1
                          WHEN 'low'    THEN 2
                          ELSE 3
+                         END,
+                     CASE task_status
+                         WHEN 'in_progress' THEN 0
+                         WHEN 'ready'       THEN 1
+                         WHEN 'new'         THEN 2
+                         WHEN 'done'        THEN 3
+                         WHEN 'cancelled'   THEN 4
+                         ELSE 5
                          END,
                      id
             LIMIT ? OFFSET ?''',
@@ -379,15 +394,16 @@ def get_tasks_by_team(conn, team_id, offset=0, limit=20, search=None):
 
 
 @with_db_connection(commit_on_success=False)
-def get_tasks_count_by_team(conn, team_id, search=None):
+def get_tasks_count_by_team(conn, team_id, search=None, show_completed=False):
     """Получить общее количество задач команды (с учётом поиска)"""
+    completed_clause = "" if show_completed else "AND task_status NOT IN ('done', 'cancelled')"
     search_clause = "AND (name LIKE ? OR description LIKE ?)" if search else ""
     params = [team_id]
     if search:
         like = f"%{search}%"
         params += [like, like]
     return conn.execute(
-        f"SELECT COUNT(*) FROM tasks WHERE team_id = ? {search_clause}",
+        f"SELECT COUNT(*) FROM tasks WHERE team_id = ? {completed_clause} {search_clause}",
         params
     ).fetchone()[0]
 
@@ -426,6 +442,32 @@ def create_or_update_task(conn, task_id, team_id, name, description, criticality
 def delete_task(conn, task_id):
     """Удалить задачу"""
     conn.execute('DELETE FROM tasks WHERE id = ?', (task_id,))
+
+
+@with_db_connection(commit_on_success=False)
+def get_task_status(conn, task_id):
+    """Получить текущий статус задачи"""
+    return conn.execute('SELECT task_status FROM tasks WHERE id = ?', (task_id,)).fetchone()
+
+
+@with_db_connection()
+def update_task_status(conn, task_id, new_status):
+    """Обновить статус задачи"""
+    conn.execute("UPDATE tasks SET task_status = ? WHERE id = ?", (new_status, task_id))
+    return True
+
+
+@with_db_connection()
+def maybe_advance_task_to_in_progress(conn, task_id):
+    """Автоматически переводит задачу в in_progress если есть плановое назначение"""
+    task = conn.execute("SELECT task_status FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    if task and task['task_status'] in ('new', 'ready'):
+        has_planned = conn.execute(
+            "SELECT 1 FROM assignments WHERE task_id = ? AND status = 'planned'", (task_id,)
+        ).fetchone()
+        if has_planned:
+            conn.execute("UPDATE tasks SET task_status = 'in_progress' WHERE id = ?", (task_id,))
+    return True
 
 
 # === ASSIGNMENTS CRUD ===
@@ -508,6 +550,7 @@ def get_active_assignments_in_period(conn, team_id, start_date, end_date):
                    JOIN tasks t ON a.task_id = t.id
                    LEFT JOIN employees e ON a.employee_id = e.id
                WHERE a.status IN ('new', 'planned')
+                 AND t.task_status NOT IN ('done', 'cancelled')
                  AND a.date BETWEEN ? AND ?'''
     # @formatter:on
     params = [start_date, end_date]

@@ -10,6 +10,21 @@ let currentPage = 1;
 const PAGE_SIZE = 20;
 let totalTasksCount = 0;
 let searchDebounceTimer = null;
+let showCompleted = false;
+
+const TASK_STATUS_LABELS = {
+    new: 'Новый',
+    ready: 'К планированию',
+    in_progress: 'В работе',
+    done: 'Выполнено',
+    cancelled: 'Отменено'
+};
+
+const VALID_TASK_TRANSITIONS = {
+    new: ['ready', 'in_progress', 'cancelled'],
+    ready: ['in_progress', 'cancelled'],
+    in_progress: ['done', 'cancelled'],
+};
 
 // Состояние автоназначения по графику команды
 let autoAssignDates = {};      // blockId -> dateStr
@@ -84,16 +99,12 @@ function initializeTable() {
 function scrollToToday() {
     const wrapper = document.getElementById('tableWrapper');
     const todayTh = document.querySelector('#tableHeader th.current');
-    const actionTh = document.querySelector('#tableHeader th:nth-child(1)');
-    const criticalityTh = document.querySelector('#tableHeader th:nth-child(2)');
-    const nameTh = document.querySelector('#tableHeader th:nth-child(3)');
+    const taskTh = document.querySelector('#tableHeader th:nth-child(1)');
     if (!wrapper || !todayTh) return;
     wrapper.scrollLeft = todayTh.offsetLeft
         - wrapper.offsetWidth / 2
         + todayTh.offsetWidth / 2
-        - actionTh.offsetWidth / 2
-        - criticalityTh.offsetWidth / 2
-        - nameTh.offsetWidth / 2;
+        - taskTh.offsetWidth / 2;
 }
 
 function loadData() {
@@ -110,7 +121,7 @@ function loadData() {
     const offset = (currentPage - 1) * PAGE_SIZE;
 
     // Загружаем задачи
-    fetch(`/api/tasks/${teamId}?offset=${offset}&limit=${PAGE_SIZE}&search=${encodeURIComponent(search)}`)
+    fetch(`/api/tasks/${teamId}?offset=${offset}&limit=${PAGE_SIZE}&search=${encodeURIComponent(search)}&show_completed=${showCompleted}`)
         .then(response => response.json())
         .then(data => {
             tasksData = data.tasks;
@@ -185,11 +196,7 @@ function renderTable() {
 
     // Рендерим заголовки
     const header = document.getElementById('tableHeader');
-    header.innerHTML = `
-        <th></th>
-        <th>Крит.</th>
-        <th>Имя</th>
-    `;
+    header.innerHTML = `<th class="task-info-col-header">Работа</th>`;
 
     dates.forEach(d => {
         const dateStr = d.toISOString().split('T')[0];
@@ -211,7 +218,7 @@ function renderTable() {
     body.innerHTML = '';
 
     if (tasksData.length === 0) {
-        body.innerHTML = `<tr><td colspan="${dates.length + 3}" class="empty-row">Нет запланированных работ</td></tr>`;
+        body.innerHTML = `<tr><td colspan="${dates.length + 1}" class="empty-row">Нет запланированных работ</td></tr>`;
         return;
     }
 
@@ -219,38 +226,44 @@ function renderTable() {
         const row = document.createElement('tr');
         // Добавляем data-task-id для идентификации задачи
         row.dataset.taskId = task.id;
+        const taskStatus = task.task_status || 'new';
+        if (taskStatus !== 'new') row.classList.add(`task-row-status-${taskStatus}`);
 
-        // Колонка действий
-        const actionCell = document.createElement('td');
-        actionCell.className = 'action-col';
-        actionCell.innerHTML = `
-            <button class="btn-edit" onclick="openTaskModal(${task.id})" title="Редактировать работу">✏️</button>
-            <button class="btn-delete" onclick="deleteTask(${task.id})" title="Удалить работу">🗑️</button>
-        `;
-        row.appendChild(actionCell);
-
-        // Колонка критичности
-        const critCell = document.createElement('td');
-        critCell.className = 'criticality-col';
         const critClass = task.criticality === 'high' ? 'criticality-high' :
             task.criticality === 'medium' ? 'criticality-medium' : 'criticality-low';
         const critDisplay = task.criticality === 'high' ? 'В' :
             task.criticality === 'medium' ? 'С' : 'Н';
-        critCell.innerHTML = `<span class="criticality-badge ${critClass}">${critDisplay}</span>`;
-        row.appendChild(critCell);
 
-        // Колонка описания
-        const nameCell = document.createElement('td');
-        const taskDescriptionBlock = task.description ? `<div class="description">${linkify(task.description)}</div>` : '';
+        const taskAssignments = assignmentsData.filter(a => a.task_id === task.id);
+        const allSuccess = taskAssignments.length > 0 && taskAssignments.every(a => a.status === 'success');
+        if (allSuccess && taskStatus === 'in_progress') row.classList.add('task-all-success');
 
-        nameCell.innerHTML = `
-                <div class="name-col">
-                    <span class="name">${task.name}</span>
-                    ${taskDescriptionBlock}
-                </div>
-            `;
+        const statusBadge = `<span class="task-status-badge task-status-${taskStatus}">${TASK_STATUS_LABELS[taskStatus] || taskStatus}</span>`;
+        const transitions = VALID_TASK_TRANSITIONS[taskStatus] || [];
+        const transitionBtns = transitions.map(s => {
+            const highlighted = s === 'done' && allSuccess;
+            return `<button class="task-status-btn task-status-btn-${s}${highlighted ? ' task-status-btn-highlight' : ''}" onclick="setTaskStatus(${task.id},'${s}')">${TASK_STATUS_LABELS[s]}</button>`;
+        }).join('');
 
-        row.appendChild(nameCell);
+        const descBlock = task.description
+            ? `<div class="task-info-row-3"><div class="description">${linkify(task.description)}</div></div>`
+            : '';
+
+        const infoCell = document.createElement('td');
+        infoCell.className = 'task-info-col';
+        infoCell.innerHTML = `
+            <div class="task-info-row-1">
+                <button class="btn-edit" onclick="openTaskModal(${task.id})" title="Редактировать">✏️</button>
+                <span class="criticality-badge ${critClass}">${critDisplay}</span>
+                <span class="task-name">${task.name}</span>
+            </div>
+            <div class="task-info-row-2">
+                <button class="btn-delete" onclick="deleteTask(${task.id})" title="Удалить">🗑️</button>
+                ${statusBadge}${transitionBtns}
+            </div>
+            ${descBlock}
+        `;
+        row.appendChild(infoCell);
 
         // Колонки с датами - убираем onclick, добавляем data атрибуты
         dates.forEach(d => {
@@ -374,6 +387,61 @@ function renderPagination() {
 
     bottom.innerHTML = html;
     top.innerHTML = html;
+}
+
+function onShowCompletedChange() {
+    showCompleted = document.getElementById('showCompleted').checked;
+    currentPage = 1;
+    loadData();
+}
+
+function showToast(taskName, status) {
+    let container = document.getElementById('toastContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        document.body.appendChild(container);
+    }
+    while (container.children.length >= 5) container.firstChild.remove();
+
+    const label = TASK_STATUS_LABELS[status] || status;
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${status}`;
+    toast.textContent = `«${taskName}» — ${label}`;
+    container.appendChild(toast);
+
+    requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('toast-visible')));
+
+    setTimeout(() => {
+        toast.classList.add('toast-hiding');
+        toast.addEventListener('transitionend', () => toast.remove(), {once: true});
+    }, 4000);
+}
+
+function setTaskStatus(taskId, newStatus) {
+    fetch(`/api/tasks/${taskId}/status`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({status: newStatus})
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) { alert('Ошибка: ' + data.error); return; }
+            if (newStatus === 'done' || newStatus === 'cancelled') {
+                const task = tasksData.find(t => t.id === taskId);
+                showToast(task ? task.name : `#${taskId}`, newStatus);
+                const row = document.querySelector(`tr[data-task-id="${taskId}"]`);
+                if (row) {
+                    row.classList.add('task-row-fadeout');
+                    setTimeout(loadData, 1000);
+                } else {
+                    loadData();
+                }
+            } else {
+                loadData();
+            }
+        })
+        .catch(() => alert('Ошибка при смене статуса'));
 }
 
 function goToPage(page) {
