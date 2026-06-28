@@ -228,6 +228,27 @@ body {
     min-width: 120px;
 }
 
+.filter-input-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+.filter-input-wrap .filter-input {
+    padding-right: 28px;
+}
+.filter-input-clear {
+    position: absolute;
+    right: 6px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    color: #999;
+    line-height: 1;
+    padding: 0 2px;
+}
+.filter-input-clear:hover { color: #333; }
+
 /* Выпадающие списки с чекбоксами */
 .filter-dropdown {
     position: relative;

@@ -35,7 +35,10 @@
         </div>
         <div class="filter-group">
             <label for="searchText">Поиск по описанию</label>
-            <input type="text" id="searchText" class="filter-input" placeholder="Введите текст...">
+            <div class="filter-input-wrap">
+                <input type="text" id="searchText" class="filter-input" placeholder="Введите текст...">
+                <button type="button" class="filter-input-clear" onclick="clearSearchText()" title="Очистить">×</button>
+            </div>
         </div>
         <div class="filter-group filter-dropdown">
             <label>Критичность</label>

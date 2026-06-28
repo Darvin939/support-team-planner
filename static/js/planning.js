@@ -76,6 +76,14 @@ function initDepTooltip() {
     });
 }
 
+function clearSearchText() {
+    const input = document.getElementById('searchText');
+    if (!input) return;
+    input.value = '';
+    currentPage = 1;
+    loadData();
+}
+
 function clearDepsSearch() {
     const input = document.getElementById('depsSearch');
     if (!input) return;
@@ -412,10 +420,10 @@ function applyFilters() {
     rows.forEach(row => {
         if (row.classList.contains('empty-row')) return;
 
-        const nameCell = row.querySelector('.name-col');
+        const nameCell = row.querySelector('.task-info-col');
         if (!nameCell) return;
 
-        const critCell = row.querySelector('.criticality-col .criticality-badge');
+        const critCell = row.querySelector('.task-info-col .criticality-badge');
         const critValue = critCell ?
             (critCell.classList.contains('criticality-high') ? 'high' :
                 critCell.classList.contains('criticality-medium') ? 'medium' : 'low') : 'medium';
