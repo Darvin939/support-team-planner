@@ -1026,7 +1026,7 @@ function openTaskModal(taskId) {
     currentDepIds = new Set((depsData[taskId] || []).map(d => d.dep_id));
     const depsList = document.getElementById('taskDepsList');
     depsList.innerHTML = '<span class="hint">Загрузка...</span>';
-    fetch(`/api/tasks/${teamId}/list`)
+    fetch(`/api/tasks/${teamId}/active-list`)
         .then(r => r.json())
         .then(all => {
             depPickerAll = all.filter(t => t.id !== taskId);
@@ -1067,7 +1067,8 @@ function saveTask(event) {
         return;
     }
 
-    const dependency_ids = Array.from(currentDepIds);
+    const activeDepIds = new Set(depPickerAll.map(t => t.id));
+    const dependency_ids = Array.from(currentDepIds).filter(id => activeDepIds.has(id));
 
     fetch('/api/task', {
         method: 'POST',

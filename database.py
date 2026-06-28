@@ -6,11 +6,29 @@ from functools import wraps
 DB_PATH = 'database.db'
 
 
+def _fuzzy_word_in(text, word):
+    """Проверяет, встречается ли word в text с допуском на 1 опечатку (скользящее окно)."""
+    if not text or not word:
+        return False
+    text, word = text.lower(), word.lower()
+    if word in text:
+        return True
+    n = len(word)
+    if n < 3:
+        return False
+    max_errors = max(1, n // 7)
+    for i in range(len(text) - n + 1):
+        if sum(a != b for a, b in zip(text[i:i + n], word)) <= max_errors:
+            return True
+    return False
+
+
 def get_db_connection():
     """Получить соединение с базой данных"""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA foreign_keys = ON;')
+    conn.create_function('fuzzy_word_in', 2, _fuzzy_word_in)
     return conn
 
 
@@ -377,11 +395,17 @@ def set_freeze_days_for_month(conn, year, month, days):
 def get_tasks_by_team(conn, team_id, offset=0, limit=20, search=None, show_completed=False):
     """Получить задачи команды с пагинацией и поиском"""
     completed_clause = "" if show_completed else "AND task_status NOT IN ('done', 'cancelled')"
-    search_clause = "AND (name LIKE ? OR description LIKE ?)" if search else ""
     params = [team_id]
     if search:
-        like = f"%{search}%"
-        params += [like, like]
+        words = search.split()
+        word_clauses = " AND ".join(
+            "(fuzzy_word_in(name, ?) OR fuzzy_word_in(description, ?))" for _ in words
+        )
+        search_clause = f"AND ({word_clauses})"
+        for word in words:
+            params += [word, word]
+    else:
+        search_clause = ""
     params += [limit, offset]
     # @formatter:off
     return conn.execute(
@@ -415,11 +439,17 @@ def get_tasks_by_team(conn, team_id, offset=0, limit=20, search=None, show_compl
 def get_tasks_count_by_team(conn, team_id, search=None, show_completed=False):
     """Получить общее количество задач команды (с учётом поиска)"""
     completed_clause = "" if show_completed else "AND task_status NOT IN ('done', 'cancelled')"
-    search_clause = "AND (name LIKE ? OR description LIKE ?)" if search else ""
     params = [team_id]
     if search:
-        like = f"%{search}%"
-        params += [like, like]
+        words = search.split()
+        word_clauses = " AND ".join(
+            "(fuzzy_word_in(name, ?) OR fuzzy_word_in(description, ?))" for _ in words
+        )
+        search_clause = f"AND ({word_clauses})"
+        for word in words:
+            params += [word, word]
+    else:
+        search_clause = ""
     return conn.execute(
         f"SELECT COUNT(*) FROM tasks WHERE team_id = ? {completed_clause} {search_clause}",
         params
@@ -546,9 +576,10 @@ def has_dependency_cycle(conn, task_id, new_dep_ids):
 
 
 @with_db_connection(commit_on_success=False)
-def get_all_tasks_flat(conn, team_id):
+def get_active_tasks_flat(conn, team_id):
     return conn.execute(
-        'SELECT id, name, task_status, criticality FROM tasks WHERE team_id = ? ORDER BY name',
+        "SELECT id, name, task_status, criticality FROM tasks"
+        " WHERE team_id = ? AND task_status NOT IN ('done', 'cancelled') ORDER BY name",
         (team_id,)
     ).fetchall()
 

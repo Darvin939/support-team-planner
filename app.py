@@ -248,9 +248,9 @@ def get_team_deps(team_id: int):
              'dep_name': r['dep_name'], 'dep_status': r['dep_status']} for r in rows]
 
 
-@app.get('/api/tasks/{team_id}/list')
-def get_tasks_list_flat(team_id: int):
-    rows = db.get_all_tasks_flat(team_id)
+@app.get('/api/tasks/{team_id}/active-list')
+def get_active_tasks_list(team_id: int):
+    rows = db.get_active_tasks_flat(team_id)
     return [{'id': r['id'], 'name': r['name'], 'task_status': r['task_status'],
              'criticality': r['criticality']} for r in rows]
 
