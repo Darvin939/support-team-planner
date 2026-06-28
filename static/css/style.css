@@ -1134,6 +1134,47 @@ body {
     border-color: #a3cfbb;
 }
 
+/* Drag-and-drop назначений */
+.schedule-info {
+    cursor: grab;
+}
+
+.task-row-status-done .schedule-info,
+.task-row-status-cancelled .schedule-info {
+    cursor: not-allowed;
+}
+
+.assignment-ghost {
+    position: fixed;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+    opacity: 0.85;
+    z-index: 1000;
+    min-width: 80px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    border-radius: 4px;
+    transition: none !important;
+    will-change: transform;
+}
+
+.schedule-cell.drag-over {
+    background: #e8f4fd !important;
+    outline: 2px dashed #3498db;
+    outline-offset: -2px;
+}
+
+.schedule-cell.drag-invalid {
+    background: #fdecea !important;
+    outline: 2px dashed #e74c3c;
+    outline-offset: -2px;
+    cursor: not-allowed;
+}
+
+.schedule-cell.drag-source .schedule-info {
+    opacity: 0.35;
+}
+
 /* ------------------------------------------------------------
    12. Модальные окна
    ------------------------------------------------------------ */

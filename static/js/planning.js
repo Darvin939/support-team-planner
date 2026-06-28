@@ -56,6 +56,7 @@ document.addEventListener('DOMContentLoaded', function () {
     initializeTable();
     setupDragScroll();
     setupAutoScheduleDragScroll();
+    setupAssignmentDrag();
 
     // Загрузка данных
     loadData();
@@ -301,7 +302,7 @@ function renderTable() {
             if (assignment) {
                 const statusColor = getStatusColor(assignment.status);
                 cell.innerHTML = `
-                    <div class="schedule-info ${statusColor}">
+                    <div class="schedule-info ${statusColor}" data-assignment-id="${assignment.id}">
                         <span class="schedule-location">${assignment.block || ''}</span>
                         <span class="schedule-status">${getStatusDisplay(assignment.status)}</span>
                         <span class="schedule-comment">${assignment.comment || ''}</span>
@@ -1013,6 +1014,13 @@ function setupDragScroll() {
 
     // Обработчик для mousedown на wrapper
     wrapper.addEventListener('mousedown', function (e) {
+        // Уступить drag-and-drop назначений (только для нетерминальных задач)
+        if (e.target.closest('.schedule-info')) {
+            const row = e.target.closest('tr');
+            const taskId = row ? parseInt(row.dataset.taskId) : null;
+            const task = taskId ? tasksData.find(t => t.id === taskId) : null;
+            if (!task || (task.task_status !== 'done' && task.task_status !== 'cancelled')) return;
+        }
         // Не активируем если клик на кнопке, инпуте или селекте
         if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select')) {
             return;
@@ -1085,6 +1093,12 @@ function setupDragScroll() {
         const cell = e.target.closest('.schedule-cell');
         if (!cell) return;
 
+        // Подавить клик после drag-and-drop назначения
+        if (window.__suppressNextClick) {
+            window.__suppressNextClick = false;
+            return;
+        }
+
         // Если было перетаскивание - игнорируем
         if (isDragging || movedDistance > 5) {
             e.stopPropagation();
@@ -1133,4 +1147,189 @@ function setupDragScroll() {
     //         this.scrollLeft += e.deltaY;
     //     }
     // }, { passive: false });
+}
+
+function setupAssignmentDrag() {
+    const wrapper = document.getElementById('tableWrapper');
+    if (!wrapper) return;
+
+    const SCROLL_ZONE = 60;
+    const MAX_SPEED = 10;
+
+    let dragState = null;
+
+    function scrollStep() {
+        if (!dragState || !dragState.scrollDir) return;
+        const dir = dragState.scrollDir;
+        const speed = dragState.scrollSpeed;
+        if (dir === 'left') {
+            wrapper.scrollLeft = Math.max(0, wrapper.scrollLeft - speed);
+        } else {
+            wrapper.scrollLeft = Math.min(wrapper.scrollWidth - wrapper.clientWidth, wrapper.scrollLeft + speed);
+        }
+        dragState.scrollRaf = requestAnimationFrame(scrollStep);
+    }
+
+    wrapper.addEventListener('mousedown', function (e) {
+        const info = e.target.closest('.schedule-info');
+        if (!info) return;
+
+        const cell = info.closest('.schedule-cell');
+        if (!cell) return;
+
+        const taskId = parseInt(cell.dataset.taskId);
+        const task = tasksData.find(t => t.id === taskId);
+        if (task && (task.task_status === 'done' || task.task_status === 'cancelled')) return;
+
+        e.preventDefault();
+
+        dragState = {
+            assignmentId: parseInt(info.dataset.assignmentId),
+            taskId,
+            sourceDate: cell.dataset.date,
+            startX: e.pageX,
+            startY: e.pageY,
+            ghost: null,
+            dragStarted: false,
+            targetDate: null,
+            targetOccupied: false,
+            rowCenterY: 0,
+            ghostOffsetX: 0,
+            ghostOffsetY: 0,
+            stickyWidth: 310,
+            scrollDir: null,
+            scrollSpeed: 0,
+            scrollRaf: null,
+        };
+    });
+
+    document.addEventListener('mousemove', function (e) {
+        if (!dragState) return;
+
+        const dx = e.pageX - dragState.startX;
+        const dy = e.pageY - dragState.startY;
+
+        if (!dragState.dragStarted && Math.sqrt(dx * dx + dy * dy) > 5) {
+            dragState.dragStarted = true;
+
+            const stickyCol = wrapper.querySelector('td:nth-child(1)');
+            dragState.stickyWidth = stickyCol ? stickyCol.getBoundingClientRect().width : 310;
+
+            const sourceCell = wrapper.querySelector(`.schedule-cell[data-task-id="${dragState.taskId}"][data-date="${dragState.sourceDate}"]`);
+            if (sourceCell) {
+                sourceCell.classList.add('drag-source');
+                const rowRect = sourceCell.closest('tr').getBoundingClientRect();
+                dragState.rowCenterY = rowRect.top + rowRect.height / 2;
+
+                const sourceInfo = sourceCell.querySelector('.schedule-info');
+                if (sourceInfo) {
+                    const ghost = sourceInfo.cloneNode(true);
+                    ghost.classList.add('assignment-ghost');
+                    document.body.appendChild(ghost);
+                    dragState.ghostOffsetX = ghost.offsetWidth / 2;
+                    dragState.ghostOffsetY = ghost.offsetHeight / 2;
+                    dragState.ghost = ghost;
+                }
+            }
+        }
+
+        if (!dragState.dragStarted) return;
+
+        // Позиция ghost: X зажат в границах таблицы, Y фиксирован по строке
+        const wRect = wrapper.getBoundingClientRect();
+        const xMin = wRect.left + dragState.stickyWidth + dragState.ghostOffsetX;
+        const xMax = wRect.right - dragState.ghostOffsetX;
+        const clampedX = Math.max(xMin, Math.min(xMax, e.clientX));
+
+        if (dragState.ghost) {
+            dragState.ghost.style.transform =
+                `translate(${clampedX - dragState.ghostOffsetX}px, ${dragState.rowCenterY - dragState.ghostOffsetY}px)`;
+        }
+
+        // Авто-скролл у краёв
+        const distLeft = e.clientX - (wRect.left + dragState.stickyWidth);
+        const distRight = wRect.right - e.clientX;
+        let scrollDir = null;
+        let scrollSpeed = 0;
+        if (distLeft >= 0 && distLeft < SCROLL_ZONE) {
+            scrollDir = 'left';
+            scrollSpeed = Math.max(1, Math.round((1 - distLeft / SCROLL_ZONE) * MAX_SPEED));
+        } else if (distRight >= 0 && distRight < SCROLL_ZONE) {
+            scrollDir = 'right';
+            scrollSpeed = Math.max(1, Math.round((1 - distRight / SCROLL_ZONE) * MAX_SPEED));
+        }
+        dragState.scrollDir = scrollDir;
+        dragState.scrollSpeed = scrollSpeed;
+        if (scrollDir && !dragState.scrollRaf) {
+            dragState.scrollRaf = requestAnimationFrame(scrollStep);
+        } else if (!scrollDir && dragState.scrollRaf) {
+            cancelAnimationFrame(dragState.scrollRaf);
+            dragState.scrollRaf = null;
+        }
+
+        // Определяем ячейку под курсором
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        const targetCell = el ? el.closest('.schedule-cell') : null;
+        const targetDate = targetCell ? targetCell.dataset.date : null;
+        const targetTaskId = targetCell ? parseInt(targetCell.dataset.taskId) : null;
+
+        wrapper.querySelectorAll('.drag-over, .drag-invalid').forEach(c => {
+            c.classList.remove('drag-over', 'drag-invalid');
+        });
+
+        if (targetDate && targetDate !== dragState.sourceDate && targetTaskId === dragState.taskId) {
+            const occupied = assignmentsData.some(a => a.task_id === dragState.taskId && a.date === targetDate);
+            targetCell.classList.add(occupied ? 'drag-invalid' : 'drag-over');
+            dragState.targetDate = targetDate;
+            dragState.targetOccupied = occupied;
+        } else {
+            dragState.targetDate = null;
+            dragState.targetOccupied = false;
+        }
+    });
+
+    document.addEventListener('mouseup', function () {
+        if (!dragState) return;
+        const state = dragState;
+        dragState = null;
+
+        if (state.scrollRaf) cancelAnimationFrame(state.scrollRaf);
+        if (state.ghost) state.ghost.remove();
+        wrapper.querySelectorAll('.drag-over, .drag-invalid, .drag-source').forEach(c => {
+            c.classList.remove('drag-over', 'drag-invalid', 'drag-source');
+        });
+
+        if (!state.dragStarted) return;
+
+        window.__suppressNextClick = true;
+
+        if (state.targetDate && !state.targetOccupied) {
+            moveAssignment(state.assignmentId, state.targetDate);
+        }
+    });
+}
+
+function moveAssignment(assignmentId, newDate) {
+    const a = assignmentsData.find(x => x.id === assignmentId);
+    if (!a) return;
+
+    fetch('/api/assignment', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            assignment_id: a.id,
+            task_id: a.task_id,
+            date: newDate,
+            block: a.block || '',
+            status: a.status,
+            employee_id: a.employee_id || null,
+            comment: a.comment || ''
+        })
+    })
+        .then(r => r.json())
+        .then(() => loadData())
+        .catch(err => {
+            console.error('Error moving assignment:', err);
+            alert('Ошибка при переносе');
+        });
 }
