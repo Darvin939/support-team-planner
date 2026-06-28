@@ -8,24 +8,37 @@
 </div>
 
 <div class="team-selector">
-    <label for="statsTeamSelect">Команда:</label>
-    <select id="statsTeamSelect" onchange="saveTeamId(this.value); loadAll()">
-        <option value="0">Все команды</option>
-        {% for team in teams %}
-        <option value="{{ team.id }}">{{ team.name }}</option>
-        {% endfor %}
-    </select>
+    <label>Команда:</label>
+    <div class="dropdown-container" style="min-width: 220px; display: inline-block;">
+        <button class="dropdown-toggle" onclick="toggleDropdown('teamDropdownMenu')">
+            <span class="dropdown-label">Все команды</span>
+            <span class="dropdown-arrow">▼</span>
+        </button>
+        <div class="dropdown-menu" id="teamDropdownMenu">
+            <label class="checkbox-item">
+                <input type="checkbox" id="teamAll" value="0" checked onchange="onTeamAllChange()">
+                Все команды
+            </label>
+            {% for team in teams %}
+            <label class="checkbox-item">
+                <input type="checkbox" class="team-checkbox" value="{{ team.id }}" onchange="onTeamCheckboxChange()">
+                {{ team.name }}
+            </label>
+            {% endfor %}
+        </div>
+    </div>
 </div>
 
 <!-- Активные работы на сегодня -->
 <div class="stats-section">
     <h2>Активные работы на сегодня</h2>
     <div class="stats-counters" id="todayCounters"></div>
-    <div class="stats-table-wrapper">
+    <div class="stats-table-wrapper" id="todayTableWrapper">
         <table class="stats-table">
             <thead>
             <tr>
                 <th>Работа</th>
+                <th>Команда</th>
                 <th>Крит.</th>
                 <th>Блок</th>
                 <th>Статус</th>
@@ -37,6 +50,7 @@
             </tbody>
         </table>
     </div>
+    <div id="todayEmpty" class="stats-empty" style="display:none">Нет активных работ</div>
 </div>
 
 <!-- Активные работы за период -->
@@ -53,11 +67,12 @@
         </div>
     </div>
     <div class="stats-counters" id="periodCounters"></div>
-    <div class="stats-table-wrapper">
+    <div class="stats-table-wrapper" id="periodTableWrapper">
         <table class="stats-table">
             <thead>
             <tr>
                 <th>Работа</th>
+                <th>Команда</th>
                 <th>Крит.</th>
                 <th>Дата</th>
                 <th>Блок</th>
@@ -70,6 +85,7 @@
             </tbody>
         </table>
     </div>
+    <div id="periodEmpty" class="stats-empty" style="display:none">Нет активных работ</div>
 </div>
 
 <script src="/static/js/statistics.js"></script>

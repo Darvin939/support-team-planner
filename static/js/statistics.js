@@ -2,11 +2,52 @@ const statusLabels = {new: 'Новый', planned: 'Запланировано'};
 const critLabels = {high: 'Высокая', medium: 'Средняя', low: 'Низкая'};
 const critClasses = {high: 'criticality-high', medium: 'criticality-medium', low: 'criticality-low'};
 
+const STORAGE_STATS_TEAMS = 'statsSelectedTeams';
+
+function saveStatsTeams(ids) { localStorage.setItem(STORAGE_STATS_TEAMS, JSON.stringify(ids)); }
+function getSavedStatsTeams() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_STATS_TEAMS)) || []; } catch { return []; }
+}
+
 function localDateStr(d) {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
+}
+
+function getSelectedTeamIds() {
+    const allCb = document.getElementById('teamAll');
+    if (allCb && allCb.checked) return null;
+    const checked = Array.from(document.querySelectorAll('.team-checkbox')).filter(cb => cb.checked);
+    return checked.length ? checked.map(cb => cb.value) : null;
+}
+
+function buildTeamIdsParam(ids) {
+    return ids && ids.length ? `&team_ids=${ids.join(',')}` : '';
+}
+
+function onTeamAllChange() {
+    const allCb = document.getElementById('teamAll');
+    if (allCb.checked) {
+        document.querySelectorAll('.team-checkbox').forEach(cb => cb.checked = false);
+    }
+    updateDropdownLabel('teamDropdownMenu');
+    saveStatsTeams(allCb.checked ? [] : getSelectedTeamIds() || []);
+    loadAll();
+}
+
+function onTeamCheckboxChange() {
+    const checked = Array.from(document.querySelectorAll('.team-checkbox')).filter(cb => cb.checked);
+    const allCb = document.getElementById('teamAll');
+    if (checked.length === 0) {
+        allCb.checked = true;
+    } else {
+        allCb.checked = false;
+    }
+    updateDropdownLabel('teamDropdownMenu');
+    saveStatsTeams(checked.map(cb => cb.value));
+    loadAll();
 }
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -22,8 +63,15 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('statsDateTo').value = localDateStr(today);
     }
 
-    const savedTeam = getSavedTeamId();
-    if (savedTeam) document.getElementById('statsTeamSelect').value = savedTeam;
+    const savedTeams = getSavedStatsTeams();
+    if (savedTeams.length > 0) {
+        document.getElementById('teamAll').checked = false;
+        const ids = savedTeams.map(String);
+        document.querySelectorAll('.team-checkbox').forEach(cb => {
+            cb.checked = ids.includes(cb.value);
+        });
+    }
+    updateDropdownLabel('teamDropdownMenu');
 
     document.getElementById('statsDateFrom').addEventListener('change', loadPeriodData);
     document.getElementById('statsDateTo').addEventListener('change', loadPeriodData);
@@ -39,13 +87,15 @@ function loadAll() {
 function loadPeriodData() {
     clampDateRange('statsDateFrom', 'statsDateTo');
 
-    const teamId = document.getElementById('statsTeamSelect').value;
     saveDateRange(document.getElementById('statsDateFrom').value, document.getElementById('statsDateTo').value);
     const from = document.getElementById('statsDateFrom').value;
     const to = document.getElementById('statsDateTo').value;
     if (!from || !to) return;
 
-    fetch(`/api/active-assignments/${teamId}?start_date=${from}&end_date=${to}`)
+    const teamIds = getSelectedTeamIds();
+    const teamParam = buildTeamIdsParam(teamIds);
+
+    fetch(`/api/active-assignments/0?start_date=${from}&end_date=${to}${teamParam}`)
         .then(r => r.json())
         .then(data => {
             renderCounters(data, 'periodCounters');
@@ -55,10 +105,12 @@ function loadPeriodData() {
 }
 
 function loadTodayData() {
-    const teamId = document.getElementById('statsTeamSelect').value;
     const today = localDateStr(new Date());
 
-    fetch(`/api/active-assignments/${teamId}?start_date=${today}&end_date=${today}`)
+    const teamIds = getSelectedTeamIds();
+    const teamParam = buildTeamIdsParam(teamIds);
+
+    fetch(`/api/active-assignments/0?start_date=${today}&end_date=${today}${teamParam}`)
         .then(r => r.json())
         .then(data => {
             renderCounters(data, 'todayCounters');
@@ -94,12 +146,18 @@ function renderCounters(data, containerId) {
 
 function renderTable(data, tbodyId, showDate) {
     const tbody = document.getElementById(tbodyId);
-    const colCount = showDate ? 7 : 6;
+    const wrapper = document.getElementById(tbodyId.replace('TableBody', 'TableWrapper'));
+    const emptyEl = document.getElementById(tbodyId.replace('TableBody', 'Empty'));
 
     if (data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="${colCount}" class="empty-row">Нет активных работ</td></tr>`;
+        tbody.innerHTML = '';
+        if (wrapper) wrapper.style.display = 'none';
+        if (emptyEl) emptyEl.style.display = '';
         return;
     }
+
+    if (wrapper) wrapper.style.display = '';
+    if (emptyEl) emptyEl.style.display = 'none';
 
     let html = '';
     data.forEach(a => {
@@ -109,6 +167,7 @@ function renderTable(data, tbodyId, showDate) {
 
         html += `<tr>
             <td>${a.task_name}</td>
+            <td>${a.team_name || ''}</td>
             <td><span class="criticality-badge ${critClass}">${critLabel}</span></td>`;
         if (showDate) html += `<td>${a.date}</td>`;
         html += `<td>${a.block || ''}</td>

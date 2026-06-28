@@ -547,16 +547,18 @@ def delete_assignment(conn, assignment_id):
 
 # === STATISTICS ===
 @with_db_connection(commit_on_success=False)
-def get_active_assignments_in_period(conn, team_id, start_date, end_date):
+def get_active_assignments_in_period(conn, team_id, start_date, end_date, team_ids=None):
     """Получить активные назначения (new/planned) за период с данными задач и сотрудников"""
     # @formatter:off
     query = '''SELECT a.id, t.name AS task_name, t.criticality,
                       a.date, a.block, a.status, a.employee_id, a.comment,
                       e.last_name  AS employee_last_name,
                       e.first_name AS employee_first_name,
-                      e.middle_name AS employee_middle_name
+                      e.middle_name AS employee_middle_name,
+                      tm.name AS team_name
                FROM assignments a
                    JOIN tasks t ON a.task_id = t.id
+                   JOIN teams tm ON t.team_id = tm.id
                    LEFT JOIN employees e ON a.employee_id = e.id
                WHERE a.status IN ('new', 'planned')
                  AND t.task_status NOT IN ('done', 'cancelled')
@@ -564,7 +566,11 @@ def get_active_assignments_in_period(conn, team_id, start_date, end_date):
     # @formatter:on
     params = [start_date, end_date]
 
-    if team_id:
+    if team_ids:
+        placeholders = ','.join('?' * len(team_ids))
+        query += f' AND t.team_id IN ({placeholders})'
+        params.extend(team_ids)
+    elif team_id:
         query += ' AND t.team_id = ?'
         params.append(team_id)
 

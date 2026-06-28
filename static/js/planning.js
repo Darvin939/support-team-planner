@@ -217,10 +217,18 @@ function renderTable() {
     const body = document.getElementById('tableBody');
     body.innerHTML = '';
 
+    const tableWrapper = document.getElementById('tableWrapper');
+    const planningEmpty = document.getElementById('planningEmpty');
+
     if (tasksData.length === 0) {
-        body.innerHTML = `<tr><td colspan="${dates.length + 1}" class="empty-row">Нет запланированных работ</td></tr>`;
+        body.innerHTML = '';
+        if (tableWrapper) tableWrapper.style.display = 'none';
+        if (planningEmpty) planningEmpty.style.display = '';
         return;
     }
+
+    if (tableWrapper) tableWrapper.style.display = '';
+    if (planningEmpty) planningEmpty.style.display = 'none';
 
     tasksData.forEach(task => {
         const row = document.createElement('tr');

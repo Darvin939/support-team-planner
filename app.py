@@ -405,13 +405,15 @@ def delete_freeze_day_api(date_str: str):
 # === API для статистики ===
 
 @app.get('/api/active-assignments/{team_id}')
-def get_active_assignments_api(team_id: int, start_date: Optional[str] = None, end_date: Optional[str] = None):
+def get_active_assignments_api(team_id: int, start_date: Optional[str] = None, end_date: Optional[str] = None,
+                               team_ids: Optional[str] = None):
     """Активные назначения (new/planned) за период"""
     today_str = date.today().strftime('%Y-%m-%d')
     start_date = start_date or today_str
     end_date = end_date or today_str
 
-    assignments = db.get_active_assignments_in_period(team_id, start_date, end_date)
+    parsed_team_ids = [int(x) for x in team_ids.split(',') if x.strip()] if team_ids else None
+    assignments = db.get_active_assignments_in_period(team_id, start_date, end_date, team_ids=parsed_team_ids)
 
     result = []
     for a in assignments:
@@ -427,6 +429,7 @@ def get_active_assignments_api(team_id: int, start_date: Optional[str] = None, e
             'status': a['status'],
             'employee_name': employee_name,
             'comment': a['comment'],
+            'team_name': a['team_name'],
         })
     return result
 
