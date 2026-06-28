@@ -4,6 +4,7 @@ let teamBlocks = [];
 
 let tasksData = [];
 let assignmentsData = [];
+let depsData = {};  // {task_id: [{dep_id, dep_name, dep_status}, ...]}
 let currentDateRange = {start: null, end: null};
 
 let currentPage = 1;
@@ -38,6 +39,66 @@ const statusMap = {
     'success': 'Успешно'
 };
 
+const DEP_STATUS_LABELS = {
+    new: 'Новый', ready: 'К планированию', in_progress: 'В работе',
+    done: 'Выполнено', cancelled: 'Отменено'
+};
+
+const DEP_CRIT_LABEL = {high: 'В', medium: 'С', low: 'Н'};
+const DEP_CRIT_CLASS = {high: 'criticality-high', medium: 'criticality-medium', low: 'criticality-low'};
+
+let depPickerAll = [];
+let currentDepIds = new Set();
+
+function initDepTooltip() {
+    const tip = document.createElement('div');
+    tip.className = 'dep-tooltip';
+    document.body.appendChild(tip);
+
+    document.addEventListener('mouseover', e => {
+        const badge = e.target.closest('.dep-badge[data-deps]');
+        if (!badge) return;
+        const names = JSON.parse(badge.dataset.deps || '[]');
+        tip.innerHTML = names.map(n => `<div class="dep-tooltip-item">${n}</div>`).join('');
+        tip.style.display = 'block';
+    });
+
+    document.addEventListener('mousemove', e => {
+        if (tip.style.display === 'none' || !tip.style.display) return;
+        const x = e.clientX + 12;
+        const y = e.clientY + 12;
+        tip.style.left = Math.min(x, window.innerWidth - tip.offsetWidth - 8) + 'px';
+        tip.style.top = y + 'px';
+    });
+
+    document.addEventListener('mouseout', e => {
+        if (e.target.closest('.dep-badge[data-deps]')) tip.style.display = 'none';
+    });
+}
+
+function clearDepsSearch() {
+    const input = document.getElementById('depsSearch');
+    if (!input) return;
+    input.value = '';
+    renderDepCheckboxes();
+}
+
+function renderDepCheckboxes() {
+    const q = (document.getElementById('depsSearch')?.value || '').toLowerCase();
+    const filtered = depPickerAll.filter(t => t.name.toLowerCase().includes(q));
+    filtered.sort((a, b) => (currentDepIds.has(a.id) ? 0 : 1) - (currentDepIds.has(b.id) ? 0 : 1));
+    const box = document.getElementById('depsCheckboxes');
+    if (!box) return;
+    box.innerHTML = filtered.length === 0
+        ? '<span class="hint">Нет совпадений</span>'
+        : filtered.map(t => `<label class="checkbox-item">
+            <input type="checkbox" class="dep-checkbox" value="${t.id}"${currentDepIds.has(t.id) ? ' checked' : ''}>
+            <span class="criticality-badge ${DEP_CRIT_CLASS[t.criticality] || ''}">${DEP_CRIT_LABEL[t.criticality] || '?'}</span>
+            <span class="task-status-badge task-status-${t.task_status}">${DEP_STATUS_LABELS[t.task_status] || t.task_status}</span>
+            ${t.name}
+          </label>`).join('');
+}
+
 // Инициализация
 document.addEventListener('DOMContentLoaded', function () {
     const dataEl = document.getElementById('planningData');
@@ -54,6 +115,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (saved.to) document.getElementById('dateTo').value = saved.to;
 
     initializeTable();
+    initDepTooltip();
     setupDragScroll();
     setupAutoScheduleDragScroll();
     setupAssignmentDrag();
@@ -121,24 +183,24 @@ function loadData() {
     const search = document.getElementById('searchText').value.trim();
     const offset = (currentPage - 1) * PAGE_SIZE;
 
-    // Загружаем задачи
-    fetch(`/api/tasks/${teamId}?offset=${offset}&limit=${PAGE_SIZE}&search=${encodeURIComponent(search)}&show_completed=${showCompleted}`)
-        .then(response => response.json())
-        .then(data => {
-            tasksData = data.tasks;
-            totalTasksCount = data.total;
-            // Загружаем назначения
-            return fetch(`/api/assignments/${teamId}?start_date=${dateFrom}&end_date=${dateTo}`);
-        })
-        .then(response => response.json())
-        .then(data => {
-            assignmentsData = data;
-            renderTable();
-            renderPagination();
-            applyFilters();
-            scrollToToday();
-        })
-        .catch(error => console.error('Error loading data:', error));
+    Promise.all([
+        fetch(`/api/tasks/${teamId}?offset=${offset}&limit=${PAGE_SIZE}&search=${encodeURIComponent(search)}&show_completed=${showCompleted}`).then(r => r.json()),
+        fetch(`/api/assignments/${teamId}?start_date=${dateFrom}&end_date=${dateTo}`).then(r => r.json()),
+        fetch(`/api/tasks/${teamId}/deps`).then(r => r.json()),
+    ]).then(([taskData, assignData, depsRows]) => {
+        tasksData = taskData.tasks;
+        totalTasksCount = taskData.total;
+        assignmentsData = assignData;
+        depsData = {};
+        depsRows.forEach(r => {
+            if (!depsData[r.task_id]) depsData[r.task_id] = [];
+            depsData[r.task_id].push(r);
+        });
+        renderTable();
+        renderPagination();
+        applyFilters();
+        scrollToToday();
+    }).catch(error => console.error('Error loading data:', error));
 
     loadTodayCounters();
 }
@@ -258,6 +320,21 @@ function renderTable() {
             ? `<div class="task-info-row-3"><div class="description">${linkify(task.description)}</div></div>`
             : '';
 
+        let depWarning = '';
+        const deps = depsData[task.id] || [];
+        if (deps.length > 0) {
+            const cancelled = deps.filter(d => d.dep_status === 'cancelled');
+            const pending   = deps.filter(d => d.dep_status !== 'done' && d.dep_status !== 'cancelled');
+            if (cancelled.length > 0) {
+                const names = JSON.stringify(cancelled.map(d => d.dep_name));
+                depWarning += `<span class="dep-badge dep-badge-cancelled" data-deps='${names}'>⛔ зависимость отменена: ${cancelled.length}</span>`;
+            }
+            if (pending.length > 0) {
+                const names = JSON.stringify(pending.map(d => d.dep_name));
+                depWarning += `<span class="dep-badge dep-badge-pending" data-deps='${names}'>⏳ ожидает: ${pending.length}</span>`;
+            }
+        }
+
         const isTerminal = taskStatus === 'done' || taskStatus === 'cancelled';
         const editBtn = isTerminal ? '' : `<button class="btn-edit" onclick="openTaskModal(${task.id})" title="Редактировать">✏️</button>`;
         const deleteBtn = isTerminal ? '' : `<button class="btn-delete" onclick="deleteTask(${task.id})" title="Удалить">🗑️</button>`;
@@ -272,7 +349,7 @@ function renderTable() {
             </div>
             <div class="task-info-row-2">
                 ${deleteBtn}
-                ${statusBadge}${transitionBtns}
+                ${statusBadge}${transitionBtns}${depWarning}
             </div>
             ${descBlock}
         `;
@@ -938,6 +1015,34 @@ function openTaskModal(taskId) {
         updateBtn.style.display = 'none';
     }
 
+    currentDepIds = new Set((depsData[taskId] || []).map(d => d.dep_id));
+    const depsList = document.getElementById('taskDepsList');
+    depsList.innerHTML = '<span class="hint">Загрузка...</span>';
+    fetch(`/api/tasks/${teamId}/list`)
+        .then(r => r.json())
+        .then(all => {
+            depPickerAll = all.filter(t => t.id !== taskId);
+            if (depPickerAll.length === 0) {
+                depsList.innerHTML = '<span class="hint">Нет других работ</span>';
+                return;
+            }
+            depsList.innerHTML =
+                '<div class="deps-search-row">' +
+                    '<input type="text" id="depsSearch" class="deps-search" placeholder="Поиск...">' +
+                    '<button type="button" class="deps-search-clear" onclick="clearDepsSearch()" title="Очистить">×</button>' +
+                '</div>' +
+                '<div id="depsCheckboxes" class="deps-checkboxes"></div>';
+            document.getElementById('depsSearch').addEventListener('input', renderDepCheckboxes);
+            document.getElementById('depsCheckboxes').addEventListener('change', e => {
+                const cb = e.target.closest('.dep-checkbox');
+                if (!cb) return;
+                const id = parseInt(cb.value);
+                if (cb.checked) currentDepIds.add(id); else currentDepIds.delete(id);
+            });
+            renderDepCheckboxes();
+        })
+        .catch(() => { depsList.innerHTML = '<span class="hint">Ошибка загрузки</span>'; });
+
     modal.style.display = 'flex'
 }
 
@@ -954,27 +1059,29 @@ function saveTask(event) {
         return;
     }
 
+    const dependency_ids = Array.from(currentDepIds);
+
     fetch('/api/task', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
             task_id: taskId,
             team_id: teamId,
             name: name,
             description: description,
-            criticality: criticality
+            criticality: criticality,
+            dependency_ids: dependency_ids
         })
     })
         .then(response => response.json())
-        .then(() => {
+        .then(data => {
+            if (data.error) { alert(data.error); return; }
             closeModal('taskModal');
             loadData();
         })
         .catch(error => {
-            console.error('Error adding task:', error);
-            alert('Ошибка при добавлении');
+            console.error('Error saving task:', error);
+            alert('Ошибка при сохранении');
         });
 }
 

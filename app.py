@@ -33,6 +33,7 @@ class TaskIn(BaseModel):
     name: str = ""
     description: Optional[str] = None
     criticality: str = "medium"
+    dependency_ids: Optional[List[int]] = None
 
 
 class TeamIn(BaseModel):
@@ -230,8 +231,28 @@ def save_task_api(data: TaskIn):
         if task and task['task_status'] in ('done', 'cancelled'):
             return JSONResponse({'error': 'Нельзя редактировать завершённую или отменённую задачу'}, status_code=400)
 
-    task_id = db.create_or_update_task(data.task_id, data.team_id, name, description, data.criticality)
+    task_id = int(db.create_or_update_task(data.task_id, data.team_id, name, description, data.criticality))
+
+    if data.dependency_ids is not None:
+        if data.dependency_ids and db.has_dependency_cycle(task_id, data.dependency_ids):
+            return JSONResponse({'error': 'Обнаружена циклическая зависимость'}, status_code=400)
+        db.set_task_dependencies(task_id, data.dependency_ids)
+
     return {'id': task_id, 'success': True}
+
+
+@app.get('/api/tasks/{team_id}/deps')
+def get_team_deps(team_id: int):
+    rows = db.get_all_deps_for_team(team_id)
+    return [{'task_id': r['task_id'], 'dep_id': r['dep_id'],
+             'dep_name': r['dep_name'], 'dep_status': r['dep_status']} for r in rows]
+
+
+@app.get('/api/tasks/{team_id}/list')
+def get_tasks_list_flat(team_id: int):
+    rows = db.get_all_tasks_flat(team_id)
+    return [{'id': r['id'], 'name': r['name'], 'task_status': r['task_status'],
+             'criticality': r['criticality']} for r in rows]
 
 
 @app.delete('/api/task/{task_id}')

@@ -96,6 +96,14 @@ def init_db(conn):
             UNIQUE (task_id, date)
         );
         
+        CREATE TABLE IF NOT EXISTS task_dependencies (
+            task_id            INTEGER NOT NULL,
+            depends_on_task_id INTEGER NOT NULL,
+            PRIMARY KEY (task_id, depends_on_task_id),
+            FOREIGN KEY (task_id)            REFERENCES tasks(id) ON DELETE CASCADE,
+            FOREIGN KEY (depends_on_task_id) REFERENCES tasks(id) ON DELETE CASCADE
+        );
+
         CREATE index if NOT EXISTS idx_assignments_task_id ON assignments (task_id);
         CREATE index if NOT EXISTS idx_assignments_date ON assignments (date);
         CREATE index if NOT EXISTS idx_assignments_status ON assignments (status);
@@ -152,6 +160,16 @@ def ensure_schema(conn):
     cols = {r[1] for r in conn.execute('PRAGMA table_info(tasks)')}
     if 'task_status' not in cols:
         conn.execute("ALTER TABLE tasks ADD COLUMN task_status TEXT NOT NULL DEFAULT 'new'")
+
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS task_dependencies (
+            task_id            INTEGER NOT NULL,
+            depends_on_task_id INTEGER NOT NULL,
+            PRIMARY KEY (task_id, depends_on_task_id),
+            FOREIGN KEY (task_id)            REFERENCES tasks(id) ON DELETE CASCADE,
+            FOREIGN KEY (depends_on_task_id) REFERENCES tasks(id) ON DELETE CASCADE
+        )
+    ''')
 
     conn.execute('PRAGMA foreign_keys = ON;')
 
@@ -477,6 +495,62 @@ def maybe_advance_task_to_in_progress(conn, task_id):
         if has_planned:
             conn.execute("UPDATE tasks SET task_status = 'in_progress' WHERE id = ?", (task_id,))
     return True
+
+
+# === TASK DEPENDENCIES ===
+
+@with_db_connection(commit_on_success=False)
+def get_all_deps_for_team(conn, team_id):
+    # @formatter:off
+    return conn.execute(
+        '''SELECT td.task_id, td.depends_on_task_id AS dep_id,
+                  dep.name AS dep_name, dep.task_status AS dep_status
+           FROM task_dependencies td
+           JOIN tasks src ON td.task_id            = src.id
+           JOIN tasks dep ON td.depends_on_task_id = dep.id
+           WHERE src.team_id = ?''',
+        (team_id,)
+    ).fetchall()
+    # @formatter:on
+
+
+@with_db_connection()
+def set_task_dependencies(conn, task_id, dep_ids):
+    conn.execute('DELETE FROM task_dependencies WHERE task_id = ?', (task_id,))
+    for dep_id in dep_ids:
+        conn.execute(
+            'INSERT OR IGNORE INTO task_dependencies (task_id, depends_on_task_id) VALUES (?, ?)',
+            (task_id, dep_id)
+        )
+
+
+@with_db_connection(commit_on_success=False)
+def has_dependency_cycle(conn, task_id, new_dep_ids):
+    """BFS: достижим ли task_id из new_dep_ids по существующим рёбрам зависимостей?
+    Если да — добавление этих зависимостей создаст цикл."""
+    visited = set()
+    queue = list(new_dep_ids)
+    while queue:
+        current = queue.pop()
+        if current == task_id:
+            return True
+        if current in visited:
+            continue
+        visited.add(current)
+        rows = conn.execute(
+            'SELECT depends_on_task_id FROM task_dependencies WHERE task_id = ?',
+            (current,)
+        ).fetchall()
+        queue.extend(r['depends_on_task_id'] for r in rows)
+    return False
+
+
+@with_db_connection(commit_on_success=False)
+def get_all_tasks_flat(conn, team_id):
+    return conn.execute(
+        'SELECT id, name, task_status, criticality FROM tasks WHERE team_id = ? ORDER BY name',
+        (team_id,)
+    ).fetchall()
 
 
 # === ASSIGNMENTS CRUD ===
