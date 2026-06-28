@@ -2,3 +2,5 @@ fastapi
 uvicorn[standard]
 jinja2
 pydantic
+# PostgreSQL backend (опционально, нужен только при использовании PostgresBackend)
+psycopg2-binary

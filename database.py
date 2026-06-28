@@ -1,34 +1,15 @@
-import os
-import sqlite3
 from datetime import datetime, timedelta
 from functools import wraps
 
-DB_PATH = 'database.db'
+from db_backend import DBBackend
+from db_sqlite import SQLiteBackend
 
-
-def _fuzzy_word_in(text, word):
-    """Проверяет, встречается ли word в text с допуском на 1 опечатку (скользящее окно)."""
-    if not text or not word:
-        return False
-    text, word = text.lower(), word.lower()
-    if word in text:
-        return True
-    n = len(word)
-    if n < 3:
-        return False
-    max_errors = max(1, n // 7)
-    for i in range(len(text) - n + 1):
-        if sum(a != b for a, b in zip(text[i:i + n], word)) <= max_errors:
-            return True
-    return False
+_backend: DBBackend = SQLiteBackend()
 
 
 def get_db_connection():
-    """Получить соединение с базой данных"""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute('PRAGMA foreign_keys = ON;')
-    conn.create_function('fuzzy_word_in', 2, _fuzzy_word_in)
+    conn = _backend.connect()
+    _backend.setup_connection(conn)
     return conn
 
 
@@ -42,9 +23,9 @@ def with_db_connection(default_return=None, raise_on_error=True, commit_on_succe
                 if commit_on_success:
                     conn.commit()
                 return result
-            except sqlite3.Error as e:
+            except _backend.db_error:
                 if raise_on_error:
-                    raise sqlite3.DatabaseError(e, func.__name__, args, kwargs)
+                    raise
                 return default_return
             finally:
                 conn.close()
@@ -56,140 +37,7 @@ def with_db_connection(default_return=None, raise_on_error=True, commit_on_succe
 
 @with_db_connection()
 def init_db(conn):
-    """Инициализация базы данных"""
-    cursor = conn.cursor()
-
-    cursor.execute("PRAGMA foreign_keys = ON;")
-
-    # Создание таблиц
-    # @formatter:off
-    cursor.executescript('''
-        CREATE TABLE if NOT EXISTS teams (
-            id INTEGER PRIMARY key autoincrement,
-            name text NOT NULL UNIQUE
-        );
-
-        CREATE TABLE IF NOT EXISTS team_blocks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            team_id INTEGER NOT NULL,
-            block_name TEXT NOT NULL,
-            schedule_offset INTEGER NOT NULL DEFAULT 0,
-            FOREIGN KEY (team_id) REFERENCES teams (id) ON DELETE CASCADE
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_team_blocks_team_id ON team_blocks (team_id);
-
-        CREATE TABLE IF NOT EXISTS employees (
-            id INTEGER PRIMARY key autoincrement,
-            last_name TEXT NOT NULL,
-            first_name TEXT NOT NULL,
-            middle_name TEXT,
-            UNIQUE(last_name, first_name, middle_name)
-        );
-        
-        CREATE TABLE if NOT EXISTS freeze_days (
-            id INTEGER PRIMARY key autoincrement,
-            date DATE NOT NULL UNIQUE
-        );
-        
-        CREATE TABLE if NOT EXISTS tasks (
-            id INTEGER PRIMARY key autoincrement,
-            team_id INTEGER NOT NULL,
-            name text NOT NULL,
-            description text,
-            criticality text NOT NULL DEFAULT 'medium',
-            FOREIGN key (team_id) REFERENCES teams (id) ON DELETE cascade
-        );
-        
-        CREATE TABLE if NOT EXISTS assignments (
-            id INTEGER PRIMARY key autoincrement,
-            task_id INTEGER NOT NULL,
-            date DATE NOT NULL,
-            block text,
-            status text NOT NULL DEFAULT 'new',
-            employee_id INTEGER,
-            comment text,
-            FOREIGN key (task_id) REFERENCES tasks (id) ON DELETE cascade,
-            FOREIGN key (employee_id) REFERENCES employees (id),
-            UNIQUE (task_id, date)
-        );
-        
-        CREATE TABLE IF NOT EXISTS task_dependencies (
-            task_id            INTEGER NOT NULL,
-            depends_on_task_id INTEGER NOT NULL,
-            PRIMARY KEY (task_id, depends_on_task_id),
-            FOREIGN KEY (task_id)            REFERENCES tasks(id) ON DELETE CASCADE,
-            FOREIGN KEY (depends_on_task_id) REFERENCES tasks(id) ON DELETE CASCADE
-        );
-
-        CREATE index if NOT EXISTS idx_assignments_task_id ON assignments (task_id);
-        CREATE index if NOT EXISTS idx_assignments_date ON assignments (date);
-        CREATE index if NOT EXISTS idx_assignments_status ON assignments (status);
-        CREATE index if NOT EXISTS idx_tasks_team_id ON tasks (team_id);
-        ''')
-    # @formatter:on
-
-
-@with_db_connection()
-def ensure_schema(conn):
-    """Догоняющая миграция: создаёт/чинит таблицу team_blocks на уже существующей БД.
-
-    На некоторых БД таблица team_blocks могла быть создана раньше с
-    ограничением UNIQUE(team_id, schedule_offset), которое не позволяет
-    указать несколько блоков с одинаковым сдвигом. Если такое ограничение
-    обнаружено, таблица пересобирается без него, данные сохраняются.
-    """
-    conn.execute('PRAGMA foreign_keys = OFF;')
-
-    row = conn.execute(
-        "SELECT sql FROM sqlite_master WHERE type='table' AND name='team_blocks'"
-    ).fetchone()
-
-    if row is None:
-        conn.executescript('''
-            CREATE TABLE team_blocks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                team_id INTEGER NOT NULL,
-                block_name TEXT NOT NULL,
-                schedule_offset INTEGER NOT NULL DEFAULT 0,
-                FOREIGN KEY (team_id) REFERENCES teams (id) ON DELETE CASCADE
-            );
-        ''')
-    else:
-        existing_sql = (row['sql'] or row[0] or '')
-        has_bad_unique = 'UNIQUE' in existing_sql.upper() and 'SCHEDULE_OFFSET' in existing_sql.upper()
-        if has_bad_unique:
-            conn.executescript('''
-                ALTER TABLE team_blocks RENAME TO team_blocks_old;
-                CREATE TABLE team_blocks (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    team_id INTEGER NOT NULL,
-                    block_name TEXT NOT NULL,
-                    schedule_offset INTEGER NOT NULL DEFAULT 0,
-                    FOREIGN KEY (team_id) REFERENCES teams (id) ON DELETE CASCADE
-                );
-                INSERT INTO team_blocks (id, team_id, block_name, schedule_offset)
-                    SELECT id, team_id, block_name, schedule_offset FROM team_blocks_old;
-                DROP TABLE team_blocks_old;
-            ''')
-
-    conn.execute('CREATE INDEX IF NOT EXISTS idx_team_blocks_team_id ON team_blocks (team_id);')
-
-    cols = {r[1] for r in conn.execute('PRAGMA table_info(tasks)')}
-    if 'task_status' not in cols:
-        conn.execute("ALTER TABLE tasks ADD COLUMN task_status TEXT NOT NULL DEFAULT 'new'")
-
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS task_dependencies (
-            task_id            INTEGER NOT NULL,
-            depends_on_task_id INTEGER NOT NULL,
-            PRIMARY KEY (task_id, depends_on_task_id),
-            FOREIGN KEY (task_id)            REFERENCES tasks(id) ON DELETE CASCADE,
-            FOREIGN KEY (depends_on_task_id) REFERENCES tasks(id) ON DELETE CASCADE
-        )
-    ''')
-
-    conn.execute('PRAGMA foreign_keys = ON;')
+    _backend.init_schema(conn)
 
 
 # === TEAMS CRUD ===
@@ -262,7 +110,7 @@ def _set_team_blocks(conn, team_id, blocks):
 def create_team(conn, name, blocks=None):
     """Создать команду вместе с блоками раскатки"""
     cursor = conn.execute('INSERT INTO teams (name) VALUES (?)', (name,))
-    team_id = cursor.lastrowid
+    team_id = _backend.last_insert_id(cursor)
     _set_team_blocks(conn, team_id, blocks)
     conn.commit()
     return team_id
@@ -285,7 +133,8 @@ def delete_team(conn, team_id):
 @with_db_connection(commit_on_success=False)
 def get_all_employees(conn):
     """Получить всех сотрудников"""
-    employees = conn.execute('SELECT id, last_name, first_name, middle_name FROM employees ORDER BY last_name, first_name, middle_name').fetchall()
+    employees = conn.execute(
+        'SELECT id, last_name, first_name, middle_name FROM employees ORDER BY last_name, first_name, middle_name').fetchall()
     return [dict(emp) for emp in employees]
 
 
@@ -297,8 +146,7 @@ def create_employee(conn, last_name, first_name, middle_name=None):
            VALUES (?, ?, ?)''',
         (last_name, first_name, middle_name))
     conn.commit()
-    employee_id = cursor.lastrowid
-    return employee_id
+    return _backend.last_insert_id(cursor)
 
 
 @with_db_connection(default_return=False, raise_on_error=False)
@@ -316,11 +164,9 @@ def update_employee(conn, employee_id, last_name, first_name, middle_name=None):
 @with_db_connection()
 def delete_employee(conn, employee_id):
     """Удалить сотрудника"""
-    # Проверяем, используется ли сотрудник в назначениях
     count = conn.execute('SELECT COUNT(*) as count FROM assignments WHERE employee_id = ?', (employee_id,)).fetchone()[
         'count']
     if count > 0:
-        # Если используется, просто открепляем его
         conn.execute('UPDATE assignments SET employee_id = NULL WHERE employee_id = ?', (employee_id,))
     conn.execute('DELETE FROM employees WHERE id = ?', (employee_id,))
 
@@ -363,7 +209,7 @@ def add_freeze_range(conn, start_date, end_date):
         try:
             conn.execute('INSERT INTO freeze_days (date) VALUES (?)', (date_str,))
             added += 1
-        except sqlite3.IntegrityError:
+        except _backend.duplicate_error:
             pass
         current += timedelta(days=1)
     return added
@@ -464,7 +310,7 @@ def task_exists(conn, task_id):
 
 @with_db_connection(commit_on_success=False)
 def create_or_update_task(conn, task_id, team_id, name, description, criticality='medium'):
-    """Создать задачу"""
+    """Создать или обновить задачу"""
     existing = conn.execute('SELECT 1 FROM tasks WHERE id = ?', (task_id,)).fetchone()
     if existing:
         conn.execute(
@@ -482,7 +328,7 @@ def create_or_update_task(conn, task_id, team_id, name, description, criticality
             (team_id, name, description, criticality)
         )
         conn.commit()
-        task_id = cursor.lastrowid
+        task_id = _backend.last_insert_id(cursor)
     return task_id
 
 
@@ -589,7 +435,13 @@ def get_active_tasks_flat(conn, team_id):
 def get_assignment(conn, task_id, date_str):
     """Получить назначение на задачу на конкретную дату"""
     return conn.execute(
-        '''SELECT a.id, a.task_id, a.date, a.block, a.status, a.employee_id, a.comment,
+        '''SELECT a.id,
+                  a.task_id,
+                  a.date,
+                  a.block,
+                  a.status,
+                  a.employee_id,
+                  a.comment,
                   e.last_name   as employee_last_name,
                   e.first_name  as employee_first_name,
                   e.middle_name as employee_middle_name
@@ -605,7 +457,13 @@ def get_assignment(conn, task_id, date_str):
 def get_assignments_by_team_in_period(conn, team_id, start_date, end_date):
     """Получить все назначения команды в период"""
     return conn.execute(
-        '''SELECT a.id, a.task_id, a.date, a.block, a.status, a.employee_id, a.comment,
+        '''SELECT a.id,
+                  a.task_id,
+                  a.date,
+                  a.block,
+                  a.status,
+                  a.employee_id,
+                  a.comment,
                   e.last_name   as employee_last_name,
                   e.first_name  as employee_first_name,
                   e.middle_name as employee_middle_name
@@ -687,7 +545,4 @@ def get_active_assignments_in_period(conn, team_id, start_date, end_date, team_i
 
 
 # === Инициализация БД при импорте ===
-if not os.path.exists(DB_PATH):
-    init_db()
-else:
-    ensure_schema()
+init_db()
