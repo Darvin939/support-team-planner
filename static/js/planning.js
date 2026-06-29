@@ -1,6 +1,9 @@
 let teamId = null;
 let freezeDays = [];
-let teamBlocks = [];
+let teamBlocks = [];       // [{id, name}] — плоский список блоков для ручного выбора
+let allowedTemplates = []; // [{id, name, blocks:[{id,name,shift_days}]}]
+let selectedTemplateId = null;
+let selectedBlockIds = new Set(); // выбранные блоки в ручном режиме
 
 let tasksData = [];
 let assignmentsData = [];
@@ -115,6 +118,7 @@ document.addEventListener('DOMContentLoaded', function () {
         teamId = initData.team_id;
         freezeDays = initData.freeze_days || [];
         teamBlocks = initData.team_blocks || [];
+        allowedTemplates = initData.allowed_templates || [];
         saveTeamId(teamId);
     }
 
@@ -140,6 +144,14 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     // document.getElementById('criticalityDropdown').addEventListener('change', applyFilters);
     // document.getElementById('statusDropdown').addEventListener('change', applyFilters);
+
+    // Закрываем выпадающий список блоков при клике за пределами
+    document.addEventListener('click', function (e) {
+        if (!e.target.closest('.block-search-wrap')) {
+            const results = document.getElementById('blockSearchResults');
+            if (results) results.style.display = 'none';
+        }
+    });
 
     // При смене даты назначения пересчитываем автографик (если он включен)
     document.getElementById('assignmentDate').addEventListener('change', function () {
@@ -588,30 +600,63 @@ function getStatusDisplay(status) {
     return map[status] || status;
 }
 
-function renderBlockCheckboxes(selectedNames) {
-    const container = document.getElementById('assignmentBlockList');
-    container.innerHTML = '';
+function initBlockSearch(selectedNames) {
+    selectedBlockIds = new Set();
+    const tagsEl = document.getElementById('selectedBlockTags');
+    const input = document.getElementById('blockSearch');
+    tagsEl.innerHTML = '';
+    input.value = '';
+    filterBlocks('');
 
-    if (!teamBlocks || teamBlocks.length === 0) {
-        container.innerHTML = '<div class="checkbox-item-empty">Не выбрано (у команды нет блоков)</div>';
-        return;
-    }
-
-    teamBlocks.forEach(block => {
-        const checked = selectedNames.includes(block.name) ? 'checked' : '';
-        const label = document.createElement('label');
-        label.className = 'checkbox-item';
-        label.innerHTML = `
-            <input type="checkbox" value="${block.name.replace(/"/g, '&quot;')}" ${checked}>
-            ${block.name} (сдвиг: ${block.shift_days})
-        `;
-        container.appendChild(label);
+    selectedNames.forEach(name => {
+        const block = teamBlocks.find(b => b.name === name);
+        if (block) _addBlockTag(block.id, block.name);
     });
 }
 
+function filterBlocks(query) {
+    const results = document.getElementById('blockSearchResults');
+    const q = query.trim().toUpperCase();
+    const filtered = teamBlocks.filter(b => !selectedBlockIds.has(b.id) && (!q || b.name.includes(q)));
+
+    if (filtered.length === 0) {
+        results.style.display = 'none';
+        return;
+    }
+
+    results.innerHTML = filtered.map(b =>
+        `<div class="block-search-item" onclick="selectBlock(${b.id}, '${b.name.replace(/'/g, "\\'")}')">${b.name}</div>`
+    ).join('');
+    results.style.display = '';
+}
+
+function selectBlock(id, name) {
+    _addBlockTag(id, name);
+    document.getElementById('blockSearch').value = '';
+    document.getElementById('blockSearchResults').style.display = 'none';
+}
+
+function _addBlockTag(id, name) {
+    if (selectedBlockIds.has(id)) return;
+    selectedBlockIds.add(id);
+    const tag = document.createElement('span');
+    tag.className = 'block-tag';
+    tag.dataset.id = id;
+    tag.innerHTML = `${name} <span class="block-tag-remove" onclick="removeBlockTag(${id})">×</span>`;
+    document.getElementById('selectedBlockTags').appendChild(tag);
+}
+
+function removeBlockTag(id) {
+    selectedBlockIds.delete(id);
+    const tag = document.querySelector(`#selectedBlockTags .block-tag[data-id="${id}"]`);
+    if (tag) tag.remove();
+}
+
 function getSelectedBlocks() {
-    const checkboxes = document.querySelectorAll('#assignmentBlockList input[type="checkbox"]');
-    return Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+    return Array.from(selectedBlockIds).map(id => {
+        const b = teamBlocks.find(b => b.id === id);
+        return b ? b.name : null;
+    }).filter(Boolean);
 }
 
 function addDaysStr(dateStr, days) {
@@ -620,12 +665,15 @@ function addDaysStr(dateStr, days) {
     return d.toISOString().split('T')[0];
 }
 
+function getSelectedTemplateBlocks() {
+    if (!selectedTemplateId) return [];
+    const tmpl = allowedTemplates.find(t => t.id === selectedTemplateId);
+    return tmpl ? tmpl.blocks : [];
+}
+
 function computeAutoAssignDates(baseDateStr) {
-    // Сортируем блоки по возрастанию сдвига. При попадании на день фриза
-    // блок сдвигается на следующий не-фризовый день, а накопленный сдвиг
-    // (offset) применяется и к последующим блокам, чтобы сохранить
-    // относительный интервал между ними.
-    const sorted = [...teamBlocks].sort((a, b) => a.shift_days - b.shift_days);
+    const blocks = getSelectedTemplateBlocks();
+    const sorted = [...blocks].sort((a, b) => a.shift_days - b.shift_days);
     let offset = 0;
     const result = {};
 
@@ -669,10 +717,17 @@ function getAutoScheduleDateRange() {
 function renderAutoScheduleTable() {
     const header = document.getElementById('autoScheduleHeader');
     const row = document.getElementById('autoScheduleRow');
+    const templateBlocks = getSelectedTemplateBlocks();
 
-    if (!teamBlocks || teamBlocks.length === 0) {
+    if (!selectedTemplateId) {
+        header.innerHTML = '';
+        row.innerHTML = '';
+        return;
+    }
+
+    if (templateBlocks.length === 0) {
         header.innerHTML = '<th>Блок</th>';
-        row.innerHTML = '<td class="checkbox-item-empty">У команды нет блоков раскатки</td>';
+        row.innerHTML = '<td class="checkbox-item-empty">В шаблоне нет блоков</td>';
         return;
     }
 
@@ -713,7 +768,7 @@ function renderAutoScheduleTable() {
         const isOccupied = existing && existing.id !== currentAssignmentId;
         if (isOccupied) cellCls += ' occupied';
 
-        const blocksHere = teamBlocks.filter(b => autoAssignDates[b.id] === dateStr);
+        const blocksHere = templateBlocks.filter(b => autoAssignDates[b.id] === dateStr);
         let badges = '';
         blocksHere.forEach(b => {
             const selectedCls = autoAssignSelected === b.id ? ' selected' : '';
@@ -792,6 +847,31 @@ function setupAutoScheduleDragScroll() {
     }, true);
 }
 
+function onTemplateChange() {
+    const val = document.getElementById('autoTemplateSelect').value;
+    selectedTemplateId = val ? parseInt(val) : null;
+    autoAssignSelected = null;
+    recomputeAutoAssignSchedule();
+    renderAutoScheduleTable();
+}
+
+function populateTemplateSelect() {
+    const sel = document.getElementById('autoTemplateSelect');
+    sel.innerHTML = '<option value="">— выберите шаблон —</option>';
+    allowedTemplates.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        opt.textContent = t.name;
+        sel.appendChild(opt);
+    });
+    if (allowedTemplates.length === 1) {
+        sel.value = allowedTemplates[0].id;
+        selectedTemplateId = allowedTemplates[0].id;
+    } else {
+        selectedTemplateId = null;
+    }
+}
+
 function toggleAutoAssign() {
     const enabled = document.getElementById('autoAssignToggle').checked;
 
@@ -806,6 +886,7 @@ function toggleAutoAssign() {
     if (enabled) {
         statusSelect.value = 'new';
         autoAssignSelected = null;
+        populateTemplateSelect();
         recomputeAutoAssignSchedule();
         renderAutoScheduleTable();
     }
@@ -851,7 +932,7 @@ function openAssignmentModal(taskId, dateStr) {
     const selectedBlockNames = assignment && assignment.block
         ? assignment.block.split(',').map(s => s.trim()).filter(Boolean)
         : [];
-    renderBlockCheckboxes(selectedBlockNames);
+    initBlockSearch(selectedBlockNames);
 
     if (assignment) {
         title.textContent = `Редактирование: ${task.name}`;
@@ -926,14 +1007,20 @@ function saveAutoAssignment() {
     const assignmentIdVal = document.getElementById('assignmentId').value;
     const currentAssignmentId = assignmentIdVal ? parseInt(assignmentIdVal) : null;
 
-    if (!teamBlocks || teamBlocks.length === 0) {
-        alert('У команды нет блоков раскатки для автоназначения');
+    const templateBlocks = getSelectedTemplateBlocks();
+
+    if (!selectedTemplateId) {
+        alert('Выберите шаблон для автоназначения');
+        return;
+    }
+    if (templateBlocks.length === 0) {
+        alert('В выбранном шаблоне нет блоков');
         return;
     }
 
     // Группируем блоки по итоговым датам
     const groups = {};
-    teamBlocks.forEach(block => {
+    templateBlocks.forEach(block => {
         const d = autoAssignDates[block.id];
         if (!d) return;
         groups[d] = groups[d] || [];

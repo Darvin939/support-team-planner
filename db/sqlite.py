@@ -65,6 +65,30 @@ _SCHEMA = '''
         FOREIGN KEY (depends_on_task_id) REFERENCES tasks(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS blocks (
+        id   INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT    NOT NULL UNIQUE
+    );
+
+    CREATE TABLE IF NOT EXISTS block_templates (
+        id   INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT    NOT NULL UNIQUE
+    );
+
+    CREATE TABLE IF NOT EXISTS template_blocks (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        template_id     INTEGER NOT NULL REFERENCES block_templates(id) ON DELETE CASCADE,
+        block_id        INTEGER NOT NULL REFERENCES blocks(id)          ON DELETE CASCADE,
+        schedule_offset INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(template_id, block_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS team_templates (
+        team_id     INTEGER NOT NULL REFERENCES teams(id)           ON DELETE CASCADE,
+        template_id INTEGER NOT NULL REFERENCES block_templates(id) ON DELETE CASCADE,
+        PRIMARY KEY(team_id, template_id)
+    );
+
     CREATE index if NOT EXISTS idx_assignments_task_id ON assignments (task_id);
     CREATE index if NOT EXISTS idx_assignments_date ON assignments (date);
     CREATE index if NOT EXISTS idx_assignments_status ON assignments (status);
@@ -115,3 +139,5 @@ class SQLiteBackend(DBBackend):
     def init_schema(self, conn) -> None:
         conn.execute('PRAGMA foreign_keys = ON;')
         conn.executescript(_SCHEMA)
+        conn.execute('DROP TABLE IF EXISTS team_blocks')
+        conn.commit()

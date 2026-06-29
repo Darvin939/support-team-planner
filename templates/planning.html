@@ -19,7 +19,7 @@
 
 {% if team %}
 <script id="planningData" type="application/json">
-{"team_id": {{ team.id }}, "freeze_days": {{ freeze_days|tojson }}, "team_blocks": {{ team_blocks|tojson }}}
+{"team_id": {{ team.id }}, "freeze_days": {{ freeze_days|tojson }}, "team_blocks": {{ team_blocks|tojson }}, "allowed_templates": {{ allowed_templates|tojson }}}
 </script>
 
 <div class="filter-section">
@@ -193,11 +193,20 @@
 
             <div class="form-group" id="manualBlockGroup">
                 <label>Блок</label>
-                <div id="assignmentBlockList" class="block-checkbox-list"></div>
+                <div class="block-search-wrap">
+                    <input type="text" id="blockSearch" class="block-search-input" placeholder="Поиск блока..." oninput="filterBlocks(this.value)" onfocus="filterBlocks(this.value)" autocomplete="off">
+                    <div id="blockSearchResults" class="block-search-results" style="display:none;"></div>
+                </div>
+                <div id="selectedBlockTags" class="selected-block-tags"></div>
             </div>
 
             <div class="form-group" id="autoBlockGroup" style="display:none;">
-                <label>Блок (автораспределение по графику)</label>
+                <label>Автораспределение по графику</label>
+                <div class="form-group" id="autoTemplateGroup" style="margin-bottom:8px;">
+                    <select id="autoTemplateSelect" onchange="onTemplateChange()" style="width:100%;">
+                        <option value="">— выберите шаблон —</option>
+                    </select>
+                </div>
                 <div class="auto-schedule-wrapper" id="autoScheduleWrapper">
                     <table class="auto-schedule-table">
                         <thead>

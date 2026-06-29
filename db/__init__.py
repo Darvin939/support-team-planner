@@ -48,29 +48,21 @@ def get_all_teams(conn):
 
 
 @with_db_connection(commit_on_success=False)
-def get_all_teams_with_blocks(conn):
-    """Получить все команды вместе с их блоками раскатки"""
+def get_all_teams_with_templates(conn):
+    """Получить все команды вместе с разрешёнными шаблонами блоков"""
     teams = conn.execute('SELECT id, name FROM teams ORDER BY name').fetchall()
-    blocks = conn.execute(
-        'SELECT id, team_id, block_name, schedule_offset FROM team_blocks ORDER BY schedule_offset ASC, block_name ASC'
+    rows = conn.execute(
+        '''SELECT tt.team_id, bt.id, bt.name
+           FROM team_templates tt
+           JOIN block_templates bt ON tt.template_id = bt.id
+           ORDER BY bt.name'''
     ).fetchall()
 
-    blocks_by_team = {}
-    for b in blocks:
-        blocks_by_team.setdefault(b['team_id'], []).append({
-            'id': b['id'],
-            'name': b['block_name'],
-            'shift_days': b['schedule_offset']
-        })
+    tmpls_by_team = {}
+    for r in rows:
+        tmpls_by_team.setdefault(r['team_id'], []).append({'id': r['id'], 'name': r['name']})
 
-    result = []
-    for t in teams:
-        result.append({
-            'id': t['id'],
-            'name': t['name'],
-            'blocks': blocks_by_team.get(t['id'], [])
-        })
-    return result
+    return [{'id': t['id'], 'name': t['name'], 'templates': tmpls_by_team.get(t['id'], [])} for t in teams]
 
 
 @with_db_connection(commit_on_success=False)
@@ -80,53 +72,189 @@ def get_team_by_id(conn, team_id):
 
 
 @with_db_connection(commit_on_success=False)
-def get_team_blocks(conn, team_id):
-    """Получить блоки раскатки команды (сортировка по возрастанию сдвига)"""
-    rows = conn.execute(
-        'SELECT id, block_name, schedule_offset FROM team_blocks WHERE team_id = ? ORDER BY schedule_offset ASC, block_name ASC',
+def get_team_allowed_templates(conn, team_id):
+    """Получить шаблоны, разрешённые для команды, вместе с блоками и смещениями"""
+    tmpls = conn.execute(
+        '''SELECT bt.id, bt.name
+           FROM team_templates tt
+           JOIN block_templates bt ON tt.template_id = bt.id
+           WHERE tt.team_id = ?
+           ORDER BY bt.name''',
         (team_id,)
     ).fetchall()
-    return [{'id': r['id'], 'name': r['block_name'], 'shift_days': r['schedule_offset']} for r in rows]
 
-
-def _set_team_blocks(conn, team_id, blocks):
-    """Заменить набор блоков команды (внутренняя функция, без коммита)"""
-    conn.execute('DELETE FROM team_blocks WHERE team_id = ?', (team_id,))
-    for b in (blocks or []):
-        block_name = (b.get('name') or '').strip().upper()
-        if not block_name:
-            continue
-        try:
-            shift_days = int(b.get('shift_days', 0) or 0)
-        except (TypeError, ValueError):
-            shift_days = 0
-        conn.execute(
-            'INSERT INTO team_blocks (team_id, block_name, schedule_offset) VALUES (?, ?, ?)',
-            (team_id, block_name, shift_days)
-        )
+    result = []
+    for t in tmpls:
+        blocks = conn.execute(
+            '''SELECT b.id, b.name, tb.schedule_offset AS shift_days
+               FROM template_blocks tb
+               JOIN blocks b ON tb.block_id = b.id
+               WHERE tb.template_id = ?
+               ORDER BY tb.schedule_offset ASC, b.name ASC''',
+            (t['id'],)
+        ).fetchall()
+        result.append({
+            'id': t['id'],
+            'name': t['name'],
+            'blocks': [{'id': b['id'], 'name': b['name'], 'shift_days': b['shift_days']} for b in blocks]
+        })
+    return result
 
 
 @with_db_connection(commit_on_success=False)
-def create_team(conn, name, blocks=None):
-    """Создать команду вместе с блоками раскатки"""
+def get_blocks_for_team(conn, team_id):
+    """Получить уникальные блоки из разрешённых шаблонов команды"""
+    rows = conn.execute(
+        '''SELECT DISTINCT b.id, b.name
+           FROM team_templates tt
+           JOIN template_blocks tb ON tt.template_id = tb.template_id
+           JOIN blocks b ON tb.block_id = b.id
+           WHERE tt.team_id = ?
+           ORDER BY b.name ASC''',
+        (team_id,)
+    ).fetchall()
+    return [{'id': r['id'], 'name': r['name']} for r in rows]
+
+
+def _set_team_templates(conn, team_id, template_ids):
+    """Заменить набор разрешённых шаблонов команды (без коммита)"""
+    conn.execute('DELETE FROM team_templates WHERE team_id = ?', (team_id,))
+    for tmpl_id in (template_ids or []):
+        try:
+            conn.execute(
+                'INSERT OR IGNORE INTO team_templates (team_id, template_id) VALUES (?, ?)',
+                (team_id, int(tmpl_id))
+            )
+        except (TypeError, ValueError):
+            pass
+
+
+@with_db_connection(commit_on_success=False)
+def create_team(conn, name, template_ids=None):
+    """Создать команду"""
     cursor = conn.execute('INSERT INTO teams (name) VALUES (?)', (name,))
     team_id = _backend.last_insert_id(cursor)
-    _set_team_blocks(conn, team_id, blocks)
+    _set_team_templates(conn, team_id, template_ids)
     conn.commit()
     return team_id
 
 
 @with_db_connection()
-def update_team(conn, team_id, name, blocks=None):
-    """Обновить команду и её блоки раскатки"""
+def update_team(conn, team_id, name, template_ids=None):
+    """Обновить команду и её разрешённые шаблоны"""
     conn.execute('UPDATE teams SET name = ? WHERE id = ?', (name, team_id))
-    _set_team_blocks(conn, team_id, blocks)
+    _set_team_templates(conn, team_id, template_ids)
 
 
 @with_db_connection()
 def delete_team(conn, team_id):
-    """Удалить команду (блоки и задачи удаляются каскадно)"""
+    """Удалить команду (шаблоны и задачи удаляются каскадно)"""
     conn.execute('DELETE FROM teams WHERE id = ?', (team_id,))
+
+
+# === BLOCKS CRUD ===
+@with_db_connection(commit_on_success=False)
+def get_all_blocks(conn):
+    """Получить все блоки"""
+    rows = conn.execute('SELECT id, name FROM blocks ORDER BY name').fetchall()
+    return [{'id': r['id'], 'name': r['name']} for r in rows]
+
+
+@with_db_connection(commit_on_success=False)
+def create_block(conn, name):
+    """Создать блок"""
+    name = name.strip().upper()
+    cursor = conn.execute('INSERT INTO blocks (name) VALUES (?)', (name,))
+    conn.commit()
+    return _backend.last_insert_id(cursor)
+
+
+@with_db_connection()
+def delete_block(conn, block_id):
+    """Удалить блок"""
+    conn.execute('DELETE FROM blocks WHERE id = ?', (block_id,))
+
+
+# === BLOCK TEMPLATES CRUD ===
+@with_db_connection(commit_on_success=False)
+def get_all_templates(conn):
+    """Получить все шаблоны блоков с их блоками и смещениями"""
+    tmpls = conn.execute('SELECT id, name FROM block_templates ORDER BY name').fetchall()
+    result = []
+    for t in tmpls:
+        blocks = conn.execute(
+            '''SELECT b.id, b.name, tb.schedule_offset AS shift_days
+               FROM template_blocks tb
+               JOIN blocks b ON tb.block_id = b.id
+               WHERE tb.template_id = ?
+               ORDER BY tb.schedule_offset ASC, b.name ASC''',
+            (t['id'],)
+        ).fetchall()
+        result.append({
+            'id': t['id'],
+            'name': t['name'],
+            'blocks': [{'id': b['id'], 'name': b['name'], 'shift_days': b['shift_days']} for b in blocks]
+        })
+    return result
+
+
+@with_db_connection(commit_on_success=False)
+def get_template_by_id(conn, template_id):
+    """Получить шаблон по ID с блоками"""
+    t = conn.execute('SELECT id, name FROM block_templates WHERE id = ?', (template_id,)).fetchone()
+    if not t:
+        return None
+    blocks = conn.execute(
+        '''SELECT b.id, b.name, tb.schedule_offset AS shift_days
+           FROM template_blocks tb
+           JOIN blocks b ON tb.block_id = b.id
+           WHERE tb.template_id = ?
+           ORDER BY tb.schedule_offset ASC, b.name ASC''',
+        (template_id,)
+    ).fetchall()
+    return {
+        'id': t['id'],
+        'name': t['name'],
+        'blocks': [{'id': b['id'], 'name': b['name'], 'shift_days': b['shift_days']} for b in blocks]
+    }
+
+
+def _set_template_blocks(conn, template_id, entries):
+    """Заменить блоки шаблона (без коммита). entries=[{block_id, shift_days}]"""
+    conn.execute('DELETE FROM template_blocks WHERE template_id = ?', (template_id,))
+    for e in (entries or []):
+        try:
+            block_id = int(e.get('block_id'))
+            shift_days = int(e.get('shift_days', 0) or 0)
+        except (TypeError, ValueError):
+            continue
+        conn.execute(
+            'INSERT OR IGNORE INTO template_blocks (template_id, block_id, schedule_offset) VALUES (?, ?, ?)',
+            (template_id, block_id, shift_days)
+        )
+
+
+@with_db_connection(commit_on_success=False)
+def create_template(conn, name, entries=None):
+    """Создать шаблон блоков"""
+    cursor = conn.execute('INSERT INTO block_templates (name) VALUES (?)', (name.strip(),))
+    template_id = _backend.last_insert_id(cursor)
+    _set_template_blocks(conn, template_id, entries)
+    conn.commit()
+    return template_id
+
+
+@with_db_connection()
+def update_template(conn, template_id, name, entries=None):
+    """Обновить шаблон и его блоки"""
+    conn.execute('UPDATE block_templates SET name = ? WHERE id = ?', (name.strip(), template_id))
+    _set_template_blocks(conn, template_id, entries)
+
+
+@with_db_connection()
+def delete_template(conn, template_id):
+    """Удалить шаблон (записи template_blocks удаляются каскадно)"""
+    conn.execute('DELETE FROM block_templates WHERE id = ?', (template_id,))
 
 
 # === EMPLOYEES CRUD ===

@@ -4,7 +4,7 @@
 
 {% block content %}
 <script id="settingsData" type="application/json">
-{"teams": {{ teams|tojson }}, "employees": {{ employees|tojson }}, "freeze_days": {{ freeze_days|tojson }}}
+{"teams": {{ teams|tojson }}, "employees": {{ employees|tojson }}, "freeze_days": {{ freeze_days|tojson }}, "blocks": {{ blocks|tojson }}, "block_templates": {{ block_templates|tojson }}}
 </script>
 
 <div class="page-header">
@@ -30,17 +30,12 @@
                         <button class="btn btn-danger btn-sm" onclick="deleteTeam({{ team.id }})">🗑️</button>
                     </div>
                 </div>
-                {% if team.blocks %}
-                <table class="team-blocks-table">
-                    <tbody>
-                        {% for block in team.blocks %}
-                        <tr>
-                            <td>{{ block.name }}</td>
-                            <td>+{{ block.shift_days }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                {% if team.templates %}
+                <div class="team-templates-list">
+                    {% for tmpl in team.templates %}
+                    <span class="team-template-badge">{{ tmpl.name }}</span>
+                    {% endfor %}
+                </div>
                 {% endif %}
             </div>
             {% endfor %}
@@ -62,9 +57,8 @@
                 </div>
 
                 <div class="form-group">
-                    <label>Блоки раскатки</label>
-                    <div id="teamBlocksList"></div>
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="addTeamBlockRow()" style="margin-top:8px;">+ Добавить блок</button>
+                    <label>Разрешённые шаблоны блоков</label>
+                    <div id="teamTemplatesList" class="team-templates-checkboxes"></div>
                 </div>
 
                 <div class="form-actions">
@@ -123,6 +117,89 @@
                     <button type="submit" class="btn btn-success" id="saveEmployeeBtn">Создать</button>
                     <button type="submit" class="btn btn-primary" id="updateEmployeeBtn" style="display:none;">Обновить</button>
                     <button type="button" class="btn btn-secondary" onclick="closeModal('employeeModal')">Закрыть</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Блоки -->
+    <div class="settings-section">
+        <h2>Блоки раскатки</h2>
+        <div class="add-form">
+            <div class="form-row" id="addBlockRow">
+                <input type="text" id="newBlockName" placeholder="Название блока (например: ГФ, Б1)" style="flex:1;">
+                <button class="btn btn-success" onclick="createBlock()">Добавить</button>
+            </div>
+        </div>
+        <ul class="executors-list" id="blocksList">
+            {% for block in blocks %}
+            <li class="executor-item" data-id="{{ block.id }}">
+                <span class="executor-name">{{ block.name }}</span>
+                <button class="btn btn-danger btn-sm" onclick="deleteBlock({{ block.id }})">🗑️</button>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <!-- Шаблоны блоков -->
+    <div class="settings-section">
+        <h2>Шаблоны блоков</h2>
+        <div class="add-form">
+            <div class="form-row">
+                <button class="btn btn-success" onclick="openTemplateModal()">Добавить шаблон</button>
+            </div>
+        </div>
+        <div id="templatesList">
+            {% for tmpl in block_templates %}
+            <div class="team-card" data-id="{{ tmpl.id }}">
+                <div class="team-header">
+                    <h3>{{ tmpl.name }}</h3>
+                    <div>
+                        <button class="btn btn-primary btn-sm" onclick="openTemplateModal({{ tmpl.id }})">✏️</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteTemplate({{ tmpl.id }})">🗑️</button>
+                    </div>
+                </div>
+                {% if tmpl.blocks %}
+                <table class="team-blocks-table">
+                    <tbody>
+                        {% for block in tmpl.blocks %}
+                        <tr>
+                            <td>{{ block.name }}</td>
+                            <td>+{{ block.shift_days }} дн.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Модальное окно шаблона -->
+    <div class="modal" id="templateModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="templateModalTitle">Добавить шаблон</h2>
+                <span class="modal-close" onclick="closeModal('templateModal')">&times;</span>
+            </div>
+            <form onsubmit="saveTemplate(event)">
+                <input type="hidden" id="templateId" value="">
+                <div class="form-group">
+                    <label for="templateNameInput">Название шаблона</label>
+                    <input type="text" id="templateNameInput" placeholder="Название шаблона" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Блоки шаблона</label>
+                    <div id="templateBlocksList"></div>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="addTemplateBlockRow()" style="margin-top:8px;">+ Добавить блок</button>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-success" id="saveTemplateBtn">Создать</button>
+                    <button type="submit" class="btn btn-primary" id="updateTemplateBtn" style="display:none;">Обновить</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('templateModal')">Закрыть</button>
                 </div>
             </form>
         </div>

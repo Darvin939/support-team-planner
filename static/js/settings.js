@@ -1,34 +1,29 @@
-let teamBlockRowSeq = 0;
-
 const settingsDataEl = document.getElementById('settingsData');
 const settingsInit = settingsDataEl ? JSON.parse(settingsDataEl.textContent) : {};
 let teamsData = settingsInit.teams || [];
+let blocksData = settingsInit.blocks || [];
+let templatesData = settingsInit.block_templates || [];
 
-function addTeamBlockRow(name, shiftDays) {
-    const list = document.getElementById('teamBlocksList');
-    const rowId = 'blockRow_' + (teamBlockRowSeq++);
-    const row = document.createElement('div');
-    row.className = 'team-block-row';
-    row.id = rowId;
-    row.innerHTML = `
-        <input type="text" class="block-name-input" placeholder="Название блока (например: ГФ, Б1)" value="${name ? name.replace(/"/g, '&quot;') : ''}">
-        <input type="number" class="block-shift-input" placeholder="Сдвиг, дни" value="${shiftDays !== undefined && shiftDays !== null ? shiftDays : 0}">
-        <button type="button" class="btn btn-danger btn-sm btn-remove-block" onclick="document.getElementById('${rowId}').remove()">🗑️</button>
-    `;
-    list.appendChild(row);
+// === КОМАНДЫ ===
+
+function renderTeamTemplatesCheckboxes(selectedIds) {
+    const container = document.getElementById('teamTemplatesList');
+    if (!templatesData.length) {
+        container.innerHTML = '<span style="color:#6c757d;font-size:0.9em;">Нет шаблонов. Создайте шаблон в разделе «Шаблоны блоков».</span>';
+        return;
+    }
+    container.innerHTML = templatesData.map(t => `
+        <label class="checkbox-item">
+            <input type="checkbox" class="team-template-checkbox" value="${t.id}"${selectedIds.includes(t.id) ? ' checked' : ''}>
+            ${t.name}
+        </label>
+    `).join('');
 }
 
-function collectTeamBlocks() {
-    const rows = document.querySelectorAll('#teamBlocksList .team-block-row');
-    const blocks = [];
-    rows.forEach(row => {
-        const name = row.querySelector('.block-name-input').value.trim();
-        const shiftRaw = row.querySelector('.block-shift-input').value;
-        if (!name) return;
-        const shift_days = parseInt(shiftRaw, 10) || 0;
-        blocks.push({name: name, shift_days: shift_days});
-    });
-    return blocks;
+function collectTeamTemplates() {
+    return Array.from(document.querySelectorAll('#teamTemplatesList .team-template-checkbox'))
+        .filter(cb => cb.checked)
+        .map(cb => parseInt(cb.value));
 }
 
 function openTeamModal(teamId) {
@@ -38,9 +33,7 @@ function openTeamModal(teamId) {
     const nameField = document.getElementById('teamNameInput');
     const saveBtn = document.getElementById('saveTeamBtn');
     const updateBtn = document.getElementById('updateTeamBtn');
-    const blocksList = document.getElementById('teamBlocksList');
 
-    blocksList.innerHTML = '';
     teamIdField.value = teamId || '';
 
     if (teamId) {
@@ -50,23 +43,15 @@ function openTeamModal(teamId) {
         saveBtn.style.display = 'none';
         updateBtn.style.display = 'inline-block';
 
-        const renderBlocks = (blocks) => {
-            if (blocks && blocks.length) {
-                blocks.forEach(b => addTeamBlockRow(b.name, b.shift_days));
-            } else {
-                addTeamBlockRow();
-            }
-        };
+        const selectedIds = team ? (team.templates || []).map(t => t.id) : [];
+        renderTeamTemplatesCheckboxes(selectedIds);
 
-        if (team) {
-            renderBlocks(team.blocks);
-        } else {
-            // На случай, если локальный кэш не успел загрузиться
+        if (!team) {
             fetch(`/api/teams/${teamId}`)
-                .then(response => response.json())
+                .then(r => r.json())
                 .then(data => {
                     nameField.value = data.name || '';
-                    renderBlocks(data.blocks);
+                    renderTeamTemplatesCheckboxes(data.template_ids || []);
                 });
         }
     } else {
@@ -74,7 +59,7 @@ function openTeamModal(teamId) {
         nameField.value = '';
         saveBtn.style.display = 'inline-block';
         updateBtn.style.display = 'none';
-        addTeamBlockRow();
+        renderTeamTemplatesCheckboxes([]);
     }
 
     modal.style.display = 'flex';
@@ -85,7 +70,7 @@ function saveTeam(event) {
 
     const teamId = document.getElementById('teamId').value;
     const name = document.getElementById('teamNameInput').value.trim();
-    const blocks = collectTeamBlocks();
+    const template_ids = collectTeamTemplates();
 
     if (!name) {
         alert('Введите название команды');
@@ -98,7 +83,7 @@ function saveTeam(event) {
     fetch(url, {
         method: method,
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({name: name, blocks: blocks})
+        body: JSON.stringify({name: name, template_ids: template_ids})
     })
         .then(response => response.json())
         .then(data => {
@@ -108,18 +93,13 @@ function saveTeam(event) {
                 alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
             }
         })
-        .catch(error => {
-            console.error('Error saving team:', error);
-            alert('Ошибка при сохранении команды');
-        });
+        .catch(() => alert('Ошибка при сохранении команды'));
 }
 
 function deleteTeam(teamId) {
     if (!confirm('Удалить команду? Все связанные данные будут удалены!')) return;
 
-    fetch(`/api/teams/${teamId}`, {
-        method: 'DELETE'
-    })
+    fetch(`/api/teams/${teamId}`, {method: 'DELETE'})
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -128,15 +108,14 @@ function deleteTeam(teamId) {
                 alert('Ошибка при удалении команды');
             }
         })
-        .catch(error => {
-            console.error('Error deleting team:', error);
-            alert('Ошибка при удалении команды');
-        });
+        .catch(() => alert('Ошибка при удалении команды'));
 }
 
 function closeModal(modalId) {
     document.getElementById(modalId).style.display = 'none';
 }
+
+// === СОТРУДНИКИ ===
 
 let employeesData = settingsInit.employees || [];
 
@@ -191,11 +170,7 @@ function saveEmployee(event) {
     fetch(url, {
         method: method,
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            last_name: lastName,
-            first_name: firstName,
-            middle_name: middleName || null
-        })
+        body: JSON.stringify({last_name: lastName, first_name: firstName, middle_name: middleName || null})
     })
         .then(response => response.json())
         .then(data => {
@@ -205,18 +180,13 @@ function saveEmployee(event) {
                 alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
             }
         })
-        .catch(error => {
-            console.error('Error saving employee:', error);
-            alert('Ошибка при сохранении сотрудника');
-        });
+        .catch(() => alert('Ошибка при сохранении сотрудника'));
 }
 
 function deleteEmployee(employeeId) {
     if (!confirm('Удалить сотрудника?')) return;
 
-    fetch(`/api/employees/${employeeId}`, {
-        method: 'DELETE'
-    })
+    fetch(`/api/employees/${employeeId}`, {method: 'DELETE'})
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -225,11 +195,184 @@ function deleteEmployee(employeeId) {
                 alert('Ошибка при удалении сотрудника');
             }
         })
-        .catch(error => {
-            console.error('Error deleting employee:', error);
-            alert('Ошибка при удалении сотрудника');
-        });
+        .catch(() => alert('Ошибка при удалении сотрудника'));
 }
+
+// === БЛОКИ ===
+
+function createBlock() {
+    const input = document.getElementById('newBlockName');
+    const name = input.value.trim();
+    if (!name) {
+        alert('Введите название блока');
+        return;
+    }
+
+    fetch('/api/blocks', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name: name})
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+            }
+        })
+        .catch(() => alert('Ошибка при создании блока'));
+}
+
+function deleteBlock(blockId) {
+    if (!confirm('Удалить блок? Он будет удалён из всех шаблонов.')) return;
+
+    fetch(`/api/blocks/${blockId}`, {method: 'DELETE'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Ошибка при удалении блока');
+            }
+        })
+        .catch(() => alert('Ошибка при удалении блока'));
+}
+
+// === ШАБЛОНЫ БЛОКОВ ===
+
+let templateBlockRowSeq = 0;
+
+function addTemplateBlockRow(blockId, shiftDays) {
+    const list = document.getElementById('templateBlocksList');
+    const rowId = 'tmplBlockRow_' + (templateBlockRowSeq++);
+    const row = document.createElement('div');
+    row.className = 'team-block-row';
+    row.id = rowId;
+
+    const options = blocksData.map(b =>
+        `<option value="${b.id}"${b.id === blockId ? ' selected' : ''}>${b.name}</option>`
+    ).join('');
+
+    row.innerHTML = `
+        <select class="tmpl-block-select">${options}</select>
+        <input type="number" class="block-shift-input" placeholder="Сдвиг, дни" value="${shiftDays !== undefined && shiftDays !== null ? shiftDays : 0}">
+        <button type="button" class="btn btn-danger btn-sm btn-remove-block" onclick="document.getElementById('${rowId}').remove()">🗑️</button>
+    `;
+    list.appendChild(row);
+}
+
+function collectTemplateEntries() {
+    const rows = document.querySelectorAll('#templateBlocksList .team-block-row');
+    const entries = [];
+    rows.forEach(row => {
+        const select = row.querySelector('.tmpl-block-select');
+        const shiftInput = row.querySelector('.block-shift-input');
+        if (!select || !select.value) return;
+        entries.push({
+            block_id: parseInt(select.value),
+            shift_days: parseInt(shiftInput.value, 10) || 0
+        });
+    });
+    return entries;
+}
+
+function openTemplateModal(templateId) {
+    const modal = document.getElementById('templateModal');
+    const title = document.getElementById('templateModalTitle');
+    const idField = document.getElementById('templateId');
+    const nameField = document.getElementById('templateNameInput');
+    const saveBtn = document.getElementById('saveTemplateBtn');
+    const updateBtn = document.getElementById('updateTemplateBtn');
+    const list = document.getElementById('templateBlocksList');
+
+    list.innerHTML = '';
+    templateBlockRowSeq = 0;
+    idField.value = templateId || '';
+
+    if (templateId) {
+        const tmpl = templatesData.find(t => t.id === templateId);
+        title.textContent = 'Редактирование шаблона';
+        nameField.value = tmpl ? tmpl.name : '';
+        saveBtn.style.display = 'none';
+        updateBtn.style.display = 'inline-block';
+
+        const renderEntries = (blocks) => {
+            if (blocks && blocks.length) {
+                blocks.forEach(b => addTemplateBlockRow(b.id, b.shift_days));
+            } else {
+                addTemplateBlockRow();
+            }
+        };
+
+        if (tmpl) {
+            renderEntries(tmpl.blocks);
+        } else {
+            fetch(`/api/block-templates/${templateId}`)
+                .then(r => r.json())
+                .then(data => {
+                    nameField.value = data.name || '';
+                    renderEntries(data.blocks);
+                });
+        }
+    } else {
+        title.textContent = 'Добавить шаблон';
+        nameField.value = '';
+        saveBtn.style.display = 'inline-block';
+        updateBtn.style.display = 'none';
+        addTemplateBlockRow();
+    }
+
+    modal.style.display = 'flex';
+}
+
+function saveTemplate(event) {
+    event.preventDefault();
+
+    const templateId = document.getElementById('templateId').value;
+    const name = document.getElementById('templateNameInput').value.trim();
+    const entries = collectTemplateEntries();
+
+    if (!name) {
+        alert('Введите название шаблона');
+        return;
+    }
+
+    const url = templateId ? `/api/block-templates/${templateId}` : '/api/block-templates';
+    const method = templateId ? 'PUT' : 'POST';
+
+    fetch(url, {
+        method: method,
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name: name, entries: entries})
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+            }
+        })
+        .catch(() => alert('Ошибка при сохранении шаблона'));
+}
+
+function deleteTemplate(templateId) {
+    if (!confirm('Удалить шаблон?')) return;
+
+    fetch(`/api/block-templates/${templateId}`, {method: 'DELETE'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Ошибка при удалении шаблона');
+            }
+        })
+        .catch(() => alert('Ошибка при удалении шаблона'));
+}
+
+// === ДНИ ФРИЗА ===
 
 const MONTH_NAMES = ['Январь','Февраль','Март','Апрель','Май','Июнь',
                      'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];

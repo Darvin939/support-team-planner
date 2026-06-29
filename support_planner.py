@@ -38,7 +38,21 @@ class TaskIn(BaseModel):
 
 class TeamIn(BaseModel):
     name: str = ""
-    blocks: Optional[List[dict]] = None
+    template_ids: Optional[List[int]] = None
+
+
+class BlockIn(BaseModel):
+    name: str = ""
+
+
+class TemplateEntryIn(BaseModel):
+    block_id: int
+    shift_days: int = 0
+
+
+class BlockTemplateIn(BaseModel):
+    name: str = ""
+    entries: Optional[List[TemplateEntryIn]] = None
 
 
 class EmployeeIn(BaseModel):
@@ -96,7 +110,8 @@ def planning(request: Request, team_id: int):
         return RedirectResponse(url='/planning', status_code=302)
 
     employees = db.get_all_employees()
-    team_blocks = db.get_team_blocks(team_id)
+    allowed_templates = db.get_team_allowed_templates(team_id)
+    team_blocks = db.get_blocks_for_team(team_id)
 
     today = date.today()
     start_date = today - timedelta(days=7)
@@ -112,6 +127,7 @@ def planning(request: Request, team_id: int):
         'team': team,
         'employees': employees,
         'freeze_days': freeze_days,
+        'allowed_templates': allowed_templates,
         'team_blocks': team_blocks,
         'start_date': start_date.strftime('%Y-%m-%d'),
         'end_date': end_date.strftime('%Y-%m-%d'),
@@ -121,14 +137,18 @@ def planning(request: Request, team_id: int):
 @app.get('/settings', response_class=HTMLResponse)
 def settings_page(request: Request):
     """Страница настроек"""
-    teams = db.get_all_teams_with_blocks()
+    teams = db.get_all_teams_with_templates()
     employees = db.get_all_employees()
     freeze_days = db.get_all_freeze_days()
+    blocks = db.get_all_blocks()
+    block_templates = db.get_all_templates()
 
     return templates.TemplateResponse(request, 'settings.html', {
         'teams': teams,
         'employees': employees,
         'freeze_days': freeze_days,
+        'blocks': blocks,
+        'block_templates': block_templates,
     })
 
 
@@ -283,30 +303,34 @@ def update_task_status_api(task_id: int, data: TaskStatusIn):
 
 @app.get('/api/teams')
 def get_teams_api():
-    """Получить все команды с их блоками"""
-    return db.get_all_teams_with_blocks()
+    """Получить все команды с разрешёнными шаблонами"""
+    return db.get_all_teams_with_templates()
 
 
 @app.get('/api/teams/{team_id}')
 def get_team_api(team_id: int):
-    """Получить одну команду с блоками"""
+    """Получить одну команду с разрешёнными шаблонами"""
     team = db.get_team_by_id(team_id)
     if not team:
         return JSONResponse({'error': 'Team not found'}, status_code=404)
-    blocks = db.get_team_blocks(team_id)
-    return {'id': team['id'], 'name': team['name'], 'blocks': blocks}
+    tmpls = db.get_team_allowed_templates(team_id)
+    return {
+        'id': team['id'],
+        'name': team['name'],
+        'templates': tmpls,
+        'template_ids': [t['id'] for t in tmpls],
+    }
 
 
 @app.post('/api/teams')
 def create_team_api(data: TeamIn):
     """Создать команду"""
     name = (data.name or '').strip()
-    blocks = data.blocks or []
     if not name:
         return JSONResponse({'error': 'Name required'}, status_code=400)
 
     try:
-        team_id = db.create_team(name, blocks)
+        team_id = db.create_team(name, data.template_ids or [])
         return {'id': team_id, 'success': True}
     except Exception as e:
         return JSONResponse({'error': str(e)}, status_code=400)
@@ -316,12 +340,11 @@ def create_team_api(data: TeamIn):
 def update_team_api(team_id: int, data: TeamIn):
     """Обновить команду"""
     name = (data.name or '').strip()
-    blocks = data.blocks or []
     if not name:
         return JSONResponse({'error': 'Name required'}, status_code=400)
 
     try:
-        db.update_team(team_id, name, blocks)
+        db.update_team(team_id, name, data.template_ids or [])
         return {'success': True}
     except Exception as e:
         return JSONResponse({'error': str(e)}, status_code=400)
@@ -453,6 +476,80 @@ def get_active_assignments_api(team_id: int, start_date: Optional[str] = None, e
             'team_name': a['team_name'],
         })
     return result
+
+
+# === API для блоков ===
+
+@app.get('/api/blocks')
+def get_blocks_api():
+    """Получить все блоки"""
+    return db.get_all_blocks()
+
+
+@app.post('/api/blocks')
+def create_block_api(data: BlockIn):
+    """Создать блок"""
+    name = (data.name or '').strip()
+    if not name:
+        return JSONResponse({'error': 'Name required'}, status_code=400)
+    try:
+        block_id = db.create_block(name)
+        return {'id': block_id, 'success': True}
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=400)
+
+
+@app.delete('/api/blocks/{block_id}')
+def delete_block_api(block_id: int):
+    """Удалить блок"""
+    db.delete_block(block_id)
+    return {'success': True}
+
+
+# === API для шаблонов блоков ===
+
+@app.get('/api/block-templates')
+def get_templates_api():
+    """Получить все шаблоны блоков"""
+    return db.get_all_templates()
+
+
+@app.post('/api/block-templates')
+def create_template_api(data: BlockTemplateIn):
+    """Создать шаблон блоков"""
+    name = (data.name or '').strip()
+    if not name:
+        return JSONResponse({'error': 'Name required'}, status_code=400)
+    entries = [{'block_id': e.block_id, 'shift_days': e.shift_days} for e in (data.entries or [])]
+    try:
+        tmpl_id = db.create_template(name, entries)
+        return {'id': tmpl_id, 'success': True}
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=400)
+
+
+@app.put('/api/block-templates/{template_id}')
+def update_template_api(template_id: int, data: BlockTemplateIn):
+    """Обновить шаблон блоков"""
+    name = (data.name or '').strip()
+    if not name:
+        return JSONResponse({'error': 'Name required'}, status_code=400)
+    t = db.get_template_by_id(template_id)
+    if not t:
+        return JSONResponse({'error': 'Template not found'}, status_code=404)
+    entries = [{'block_id': e.block_id, 'shift_days': e.shift_days} for e in (data.entries or [])]
+    try:
+        db.update_template(template_id, name, entries)
+        return {'success': True}
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=400)
+
+
+@app.delete('/api/block-templates/{template_id}')
+def delete_template_api(template_id: int):
+    """Удалить шаблон блоков"""
+    db.delete_template(template_id)
+    return {'success': True}
 
 
 if __name__ == '__main__':
