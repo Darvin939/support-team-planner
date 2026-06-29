@@ -1428,6 +1428,7 @@ function setupAssignmentDrag() {
         if (!state.dragStarted) return;
 
         window.__suppressNextClick = true;
+        setTimeout(() => { window.__suppressNextClick = false; }, 0);
 
         if (state.targetDate && !state.targetOccupied) {
             moveAssignment(state.assignmentId, state.targetDate);
