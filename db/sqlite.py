@@ -1,6 +1,6 @@
 import sqlite3
 
-from db_backend import DBBackend
+from db.backend import DBBackend
 
 DB_PATH = 'database.db'
 

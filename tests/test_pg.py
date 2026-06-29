@@ -4,13 +4,14 @@
 Секция 1 — unit-тесты без реального сервера (мок psycopg2).
 Секция 2 — интеграционный тест с живым PG (пропускается если недоступен).
 
-Запуск: python test_pg.py
+Запуск: python -m pytest tests/ -v
+        python tests/test_pg.py
 """
 import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
-from db_postgres import _adapt_sql, _PgConnectionWrapper, _PgCursor, PostgresBackend
+from db.postgres import _adapt_sql, _PgConnectionWrapper, _PgCursor, PostgresBackend
 
 
 # ── unit-тесты ──────────────────────────────────────────────────────────────
@@ -106,14 +107,14 @@ class TestPostgresBackendInterface(unittest.TestCase):
         b = self._make_backend()
         self.assertIs(b.duplicate_error, psycopg2.errors.UniqueViolation)
 
-    @patch('db_postgres.psycopg2.connect')
+    @patch('db.postgres.psycopg2.connect')
     def test_connect_passes_kwargs(self, mock_connect):
         mock_connect.return_value = MagicMock()
         b = PostgresBackend(host='myhost', dbname='mydb', user='u')
         b.connect()
         mock_connect.assert_called_once_with(host='myhost', dbname='mydb', user='u')
 
-    @patch('db_postgres.psycopg2.connect')
+    @patch('db.postgres.psycopg2.connect')
     def test_connect_no_kwargs_calls_connect_without_args(self, mock_connect):
         mock_connect.return_value = MagicMock()
         b = PostgresBackend()
@@ -135,13 +136,12 @@ class TestPostgresBackendInterface(unittest.TestCase):
         b.setup_connection(conn)
         conn.execute.assert_not_called()
 
-    @patch('db_postgres.psycopg2.connect')
+    @patch('db.postgres.psycopg2.connect')
     def test_init_schema_runs_all_stmts(self, mock_connect):
         b = PostgresBackend()
         conn = MagicMock()
         b.init_schema(conn)
-        # fuzzy_word_in + количество DDL-стейтментов
-        from db_postgres import _PG_SCHEMA_STMTS
+        from db.postgres import _PG_SCHEMA_STMTS
         self.assertEqual(conn.execute.call_count, 1 + len(_PG_SCHEMA_STMTS))
 
 
@@ -153,16 +153,14 @@ TEST_DB = 'support_planner_test'
 
 def _try_live_test():
     import psycopg2
-    import database
+    import db
 
-    # Проверяем доступность PG
     try:
         admin = psycopg2.connect(**PG_PARAMS)
     except psycopg2.OperationalError as e:
         print(f'\n[SKIP] PostgreSQL недоступен: {e}')
         return
 
-    # Создаём тестовую БД
     admin.autocommit = True
     cur = admin.cursor()
     cur.execute(f'DROP DATABASE IF EXISTS {TEST_DB}')
@@ -170,53 +168,43 @@ def _try_live_test():
     admin.close()
 
     try:
-        from db_postgres import PostgresBackend
+        from db.postgres import PostgresBackend
         pg = PostgresBackend(host='localhost', dbname=TEST_DB, user='postgres')
 
-        # Временно переключаем бэкенд
-        original = database._backend
-        database._backend = pg
+        original = db._backend
+        db._backend = pg
 
-        # init_schema
-        database.init_db()
+        db.init_db()
 
-        # Создаём команду
-        team_id = database.create_team('PG-команда', [{'name': 'Б1', 'shift_days': 0}])
+        team_id = db.create_team('PG-команда', [{'name': 'Б1', 'shift_days': 0}])
         assert isinstance(team_id, int) and team_id > 0, f'team_id={team_id}'
 
-        # Создаём сотрудника
-        emp_id = database.create_employee('Иванов', 'Иван', 'Иванович')
+        emp_id = db.create_employee('Иванов', 'Иван', 'Иванович')
         assert isinstance(emp_id, int) and emp_id > 0, f'emp_id={emp_id}'
 
-        # Создаём задачу
-        task_id = int(database.create_or_update_task(None, team_id, 'Тест задача', 'Описание', 'high'))
+        task_id = int(db.create_or_update_task(None, team_id, 'Тест задача', 'Описание', 'high'))
         assert isinstance(task_id, int) and task_id > 0, f'task_id={task_id}'
 
-        # Пагинация задач
-        tasks = database.get_tasks_by_team(team_id)
+        tasks = db.get_tasks_by_team(team_id)
         assert len(tasks) == 1
         assert tasks[0]['name'] == 'Тест задача'
 
-        # Fuzzy search
-        found = database.get_tasks_by_team(team_id, search='задаче')  # опечатка
+        found = db.get_tasks_by_team(team_id, search='задаче')
         assert len(found) == 1, f'Fuzzy search не нашёл: {found}'
 
-        # Назначение
-        database.create_or_update_assignment(None, task_id, '2026-07-01', 'Б1', 'new', emp_id, None)
-        assignments = database.get_assignments_by_team_in_period(team_id, '2026-07-01', '2026-07-01')
+        db.create_or_update_assignment(None, task_id, '2026-07-01', 'Б1', 'new', emp_id, None)
+        assignments = db.get_assignments_by_team_in_period(team_id, '2026-07-01', '2026-07-01')
         assert len(assignments) == 1
 
-        # INSERT OR IGNORE (через set_task_dependencies)
-        task_id2 = int(database.create_or_update_task(None, team_id, 'Задача 2', None, 'low'))
-        database.set_task_dependencies(task_id2, [task_id])
-        database.set_task_dependencies(task_id2, [task_id])  # повтор — не должен упасть
+        task_id2 = int(db.create_or_update_task(None, team_id, 'Задача 2', None, 'low'))
+        db.set_task_dependencies(task_id2, [task_id])
+        db.set_task_dependencies(task_id2, [task_id])  # повтор — не должен упасть
 
         print('\n[OK] Интеграционный тест PostgreSQL прошёл успешно')
         print(f'     team_id={team_id}, task_id={task_id}, emp_id={emp_id}')
 
     finally:
-        database._backend = original
-        # Удаляем тестовую БД
+        db._backend = original
         admin2 = psycopg2.connect(**PG_PARAMS)
         admin2.autocommit = True
         admin2.cursor().execute(f'DROP DATABASE IF EXISTS {TEST_DB}')

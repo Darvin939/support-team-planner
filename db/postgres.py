@@ -4,9 +4,9 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 
-from db_backend import DBBackend
+from db.backend import DBBackend
 
-# PL/pgSQL реализация того же алгоритма скользящего окна, что и _fuzzy_word_in в db_sqlite.py
+# PL/pgSQL реализация того же алгоритма скользящего окна, что и _fuzzy_word_in в db/sqlite.py
 _FUZZY_WORD_IN_SQL = """
 CREATE OR REPLACE FUNCTION fuzzy_word_in(text_val TEXT, word TEXT)
 RETURNS BOOLEAN AS $$
