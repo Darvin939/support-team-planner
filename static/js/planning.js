@@ -8,7 +8,7 @@ let depsData = {};  // {task_id: [{dep_id, dep_name, dep_status}, ...]}
 let currentDateRange = {start: null, end: null};
 
 let currentPage = 1;
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 let totalTasksCount = 0;
 let searchDebounceTimer = null;
 let showCompleted = false;

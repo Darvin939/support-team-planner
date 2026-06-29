@@ -238,7 +238,7 @@ def set_freeze_days_for_month(conn, year, month, days):
 
 # === TASKS CRUD ===
 @with_db_connection(commit_on_success=False)
-def get_tasks_by_team(conn, team_id, offset=0, limit=20, search=None, show_completed=False):
+def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, show_completed=False):
     """Получить задачи команды с пагинацией и поиском"""
     completed_clause = "" if show_completed else "AND task_status NOT IN ('done', 'cancelled')"
     params = [team_id]
