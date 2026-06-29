@@ -28,6 +28,8 @@
     --danger-h:    #9E1818;
     --secondary:   #5C5C68;
     --secondary-h: #48484F;
+    --text-inverse: #FFFFFF;
+    --shadow-float: 0 4px 12px rgba(0, 0, 0, 0.15);
     --mono: Consolas, 'Cascadia Mono', Menlo, 'Courier New', monospace;
 }
 
@@ -70,7 +72,7 @@ h1, h2, h3 {
    ------------------------------------------------------------ */
 .navbar {
     background: var(--chrome);
-    color: white;
+    color: var(--text-inverse);
     padding: 0 24px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     position: sticky;
@@ -88,7 +90,7 @@ h1, h2, h3 {
 }
 
 .nav-brand {
-    color: white;
+    color: var(--text-inverse);
     text-decoration: none;
     font-size: 1.05rem;
     font-weight: 700;
@@ -118,7 +120,7 @@ h1, h2, h3 {
 
 .nav-menu a:hover {
     background: rgba(255, 255, 255, 0.08);
-    color: white;
+    color: var(--text-inverse);
 }
 
 .theme-toggle {
@@ -138,7 +140,7 @@ h1, h2, h3 {
 
 .theme-toggle:hover {
     background: rgba(255, 255, 255, 0.08);
-    color: white;
+    color: var(--text-inverse);
     border-color: rgba(255, 255, 255, 0.36);
 }
 
@@ -175,7 +177,7 @@ h1, h2, h3 {
 
 .btn-primary {
     background: var(--primary);
-    color: white;
+    color: var(--text-inverse);
 }
 
 .btn-primary:hover {
@@ -184,7 +186,7 @@ h1, h2, h3 {
 
 .btn-success {
     background: var(--success);
-    color: white;
+    color: var(--text-inverse);
 }
 
 .btn-success:hover {
@@ -193,7 +195,7 @@ h1, h2, h3 {
 
 .btn-danger {
     background: var(--danger);
-    color: white;
+    color: var(--text-inverse);
 }
 
 .btn-danger:hover {
@@ -202,7 +204,7 @@ h1, h2, h3 {
 
 .btn-secondary {
     background: var(--secondary);
-    color: white;
+    color: var(--text-inverse);
 }
 
 .btn-secondary:hover {
@@ -515,7 +517,7 @@ h1, h2, h3 {
     width: 18px;
     left: 3px;
     bottom: 3px;
-    background-color: white;
+    background-color: var(--text-inverse);
     border-radius: 50%;
     transition: 0.2s;
 }
@@ -608,7 +610,7 @@ h1, h2, h3 {
 .auto-block-badge {
     display: inline-block;
     background: var(--primary);
-    color: white;
+    color: var(--text-inverse);
     border-radius: 3px;
     padding: 2px 6px;
     margin: 2px;
@@ -806,7 +808,7 @@ h1, h2, h3 {
     border-radius: 12px;
     font-weight: 700;
     font-size: 0.75rem;
-    color: white;
+    color: var(--text-inverse);
 }
 
 .criticality-high {
@@ -815,7 +817,7 @@ h1, h2, h3 {
 
 .criticality-medium {
     background: var(--crit-mid);
-    color: white;
+    color: var(--text-inverse);
 }
 
 .criticality-low {
@@ -1132,7 +1134,7 @@ h1, h2, h3 {
 
 .btn-edit:hover {
     background: var(--primary);
-    color: white;
+    color: var(--text-inverse);
 }
 
 .btn-delete {
@@ -1148,7 +1150,7 @@ h1, h2, h3 {
 
 .btn-delete:hover {
     background: var(--danger);
-    color: white;
+    color: var(--text-inverse);
 }
 
 /* Пустая строка в таблице */
@@ -1277,6 +1279,18 @@ h1, h2, h3 {
     font-size: 0.63rem;
     font-style: italic;
     color: var(--text-3);
+}
+
+.schedule-psi {
+    display: inline-block;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    color: var(--text-inverse);
+    background: #7B4FD4;
+    border-radius: 3px;
+    padding: 0 4px;
+    line-height: 1.5;
 }
 
 /* Статусный цвет — только левая граница + акцент текста статуса */
@@ -1636,7 +1650,7 @@ h1, h2, h3 {
     max-height: 160px;
     overflow-y: auto;
     z-index: 100;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    box-shadow: var(--shadow-float);
 }
 
 .block-search-item {
@@ -1648,7 +1662,7 @@ h1, h2, h3 {
 
 .block-search-item:hover {
     background: var(--primary);
-    color: white;
+    color: var(--text-inverse);
 }
 
 /* Выбранные блоки-теги */
@@ -1665,7 +1679,7 @@ h1, h2, h3 {
     align-items: center;
     gap: 5px;
     background: var(--primary);
-    color: white;
+    color: var(--text-inverse);
     border-radius: 12px;
     padding: 3px 10px;
     font-size: 0.85rem;
@@ -1692,7 +1706,7 @@ h1, h2, h3 {
 }
 
 .team-template-badge {
-    background: var(--surface-2, #f0f0f0);
+    background: var(--surface-2);
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 2px 10px;
@@ -1733,13 +1747,13 @@ h1, h2, h3 {
 
 .page-btn:hover:not(:disabled) {
     background: var(--primary);
-    color: white;
+    color: var(--text-inverse);
     border-color: var(--primary);
 }
 
 .page-btn.active {
     background: var(--primary);
-    color: white;
+    color: var(--text-inverse);
     border-color: var(--primary);
     font-weight: 700;
 }
@@ -1818,7 +1832,7 @@ h1, h2, h3 {
 
 .freeze-day-marked {
     background: var(--danger);
-    color: white !important;
+    color: var(--text-inverse) !important;
     font-weight: 600;
 }
 
@@ -1843,7 +1857,7 @@ h1, h2, h3 {
 
 .freeze-calendar.interactive .cal-day-inner.selected {
     background: var(--danger);
-    color: white !important;
+    color: var(--text-inverse) !important;
     font-weight: 600;
 }
 

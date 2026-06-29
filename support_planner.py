@@ -25,6 +25,7 @@ class AssignmentIn(BaseModel):
     status: str = "new"
     employee_id: Optional[int] = None
     comment: Optional[str] = None
+    is_psi: bool = False
 
 
 class TaskIn(BaseModel):
@@ -185,7 +186,8 @@ def get_assignments_api(team_id: int, start_date: Optional[str] = None, end_date
             'status': a['status'],
             'employee_id': a['employee_id'],
             'employee_name': employee_name,
-            'comment': a['comment']
+            'comment': a['comment'],
+            'is_psi': bool(a['is_psi'])
         })
 
     return result
@@ -207,7 +209,7 @@ def save_assignment_api(data: AssignmentIn):
     if task and task['task_status'] in ('done', 'cancelled'):
         return JSONResponse({'error': 'Нельзя изменять назначения завершённой или отменённой задачи'}, status_code=400)
 
-    db.create_or_update_assignment(data.assignment_id, data.task_id, data.date, block, data.status, data.employee_id, comment)
+    db.create_or_update_assignment(data.assignment_id, data.task_id, data.date, block, data.status, data.employee_id, comment, 1 if data.is_psi else 0)
     if data.status == 'planned':
         db.maybe_advance_task_to_in_progress(data.task_id)
     return {'success': True}
@@ -474,6 +476,7 @@ def get_active_assignments_api(team_id: int, start_date: Optional[str] = None, e
             'employee_name': employee_name,
             'comment': a['comment'],
             'team_name': a['team_name'],
+            'is_psi': bool(a['is_psi']),
         })
     return result
 

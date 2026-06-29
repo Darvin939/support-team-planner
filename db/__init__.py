@@ -570,6 +570,7 @@ def get_assignment(conn, task_id, date_str):
                   a.status,
                   a.employee_id,
                   a.comment,
+                  a.is_psi,
                   e.last_name   as employee_last_name,
                   e.first_name  as employee_first_name,
                   e.middle_name as employee_middle_name
@@ -592,6 +593,7 @@ def get_assignments_by_team_in_period(conn, team_id, start_date, end_date):
                   a.status,
                   a.employee_id,
                   a.comment,
+                  a.is_psi,
                   e.last_name   as employee_last_name,
                   e.first_name  as employee_first_name,
                   e.middle_name as employee_middle_name
@@ -606,7 +608,7 @@ def get_assignments_by_team_in_period(conn, team_id, start_date, end_date):
 
 
 @with_db_connection()
-def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, status, employee_id, comment):
+def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, status, employee_id, comment, is_psi=0):
     """Создать или обновить назначение"""
     existing = conn.execute('SELECT 1 FROM assignments WHERE id = ?', (assignment_id,)).fetchone()
 
@@ -618,15 +620,16 @@ def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, s
                    block       = ?,
                    status      = ?,
                    employee_id = ?,
-                   comment     = ?
+                   comment     = ?,
+                   is_psi      = ?
                WHERE id = ?''',
-            (date_str, task_id, block, status, employee_id, comment, assignment_id)
+            (date_str, task_id, block, status, employee_id, comment, is_psi, assignment_id)
         )
     else:
         conn.execute(
-            '''INSERT INTO assignments (task_id, date, block, status, employee_id, comment)
-               VALUES (?, ?, ?, ?, ?, ?)''',
-            (task_id, date_str, block, status, employee_id, comment)
+            '''INSERT INTO assignments (task_id, date, block, status, employee_id, comment, is_psi)
+               VALUES (?, ?, ?, ?, ?, ?, ?)''',
+            (task_id, date_str, block, status, employee_id, comment, is_psi)
         )
 
 
@@ -642,7 +645,7 @@ def get_active_assignments_in_period(conn, team_id, start_date, end_date, team_i
     """Получить активные назначения (new/planned) за период с данными задач и сотрудников"""
     # @formatter:off
     query = '''SELECT a.id, t.name AS task_name, t.criticality,
-                      a.date, a.block, a.status, a.employee_id, a.comment,
+                      a.date, a.block, a.status, a.employee_id, a.comment, a.is_psi,
                       e.last_name  AS employee_last_name,
                       e.first_name AS employee_first_name,
                       e.middle_name AS employee_middle_name,

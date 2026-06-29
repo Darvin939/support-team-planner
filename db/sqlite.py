@@ -52,6 +52,7 @@ _SCHEMA = '''
         status text NOT NULL DEFAULT 'new',
         employee_id INTEGER,
         comment text,
+        is_psi INTEGER NOT NULL DEFAULT 0,
         FOREIGN key (task_id) REFERENCES tasks (id) ON DELETE cascade,
         FOREIGN key (employee_id) REFERENCES employees (id),
         UNIQUE (task_id, date)
@@ -140,4 +141,8 @@ class SQLiteBackend(DBBackend):
         conn.execute('PRAGMA foreign_keys = ON;')
         conn.executescript(_SCHEMA)
         conn.execute('DROP TABLE IF EXISTS team_blocks')
+        try:
+            conn.execute("ALTER TABLE assignments ADD COLUMN is_psi INTEGER NOT NULL DEFAULT 0")
+        except Exception:
+            pass
         conn.commit()

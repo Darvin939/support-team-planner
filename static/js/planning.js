@@ -405,6 +405,7 @@ function renderTable() {
                         <span class="schedule-status">${getStatusDisplay(assignment.status)}</span>
                         <span class="schedule-comment">${assignment.comment || ''}</span>
                         <span class="schedule-employee">${assignment.employee_name}</span>
+                        ${assignment.is_psi ? '<span class="schedule-psi">ПСИ</span>' : ''}
                     </div>
                 `;
             }
@@ -879,6 +880,7 @@ function toggleAutoAssign() {
     document.getElementById('autoBlockGroup').style.display = enabled ? '' : 'none';
     document.getElementById('assignmentEmployeeGroup').style.display = enabled ? 'none' : '';
     document.getElementById('assignmentCommentGroup').style.display = enabled ? 'none' : '';
+    document.getElementById('assignmentPsiGroup').style.display = enabled ? 'none' : '';
 
     const statusSelect = document.getElementById('assignmentStatus');
     statusSelect.disabled = enabled;
@@ -941,6 +943,7 @@ function openAssignmentModal(taskId, dateStr) {
         assignStatus.value = assignment.status;
         assignEmployee.value = assignment.employee_id || '';
         assignComment.value = assignment.comment || '';
+        document.getElementById('assignmentPsi').checked = !!assignment.is_psi;
         saveBtn.style.display = 'none';
         updateBtn.style.display = 'inline-block';
         deleteBtn.style.display = 'inline-block';
@@ -951,6 +954,7 @@ function openAssignmentModal(taskId, dateStr) {
         assignStatus.value = 'new';
         assignEmployee.value = '';
         assignComment.value = '';
+        document.getElementById('assignmentPsi').checked = false;
         saveBtn.style.display = 'inline-block';
         updateBtn.style.display = 'none';
         deleteBtn.style.display = 'none';
@@ -975,6 +979,7 @@ function saveAssignment(event) {
     const status = document.getElementById('assignmentStatus').value;
     const employeeId = document.getElementById('assignmentEmployee').value;
     const comment = document.getElementById('assignmentComment').value;
+    const isPsi = document.getElementById('assignmentPsi').checked;
 
     fetch('/api/assignment', {
         method: 'POST',
@@ -988,7 +993,8 @@ function saveAssignment(event) {
             block: block,
             status: status,
             employee_id: employeeId ? parseInt(employeeId) : null,
-            comment: comment
+            comment: comment,
+            is_psi: isPsi
         })
     })
         .then(response => response.json())
@@ -1058,7 +1064,8 @@ function saveAutoAssignment() {
                 block: groups[d].join(', '),
                 status: 'new',
                 employee_id: null,
-                comment: null
+                comment: null,
+                is_psi: false
             })
         });
     });
@@ -1537,7 +1544,8 @@ function moveAssignment(assignmentId, newDate) {
             block: a.block || '',
             status: a.status,
             employee_id: a.employee_id || null,
-            comment: a.comment || ''
+            comment: a.comment || '',
+            is_psi: !!a.is_psi
         })
     })
         .then(r => r.json())
