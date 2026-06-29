@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from typing import Optional, List
+from typing import Optional, List, Union
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -28,7 +28,7 @@ class AssignmentIn(BaseModel):
 
 
 class TaskIn(BaseModel):
-    task_id: Optional[int | str] = None
+    task_id: Optional[Union[int, str]] = None
     team_id: Optional[int] = None
     name: str = ""
     description: Optional[str] = None
@@ -457,4 +457,4 @@ def get_active_assignments_api(team_id: int, start_date: Optional[str] = None, e
 
 if __name__ == '__main__':
     import uvicorn
-    uvicorn.run(app, port=5000)
+    uvicorn.run(app, port=5093, host="0.0.0.0")
