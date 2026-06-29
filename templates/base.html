@@ -1,20 +1,24 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Планировщик работ{% endblock %}</title>
+    <script>try{var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 <nav class="navbar">
     <div class="nav-container">
-        <a href="/planning" class="nav-brand">📋 Планировщик работ</a>
-        <ul class="nav-menu">
-            <li><a href="/planning">Планирование</a></li>
-            <li><a href="/statistics">Статистика</a></li>
-            <li><a href="/settings">Настройки</a></li>
-        </ul>
+        <a href="/planning" class="nav-brand">Планировщик работ</a>
+        <div class="nav-right">
+            <ul class="nav-menu">
+                <li><a href="/planning">Планирование</a></li>
+                <li><a href="/statistics">Статистика</a></li>
+                <li><a href="/settings">Настройки</a></li>
+            </ul>
+            <button id="themeToggle" class="theme-toggle" title="Светлая / тёмная тема">☀</button>
+        </div>
     </div>
 </nav>
 

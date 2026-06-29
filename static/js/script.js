@@ -1,3 +1,24 @@
+// Тёмная тема
+(function () {
+    const THEME_KEY = 'theme';
+    const html = document.documentElement;
+    const saved = localStorage.getItem(THEME_KEY) || '';
+    html.setAttribute('data-theme', saved);
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const btn = document.getElementById('themeToggle');
+        if (!btn) return;
+        btn.textContent = html.getAttribute('data-theme') === 'dark' ? '☾' : '☀';
+        btn.addEventListener('click', function () {
+            const isDark = html.getAttribute('data-theme') === 'dark';
+            const next = isDark ? '' : 'dark';
+            html.setAttribute('data-theme', next);
+            localStorage.setItem(THEME_KEY, next);
+            btn.textContent = next === 'dark' ? '☾' : '☀';
+        });
+    });
+})();
+
 // Функции для выпадающих списков с чекбоксами
 function toggleDropdown(dropdownId) {
     const dropdown = document.getElementById(dropdownId);

@@ -1,6 +1,48 @@
 /* ============================================================
    Support Team Planner — Основные стили
+   "Диспетчерский Пульт" redesign
    ============================================================ */
+
+/* ------------------------------------------------------------
+   0. Дизайн-токены
+   ------------------------------------------------------------ */
+:root {
+    --bg:          #ECEAE5;
+    --surface:     #FFFFFF;
+    --surface-2:   #F3F2EE;
+    --surface-alt: #F7F6F3;
+    --chrome:      #16161D;
+    --border:      rgba(0, 0, 0, 0.09);
+    --border-strong: rgba(0, 0, 0, 0.16);
+    --text:        #1C1C22;
+    --text-2:      #5C5C68;
+    --text-3:      #9C9CA8;
+    --primary:     #1A6FD4;
+    --primary-h:   #1559AB;
+    --crit-high:   #C41E1E;
+    --crit-mid:    #CC7A00;
+    --crit-low:    #1C7A3C;
+    --success:     #1C7A3C;
+    --success-h:   #165E2E;
+    --danger:      #C41E1E;
+    --danger-h:    #9E1818;
+    --secondary:   #5C5C68;
+    --secondary-h: #48484F;
+    --mono: Consolas, 'Cascadia Mono', Menlo, 'Courier New', monospace;
+}
+
+[data-theme="dark"] {
+    --bg:          #111118;
+    --surface:     #1A1A22;
+    --surface-2:   #222230;
+    --surface-alt: #1E1E2A;
+    --chrome:      #0A0A10;
+    --border:      rgba(255, 255, 255, 0.07);
+    --border-strong: rgba(255, 255, 255, 0.14);
+    --text:        #ECEAE5;
+    --text-2:      #8A8A96;
+    --text-3:      #5A5A66;
+}
 
 /* ------------------------------------------------------------
    1. Сброс и база
@@ -12,20 +54,28 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-    background: #f5f7fa;
-    color: #333;
+    font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
     line-height: 1.6;
+}
+
+h1, h2, h3 {
+    font-weight: 700;
+    letter-spacing: -0.025em;
 }
 
 /* ------------------------------------------------------------
    2. Навигация
    ------------------------------------------------------------ */
 .navbar {
-    background: #2c3e50;
+    background: var(--chrome);
     color: white;
-    padding: 0 20px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 0 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    position: sticky;
+    top: 0;
+    z-index: 100;
 }
 
 .nav-container {
@@ -34,33 +84,62 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    height: 60px;
+    height: 52px;
 }
 
 .nav-brand {
     color: white;
     text-decoration: none;
-    font-size: 1.2rem;
-    font-weight: bold;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.nav-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .nav-menu {
     list-style: none;
     display: flex;
-    gap: 20px;
+    gap: 2px;
 }
 
 .nav-menu a {
-    color: rgba(255, 255, 255, 0.8);
+    color: rgba(255, 255, 255, 0.68);
     text-decoration: none;
-    padding: 8px 12px;
-    border-radius: 4px;
-    transition: background 0.3s;
+    padding: 6px 12px;
+    border-radius: 3px;
+    transition: background 0.2s, color 0.2s;
+    font-size: 0.9rem;
 }
 
 .nav-menu a:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
     color: white;
+}
+
+.theme-toggle {
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.68);
+    border-radius: 3px;
+    padding: 4px 9px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    line-height: 1;
+    margin-left: 8px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+}
+
+.theme-toggle:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: white;
+    border-color: rgba(255, 255, 255, 0.36);
 }
 
 /* ------------------------------------------------------------
@@ -77,8 +156,8 @@ body {
 }
 
 .page-header h1 {
-    font-size: 2rem;
-    color: #2c3e50;
+    font-size: 1.8rem;
+    color: var(--text);
 }
 
 /* ------------------------------------------------------------
@@ -87,46 +166,47 @@ body {
 .btn {
     padding: 8px 16px;
     border: none;
-    border-radius: 4px;
+    border-radius: 3px;
     cursor: pointer;
     font-size: 0.95rem;
-    transition: all 0.3s;
+    font-family: inherit;
+    transition: all 0.2s;
 }
 
 .btn-primary {
-    background: #3498db;
+    background: var(--primary);
     color: white;
 }
 
 .btn-primary:hover {
-    background: #2980b9;
+    background: var(--primary-h);
 }
 
 .btn-success {
-    background: #28a745;
+    background: var(--success);
     color: white;
 }
 
 .btn-success:hover {
-    background: #218838;
+    background: var(--success-h);
 }
 
 .btn-danger {
-    background: #dc3545;
+    background: var(--danger);
     color: white;
 }
 
 .btn-danger:hover {
-    background: #c82333;
+    background: var(--danger-h);
 }
 
 .btn-secondary {
-    background: #6c757d;
+    background: var(--secondary);
     color: white;
 }
 
 .btn-secondary:hover {
-    background: #5a6268;
+    background: var(--secondary-h);
 }
 
 .btn-sm {
@@ -145,7 +225,8 @@ body {
     display: block;
     margin-bottom: 5px;
     font-weight: 600;
-    color: #495057;
+    color: var(--text-2);
+    font-size: 0.9rem;
 }
 
 .form-group input,
@@ -153,15 +234,27 @@ body {
 .form-group textarea {
     width: 100%;
     padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
     font-size: 0.95rem;
+    font-family: inherit;
+    background: var(--surface);
+    color: var(--text);
+    transition: border-color 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary);
 }
 
 .form-group input:read-only,
 .form-group select:disabled {
-    background: #f8f9fa;
+    background: var(--surface-2);
     cursor: not-allowed;
+    color: var(--text-3);
 }
 
 .form-actions {
@@ -180,30 +273,36 @@ body {
 
 .form-row input {
     padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
     font-size: 0.95rem;
+    font-family: inherit;
+    background: var(--surface);
+    color: var(--text);
     flex: 1;
     min-width: 150px;
 }
 
 /* Фильтры */
 .filter-section {
-    background: white;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    margin-bottom: 20px;
+    background: var(--surface);
+    padding: 16px 20px;
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    margin-bottom: 16px;
 }
 
 .filter-section h3 {
-    margin-bottom: 15px;
-    color: #2c3e50;
+    margin-bottom: 12px;
+    color: var(--text);
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 0;
 }
 
 .filter-row {
     display: flex;
-    gap: 15px;
+    gap: 12px;
     flex-wrap: wrap;
     align-items: flex-end;
 }
@@ -211,21 +310,32 @@ body {
 .filter-group {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 4px;
 }
 
 .filter-group label {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     font-weight: 600;
-    color: #666;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
 }
 
 .filter-input {
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 0.95rem;
+    padding: 7px 12px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 0.9rem;
+    font-family: inherit;
+    background: var(--surface);
+    color: var(--text);
     min-width: 120px;
+    transition: border-color 0.2s;
+}
+
+.filter-input:focus {
+    outline: none;
+    border-color: var(--primary);
 }
 
 .filter-input-wrap {
@@ -243,11 +353,11 @@ body {
     border: none;
     cursor: pointer;
     font-size: 1rem;
-    color: #999;
+    color: var(--text-3);
     line-height: 1;
     padding: 0 2px;
 }
-.filter-input-clear:hover { color: #333; }
+.filter-input-clear:hover { color: var(--text); }
 
 /* Выпадающие списки с чекбоксами */
 .filter-dropdown {
@@ -262,21 +372,23 @@ body {
 
 .dropdown-toggle {
     width: 100%;
-    padding: 8px 12px;
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 4px;
+    padding: 7px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
     cursor: pointer;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
+    font-family: inherit;
+    color: var(--text);
     text-align: left;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    transition: border-color 0.3s;
+    transition: border-color 0.2s;
 }
 
 .dropdown-toggle:hover {
-    border-color: #3498db;
+    border-color: var(--primary);
 }
 
 .dropdown-toggle .dropdown-label {
@@ -288,8 +400,9 @@ body {
 
 .dropdown-toggle .dropdown-arrow {
     margin-left: 8px;
-    font-size: 0.7rem;
-    transition: transform 0.3s;
+    font-size: 0.65rem;
+    transition: transform 0.2s;
+    color: var(--text-3);
 }
 
 .dropdown-toggle.active .dropdown-arrow {
@@ -302,15 +415,15 @@ body {
     top: 100%;
     left: 0;
     right: 0;
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
     z-index: 100;
     max-height: 200px;
     overflow-y: auto;
-    margin-top: 4px;
-    padding: 8px 0;
+    margin-top: 3px;
+    padding: 6px 0;
 }
 
 .dropdown-menu.show {
@@ -322,30 +435,30 @@ body {
     align-items: center;
     padding: 6px 12px;
     cursor: pointer;
-    transition: background 0.2s;
-    font-size: 0.95rem;
-    color: #333;
+    transition: background 0.15s;
+    font-size: 0.9rem;
+    color: var(--text);
 }
 
 .checkbox-item:hover {
-    background: #f0f7ff;
+    background: rgba(26, 111, 212, 0.07);
 }
 
 .checkbox-item input[type="checkbox"] {
     margin-right: 8px;
-    width: 16px;
-    height: 16px;
+    width: 15px;
+    height: 15px;
     cursor: pointer;
     flex-shrink: 0;
 }
 
 .checkbox-item input[type="checkbox"]:checked {
-    accent-color: #3498db;
+    accent-color: var(--primary);
 }
 
 .block-checkbox-list {
-    border: 1px solid #ddd;
-    border-radius: 6px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
     padding: 4px 0;
     max-height: 160px;
     overflow-y: auto;
@@ -353,7 +466,7 @@ body {
 
 .checkbox-item-empty {
     padding: 6px 12px;
-    color: #999;
+    color: var(--text-3);
     font-size: 0.9rem;
 }
 
@@ -366,7 +479,7 @@ body {
     justify-content: space-between;
     cursor: pointer;
     font-weight: 500;
-    color: #2c3e50;
+    color: var(--text);
 }
 
 .toggle-switch {
@@ -390,7 +503,7 @@ body {
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: #ccc;
+    background-color: var(--text-3);
     border-radius: 24px;
     transition: 0.2s;
 }
@@ -408,7 +521,7 @@ body {
 }
 
 .toggle-switch input:checked + .toggle-slider {
-    background-color: #3498db;
+    background-color: var(--primary);
 }
 
 .toggle-switch input:checked + .toggle-slider::before {
@@ -420,8 +533,8 @@ body {
    ------------------------------------------------------------ */
 .auto-schedule-wrapper {
     overflow-x: auto;
-    border: 1px solid #e9ecef;
-    border-radius: 6px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
 }
 
 .auto-schedule-table {
@@ -435,31 +548,30 @@ body {
     min-width: 60px;
     text-align: center;
     padding: 6px 4px;
-    border-bottom: 1px solid #eee;
-    border-left: 1px solid #eee;
+    border-bottom: 1px solid var(--border);
+    border-left: 1px solid var(--border);
+    color: var(--text);
 }
 
 .auto-schedule-table thead th {
-    background: #f8f9fa;
-    border-bottom: 2px solid #dee2e6;
+    background: var(--surface-2);
+    border-bottom: 2px solid var(--border-strong);
     font-weight: 600;
-    color: #495057;
+    color: var(--text-2);
     position: sticky;
     top: 0;
     z-index: 10;
 }
 
-/* Только первая (подписная) колонка фиксируется при горизонтальной прокрутке */
 .auto-schedule-table th:first-child,
 .auto-schedule-table td:first-child {
     position: sticky;
     left: 0;
-    background: white;
+    background: var(--surface);
     border-left: none;
     z-index: 15;
 }
 
-/* Тень для границы фиксированных колонок */
 .auto-schedule-table th:first-child::after,
 .auto-schedule-table td:first-child::after {
     content: '';
@@ -468,57 +580,57 @@ body {
     top: 0;
     height: 100%;
     width: 5px;
-    background: linear-gradient(to right, rgba(0, 0, 0, 0.1), transparent);
+    background: linear-gradient(to right, rgba(0, 0, 0, 0.08), transparent);
     pointer-events: none;
 }
 
 .auto-schedule-table thead th:first-child {
-    background: #f8f9fa;
+    background: var(--surface-2);
     z-index: 25;
 }
 
 .auto-block-cell {
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background 0.15s;
     vertical-align: top;
     padding: 4px !important;
     height: 58px;
 }
 
 .auto-block-cell:hover {
-    background: #f0f8ff;
+    background: rgba(26, 111, 212, 0.06);
 }
 
 .auto-block-cell.occupied {
-    box-shadow: inset 0 0 0 2px #e67e22;
+    box-shadow: inset 0 0 0 2px var(--crit-mid);
 }
 
 .auto-block-badge {
     display: inline-block;
-    background: #3498db;
+    background: var(--primary);
     color: white;
-    border-radius: 4px;
+    border-radius: 3px;
     padding: 2px 6px;
     margin: 2px;
     font-size: 0.75rem;
     cursor: pointer;
     user-select: none;
-    transition: background 0.2s;
+    transition: background 0.15s;
 }
 
 .auto-block-badge:hover {
-    background: #2980b9;
+    background: var(--primary-h);
 }
 
 .auto-block-badge.selected {
-    background: #e67e22;
-    box-shadow: 0 0 0 2px #d35400;
+    background: var(--crit-mid);
+    box-shadow: 0 0 0 2px var(--crit-mid);
 }
 
 .auto-schedule-hint {
     margin-top: 6px;
     font-size: 0.8rem;
-    color: #6c757d;
+    color: var(--text-2);
 }
 
 .auto-schedule-hint > div + div {
@@ -532,16 +644,16 @@ body {
 .auto-schedule-legend-item {
     margin-left: 10px;
     padding: 3px 6px;
-    border-radius: 3px;
+    border-radius: 2px;
 }
 
 .auto-schedule-legend-occupied {
-    box-shadow: inset 0 0 0 2px #e67e22;
+    box-shadow: inset 0 0 0 2px var(--crit-mid);
 }
 
 .auto-assign-row-label {
     font-weight: 600;
-    color: #2c3e50;
+    color: var(--text);
     white-space: nowrap;
     padding: 6px 10px !important;
     text-align: left !important;
@@ -551,95 +663,107 @@ body {
    6. Селектор команды и пустое состояние
    ------------------------------------------------------------ */
 .team-selector {
-    background: white;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    margin-bottom: 20px;
+    background: var(--surface);
+    padding: 16px 20px;
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    margin-bottom: 16px;
 }
 
 .team-selector label {
     font-weight: 600;
     margin-right: 10px;
+    color: var(--text-2);
+    font-size: 0.9rem;
 }
 
 .team-selector select {
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 1rem;
+    padding: 7px 12px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    background: var(--surface);
+    color: var(--text);
     min-width: 200px;
 }
 
 .empty-state-hint {
     text-align: center;
     padding: 60px 20px;
-    color: #888;
-    font-size: 1.1rem;
+    color: var(--text-3);
+    font-size: 1.05rem;
 }
 
 /* ------------------------------------------------------------
-   7. Статистика (главная и страница статистики)
+   7. Статистика (страница статистики)
    ------------------------------------------------------------ */
-/* Страница статистики — секции, счётчики, таблица */
 .stats-empty {
-    color: #999;
+    color: var(--text-3);
     padding: 12px 0;
     font-size: 0.95rem;
 }
 
 .stats-section {
-    background: white;
-    padding: 25px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    margin-bottom: 20px;
+    background: var(--surface);
+    padding: 22px 24px;
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    margin-bottom: 16px;
 }
 
 .stats-section h2 {
-    margin: 0 0 15px;
-    font-size: 1.2rem;
+    margin: 0 0 14px;
+    font-size: 1.05rem;
+    color: var(--text);
 }
 
 .stats-counters {
     display: flex;
     flex-wrap: wrap;
-    gap: 12px;
-    margin-bottom: 15px;
+    gap: 10px;
+    margin-bottom: 14px;
 }
 
 .counter-group-label {
     font-weight: 600;
-    font-size: 0.9rem;
-    color: #555;
+    font-size: 0.85rem;
+    color: var(--text-2);
     align-self: center;
 }
 
 .counter-item {
-    padding: 6px 14px;
-    border-radius: 6px;
-    background: #f8f9fa;
-    font-size: 0.9rem;
+    padding: 5px 12px;
+    border-radius: 3px;
+    background: var(--surface-2);
+    font-size: 0.88rem;
+    color: var(--text);
+    font-family: var(--mono);
 }
 
 .counter-status-new {
-    background: #e8f4fd;
+    background: rgba(26, 111, 212, 0.10);
+    color: var(--primary);
 }
 
 .counter-status-planned {
-    background: #fff3cd;
+    background: rgba(204, 122, 0, 0.10);
+    color: var(--crit-mid);
 }
 
 .counter-crit-high {
-    background: #f8d7da;
+    background: rgba(196, 30, 30, 0.10);
+    color: var(--crit-high);
 }
 
 .counter-crit-medium {
-    background: #fff3cd;
+    background: rgba(204, 122, 0, 0.10);
+    color: var(--crit-mid);
 }
 
 .counter-crit-low {
-    background: #d4edda;
+    background: rgba(28, 122, 60, 0.10);
+    color: var(--crit-low);
 }
 
 .stats-table-wrapper {
@@ -655,68 +779,72 @@ body {
 .stats-table th,
 .stats-table td {
     padding: 8px 12px;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--border);
     text-align: left;
     white-space: nowrap;
+    color: var(--text);
 }
 
 .stats-table th {
-    background: #f8f9fa;
+    background: var(--surface-2);
     font-weight: 600;
+    color: var(--text-2);
     position: sticky;
     top: 0;
 }
 
 .stats-table tbody tr:hover {
-    background: #f0f4ff;
+    background: rgba(26, 111, 212, 0.04);
 }
 
 /* ------------------------------------------------------------
-   8. Критичность (бейджи + статистика)
+   8. Критичность (бейджи)
    ------------------------------------------------------------ */
 .criticality-badge {
     display: inline-block;
     padding: 2px 8px;
     border-radius: 12px;
-    font-weight: bold;
-    font-size: 0.8rem;
+    font-weight: 700;
+    font-size: 0.75rem;
     color: white;
 }
 
 .criticality-high {
-    background: #dc3545;
+    background: var(--crit-high);
 }
 
 .criticality-medium {
-    background: #ffc107;
-    color: #333;
+    background: var(--crit-mid);
+    color: white;
 }
 
 .criticality-low {
-    background: #28a745;
+    background: var(--crit-low);
 }
 
 /* ------------------------------------------------------------
-   9. Таблица планирования
+   9. Таблица планирования (контейнер и шапка)
    ------------------------------------------------------------ */
 .work-table-container {
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
     overflow: hidden;
 }
 
 .table-header {
-    padding: 15px 20px;
+    padding: 12px 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
 }
 
 .table-info {
-    color: #666;
-    font-size: 0.95rem;
+    color: var(--text-2);
+    font-size: 0.9rem;
+    font-family: var(--mono);
 }
 
 .table-wrapper {
@@ -728,17 +856,17 @@ body {
 .work-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
     min-width: 800px;
 }
 
 .work-table th {
-    background: #f8f9fa;
-    padding: 10px 8px;
+    background: var(--surface-2);
+    padding: 9px 8px;
     text-align: left;
-    border-bottom: 2px solid #dee2e6;
+    border-bottom: 2px solid var(--border-strong);
     font-weight: 600;
-    color: #495057;
+    color: var(--text-2);
     position: sticky;
     top: 0;
     z-index: 10;
@@ -746,12 +874,13 @@ body {
 
 .work-table td {
     padding: 4px;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--border);
     vertical-align: middle;
+    color: var(--text);
 }
 
 .work-table td.schedule-cell {
-    border-left: 1px solid #eee;
+    border-left: 1px solid var(--border);
 }
 
 /* Фиксация первой колонки (работа) */
@@ -760,7 +889,7 @@ body {
     position: sticky;
     left: 0;
     z-index: 20;
-    background: white;
+    background: var(--surface);
     min-width: 310px;
     max-width: 500px;
 }
@@ -776,7 +905,7 @@ body {
     top: 0;
     height: 100%;
     width: 5px;
-    background: linear-gradient(to right, rgba(0, 0, 0, 0.1), transparent);
+    background: linear-gradient(to right, rgba(0, 0, 0, 0.07), transparent);
     pointer-events: none;
 }
 
@@ -788,53 +917,57 @@ body {
 .task-info-row-2 { display: flex; align-items: center; gap: 5px; margin-top: 4px; flex-wrap: wrap; }
 .task-info-row-3 { margin-top: 4px; }
 
-.task-name { font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-name { font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 
 .task-info-row-3 .description {
-    font-weight: 300;
+    font-weight: 400;
     overflow: auto;
-    padding: 5px;
-    border: 1px solid #ccc;
+    padding: 5px 8px;
+    border: 1px solid var(--border);
     border-radius: 2px;
-    background-color: #f8f9fa;
+    background-color: var(--surface-2);
     white-space: pre-wrap;
     word-wrap: break-word;
     max-height: 200px;
-}
-
-.date-col {
-    min-width: 70px;
-    text-align: center;
+    color: var(--text-2);
     font-size: 0.85rem;
 }
 
+/* Колонки дат — МОНОШ */
+.date-col {
+    min-width: 70px;
+    text-align: center;
+    font-size: 0.82rem;
+    font-family: var(--mono);
+}
+
 .date-col.weekend {
-    background: #fff3cd;
+    background: rgba(204, 122, 0, 0.07);
 }
 
 .date-col.freeze {
-    background: #f8d7da repeating-linear-gradient(
-            45deg,
-            transparent,
-            transparent 5px,
-            rgba(220, 53, 69, 0.1) 5px,
-            rgba(220, 53, 69, 0.1) 10px
+    background: rgba(196, 30, 30, 0.05) repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 5px,
+        rgba(196, 30, 30, 0.12) 5px,
+        rgba(196, 30, 30, 0.12) 10px
     );
 }
 
 .date-col.current {
-    background: #e3f2fd !important;
-    box-shadow: inset 0 -3px 0 #2196f3;
+    background: rgba(26, 111, 212, 0.07) !important;
+    box-shadow: inset 0 -3px 0 var(--primary);
 }
 
 .date-col.current.weekend {
-    background: #fff3cd !important;
-    box-shadow: inset 0 -3px 0 #ffc107;
+    background: rgba(204, 122, 0, 0.09) !important;
+    box-shadow: inset 0 -3px 0 var(--crit-mid);
 }
 
 .date-col.current.freeze {
-    background: #f8d7da !important;
-    box-shadow: inset 0 -3px 0 #dc3545;
+    background: rgba(196, 30, 30, 0.07) !important;
+    box-shadow: inset 0 -3px 0 var(--danger);
 }
 
 /* Статус задачи */
@@ -847,83 +980,85 @@ body {
 }
 
 .task-status-badge {
-    font-size: 0.7rem;
-    padding: 2px 8px;
+    font-size: 0.68rem;
+    padding: 2px 7px;
     border-radius: 10px;
     font-weight: 600;
     white-space: nowrap;
 }
 
 .task-status-new {
-    background: #e9ecef;
-    color: #495057;
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--text-2);
 }
 
 .task-status-ready {
-    background: #cfe2ff;
-    color: #084298;
+    background: rgba(26, 111, 212, 0.12);
+    color: var(--primary);
 }
 
 .task-status-in_progress {
-    background: #fff3cd;
-    color: #664d03;
+    background: rgba(204, 122, 0, 0.12);
+    color: var(--crit-mid);
 }
 
 .task-status-done {
-    background: #d1e7dd;
-    color: #0a3622;
+    background: rgba(28, 122, 60, 0.12);
+    color: var(--success);
 }
 
 .task-status-cancelled {
-    background: #f8d7da;
-    color: #58151c;
+    background: rgba(196, 30, 30, 0.10);
+    color: var(--danger);
 }
 
 .task-status-btn {
-    font-size: 0.7rem;
-    padding: 2px 8px;
+    font-size: 0.68rem;
+    padding: 2px 7px;
     border-radius: 10px;
     border: 1px solid;
     background: none;
     cursor: pointer;
     white-space: nowrap;
     line-height: 1.4;
+    font-family: inherit;
 }
 
 .task-status-btn:hover {
-    opacity: 0.75;
+    opacity: 0.72;
 }
 
 .task-status-btn-ready {
-    border-color: #084298;
-    color: #084298;
+    border-color: var(--primary);
+    color: var(--primary);
 }
 
 .task-status-btn-in_progress {
-    border-color: #664d03;
-    color: #664d03;
+    border-color: var(--crit-mid);
+    color: var(--crit-mid);
 }
 
 .task-status-btn-done {
-    border-color: #0a3622;
-    color: #0a3622;
+    border-color: var(--success);
+    color: var(--success);
 }
 
 .task-status-btn-cancelled {
-    border-color: #842029;
-    color: #842029;
+    border-color: var(--danger);
+    color: var(--danger);
 }
 
 .task-status-btn-highlight {
-    background: #d1e7dd;
+    background: rgba(28, 122, 60, 0.12);
     font-weight: 600;
 }
 
-/* Цвет фона sticky-колонок по статусу задачи */
-.task-row-status-ready       td:nth-child(1) { background: #dbeeff !important; }
-.task-row-status-in_progress td:nth-child(1) { background: #fff9db !important; }
-.task-row-status-done        td:nth-child(1) { background: #d6f5e3 !important; }
-.task-row-status-cancelled   td:nth-child(1) { background: #fde8e8 !important; }
+/* Фон sticky-колонки по статусу задачи.
+   color-mix() даёт непрозрачный цвет → контент за sticky-колонкой не просвечивает. */
+.task-row-status-ready       td:nth-child(1) { background: color-mix(in srgb, var(--primary)  12%, var(--surface)) !important; }
+.task-row-status-in_progress td:nth-child(1) { background: color-mix(in srgb, var(--crit-mid) 12%, var(--surface)) !important; }
+.task-row-status-done        td:nth-child(1) { background: color-mix(in srgb, var(--success)   12%, var(--surface)) !important; }
+.task-row-status-cancelled   td:nth-child(1) { background: color-mix(in srgb, var(--danger)    10%, var(--surface)) !important; }
 
 /* Toast уведомления */
 #toastContainer {
@@ -938,16 +1073,16 @@ body {
 }
 
 .toast {
-    background: #333;
-    color: #fff;
+    background: #1C1C28;
+    color: #ECEAE5;
     padding: 10px 16px;
-    border-radius: 8px;
+    border-radius: 4px;
     font-size: 0.875rem;
     max-width: 320px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
     opacity: 0;
     transform: translateX(30px);
-    transition: opacity 0.3s ease, transform 0.3s ease;
+    transition: opacity 0.25s ease, transform 0.25s ease;
     pointer-events: auto;
 }
 
@@ -962,21 +1097,17 @@ body {
 }
 
 .toast-done {
-    border-left: 4px solid #28a745;
+    border-left: 4px solid var(--success);
 }
 
 .toast-cancelled {
-    border-left: 4px solid #6c757d;
+    border-left: 4px solid var(--secondary);
 }
 
 /* Затухание строки при завершении задачи */
 @keyframes taskRowFadeOut {
-    0% {
-        opacity: 1;
-    }
-    100% {
-        opacity: 0;
-    }
+    0%   { opacity: 1; }
+    100% { opacity: 0; }
 }
 
 .task-row-fadeout {
@@ -985,38 +1116,38 @@ body {
 }
 
 .task-row-status-done    .schedule-cell,
-.task-row-status-cancelled .schedule-cell { cursor: not-allowed; opacity: 0.6; }
+.task-row-status-cancelled .schedule-cell { cursor: not-allowed; opacity: 0.55; }
 
-/* Кнопки в таблице */
+/* Кнопки действий в таблице */
 .btn-edit {
     background: none;
     border: none;
-    color: #3498db;
-    font-size: 1.1rem;
+    color: var(--primary);
+    font-size: 1rem;
     cursor: pointer;
     padding: 4px 8px;
-    border-radius: 4px;
-    transition: all 0.2s;
+    border-radius: 3px;
+    transition: all 0.15s;
 }
 
 .btn-edit:hover {
-    background: #3498db;
+    background: var(--primary);
     color: white;
 }
 
 .btn-delete {
     background: none;
     border: none;
-    color: #dc3545;
-    font-size: 1.1rem;
+    color: var(--danger);
+    font-size: 1rem;
     cursor: pointer;
     padding: 4px 8px;
-    border-radius: 4px;
-    transition: all 0.2s;
+    border-radius: 3px;
+    transition: all 0.15s;
 }
 
 .btn-delete:hover {
-    background: #dc3545;
+    background: var(--danger);
     color: white;
 }
 
@@ -1024,7 +1155,7 @@ body {
 .empty-row {
     text-align: center;
     padding: 40px;
-    color: #999;
+    color: var(--text-3);
 }
 
 /* ------------------------------------------------------------
@@ -1034,131 +1165,150 @@ body {
     min-width: 70px;
     text-align: center;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background 0.15s;
     position: relative;
+    padding: 3px;
 }
 
 .schedule-cell:hover {
-    background: #f0f8ff;
+    background: rgba(26, 111, 212, 0.05);
 }
 
 .schedule-cell.weekend {
-    background: #fff8e1;
+    background: rgba(204, 122, 0, 0.06);
 }
 
 .schedule-cell.weekend:hover {
-    background: #fff3cd;
+    background: rgba(204, 122, 0, 0.10);
 }
 
 .schedule-cell.freeze {
     background-image: repeating-linear-gradient(
-            45deg,
-            transparent,
-            transparent 5px,
-            rgba(220, 53, 69, 0.08) 5px,
-            rgba(220, 53, 69, 0.08) 10px
+        45deg,
+        transparent,
+        transparent 5px,
+        rgba(196, 30, 30, 0.08) 5px,
+        rgba(196, 30, 30, 0.08) 10px
     );
 }
 
 .schedule-cell.freeze.weekend {
     background-image: repeating-linear-gradient(
-            45deg,
-            rgba(255, 243, 205, 0.5),
-            rgba(255, 243, 205, 0.5) 5px,
-            rgba(220, 53, 69, 0.08) 5px,
-            rgba(220, 53, 69, 0.08) 10px
+        45deg,
+        rgba(204, 122, 0, 0.05),
+        rgba(204, 122, 0, 0.05) 5px,
+        rgba(196, 30, 30, 0.08) 5px,
+        rgba(196, 30, 30, 0.08) 10px
     );
 }
 
 .schedule-cell.current {
-    background: #e3f2fd !important;
+    background: rgba(26, 111, 212, 0.06) !important;
 }
 
 .schedule-cell.current:hover {
-    background: #f0f8ff !important;
+    background: rgba(26, 111, 212, 0.10) !important;
 }
 
 .schedule-cell.current.weekend {
-    background: #fff3cd !important;
+    background: rgba(204, 122, 0, 0.08) !important;
 }
 
 .schedule-cell.current.weekend:hover {
-    background: #fff8e1 !important;
+    background: rgba(204, 122, 0, 0.12) !important;
 }
 
 .schedule-cell.current.freeze {
     background-image: repeating-linear-gradient(
-            45deg,
-            transparent,
-            transparent 5px,
-            rgba(220, 53, 69, 0.08) 5px,
-            rgba(220, 53, 69, 0.08) 10px
+        45deg,
+        transparent,
+        transparent 5px,
+        rgba(196, 30, 30, 0.08) 5px,
+        rgba(196, 30, 30, 0.08) 10px
     ) !important;
 }
 
 /* ------------------------------------------------------------
-   11. Информация о назначении в ячейке
+   11. Информация о назначении в ячейке — Work Ticket Chip
    ------------------------------------------------------------ */
 .schedule-info {
-    padding: 4px 6px;
-    border-radius: 4px;
-    min-height: 30px;
+    padding: 4px 7px 4px 9px;
+    border-radius: 3px;
+    min-height: 32px;
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
-    gap: 2px;
-    transition: all 0.2s;
-    border: 1px solid #e0e0e0;
+    gap: 1px;
+    transition: box-shadow 0.15s;
+    /* Chip base */
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--primary);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
+    color: var(--text);
+    text-align: left;
+}
+
+.schedule-info:hover {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
 .schedule-location {
-    font-weight: 600;
-    font-size: 0.9rem;
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: var(--text);
+    line-height: 1.2;
 }
 
 .schedule-status {
-    font-size: 0.7rem;
+    font-size: 0.68rem;
+    color: var(--text-2);
+    line-height: 1.2;
 }
 
 .schedule-employee {
-    font-size: 0.7rem;
+    font-size: 0.68rem;
+    color: var(--text-2);
+    line-height: 1.2;
 }
 
 .schedule-comment {
-    font-size: 0.65rem;
+    font-size: 0.63rem;
     font-style: italic;
+    color: var(--text-3);
 }
 
-/* Цветовые схемы статусов */
+/* Статусный цвет — только левая граница + акцент текста статуса */
 .schedule-info.status-new {
-    background: #e8f4fd;
-    color: #495057;
-    border-color: #ced4da;
+    border-left-color: var(--primary);
 }
 
 .schedule-info.status-planned {
-    background: #fff3cd;
-    color: #664d03;
-    border-color: #ffe69c;
+    border-left-color: var(--crit-mid);
+}
+.schedule-info.status-planned .schedule-status {
+    color: var(--crit-mid);
 }
 
 .schedule-info.status-rollback {
-    background: #f8d7da;
-    color: #842029;
-    border-color: #f1aeb5;
+    border-left-color: var(--danger);
+}
+.schedule-info.status-rollback .schedule-status {
+    color: var(--danger);
 }
 
 .schedule-info.status-success {
-    background: #d1e7dd;
-    color: #0f5132;
-    border-color: #a3cfbb;
+    border-left-color: var(--success);
+}
+.schedule-info.status-success .schedule-status {
+    color: var(--success);
 }
 
 /* Зависимости работ */
 .deps-list {
-    border: 1px solid #e0e0e0;
-    border-radius: 4px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
     padding: 6px 8px;
 }
 
@@ -1173,9 +1323,12 @@ body {
     flex: 1;
     box-sizing: border-box;
     padding: 4px 28px 4px 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
     font-size: 0.9rem;
+    font-family: inherit;
+    background: var(--surface);
+    color: var(--text);
 }
 
 .deps-search-clear {
@@ -1185,11 +1338,11 @@ body {
     border: none;
     cursor: pointer;
     font-size: 1rem;
-    color: #999;
+    color: var(--text-3);
     line-height: 1;
     padding: 0 2px;
 }
-.deps-search-clear:hover { color: #333; }
+.deps-search-clear:hover { color: var(--text); }
 
 .deps-checkboxes {
     max-height: 130px;
@@ -1205,16 +1358,16 @@ body {
     white-space: nowrap;
 }
 
-.dep-badge-cancelled { background: #fdecea; color: #c0392b; }
-.dep-badge-pending   { background: #fef9e7; color: #b7950b; }
+.dep-badge-cancelled { background: rgba(196, 30, 30, 0.10); color: var(--danger); }
+.dep-badge-pending   { background: rgba(204, 122, 0, 0.10);  color: var(--crit-mid); }
 
 .dep-tooltip {
     display: none;
     position: fixed;
     z-index: 2000;
-    background: #fff;
-    border: 1px solid #ccc;
-    border-radius: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
     padding: 6px 10px;
     box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
     font-size: 0.85rem;
@@ -1224,9 +1377,10 @@ body {
 .dep-tooltip-item {
     padding: 4px 0;
     white-space: nowrap;
+    color: var(--text);
 }
 .dep-tooltip-item + .dep-tooltip-item {
-    border-top: 1px solid #eee;
+    border-top: 1px solid var(--border);
 }
 
 /* Drag-and-drop назначений */
@@ -1244,30 +1398,30 @@ body {
     left: 0;
     top: 0;
     pointer-events: none;
-    opacity: 0.85;
+    opacity: 0.88;
     z-index: 1000;
     min-width: 80px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-    border-radius: 4px;
+    border-radius: 3px;
     transition: none !important;
     will-change: transform;
 }
 
 .schedule-cell.drag-over {
-    background: #e8f4fd !important;
-    outline: 2px dashed #3498db;
+    background: rgba(26, 111, 212, 0.10) !important;
+    outline: 2px dashed var(--primary);
     outline-offset: -2px;
 }
 
 .schedule-cell.drag-invalid {
-    background: #fdecea !important;
-    outline: 2px dashed #e74c3c;
+    background: rgba(196, 30, 30, 0.08) !important;
+    outline: 2px dashed var(--danger);
     outline-offset: -2px;
     cursor: not-allowed;
 }
 
 .schedule-cell.drag-source .schedule-info {
-    opacity: 0.35;
+    opacity: 0.3;
 }
 
 /* ------------------------------------------------------------
@@ -1281,20 +1435,21 @@ body {
     top: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.48);
     justify-content: center;
     align-items: center;
 }
 
 .modal-content {
-    background: white;
-    border-radius: 8px;
+    background: var(--surface);
+    border-radius: 4px;
+    border: 1px solid var(--border);
     max-width: 500px;
     width: 90%;
     max-height: 90vh;
     overflow-y: auto;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-    animation: modalSlideIn 0.3s ease-out;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    animation: modalSlideIn 0.22s ease-out;
 }
 
 .modal-content textarea {
@@ -1303,7 +1458,7 @@ body {
 
 @keyframes modalSlideIn {
     from {
-        transform: translateY(-30px);
+        transform: translateY(-20px);
         opacity: 0;
     }
     to {
@@ -1313,8 +1468,8 @@ body {
 }
 
 .modal-header {
-    padding: 20px;
-    border-bottom: 1px solid #eee;
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--border);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1322,19 +1477,21 @@ body {
 
 .modal-header h2 {
     margin: 0;
-    font-size: 1.3rem;
-    color: #2c3e50;
+    font-size: 1.15rem;
+    color: var(--text);
+    letter-spacing: -0.02em;
 }
 
 .modal-close {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
     cursor: pointer;
-    color: #999;
-    transition: color 0.2s;
+    color: var(--text-3);
+    transition: color 0.15s;
+    line-height: 1;
 }
 
 .modal-close:hover {
-    color: #333;
+    color: var(--text);
 }
 
 .modal-content form {
@@ -1353,43 +1510,45 @@ body {
    ------------------------------------------------------------ */
 .settings-container {
     display: grid;
-    gap: 30px;
+    gap: 20px;
 }
 
 .settings-section {
-    background: white;
-    padding: 25px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background: var(--surface);
+    padding: 22px 24px;
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
 .settings-section h2 {
-    margin-bottom: 20px;
-    color: #2c3e50;
+    margin-bottom: 18px;
+    color: var(--text);
+    font-size: 1.05rem;
 }
 
 .add-form {
-    margin-bottom: 20px;
+    margin-bottom: 18px;
 }
 
 .team-card {
     margin-top: 5px;
-    border: 1px solid #e9ecef;
-    border-radius: 6px;
-    padding: 15px;
-    background: #fafafa;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 14px;
+    background: var(--surface-alt);
 }
 
 .team-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 15px;
+    margin-bottom: 12px;
 }
 
 .team-header h3 {
     margin: 0;
-    color: #2c3e50;
+    color: var(--text);
+    font-size: 1rem;
 }
 
 .executors-list {
@@ -1398,11 +1557,11 @@ body {
 }
 
 .executor-item {
-    padding: 8px 12px;
-    background: white;
-    border: 1px solid #e9ecef;
-    border-radius: 4px;
-    margin-bottom: 5px;
+    padding: 7px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    margin-bottom: 4px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1410,6 +1569,7 @@ body {
 
 .executor-name {
     font-weight: 500;
+    color: var(--text);
 }
 
 .team-blocks-table {
@@ -1420,14 +1580,15 @@ body {
 
 .team-blocks-table td {
     padding: 6px 10px;
-    border: 1px solid #e9ecef;
-    background: white;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
 }
 
 .team-blocks-table td:last-child {
     width: 80px;
     text-align: center;
-    color: #6c757d;
+    color: var(--text-2);
 }
 
 .team-block-row {
@@ -1455,46 +1616,47 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: 3px;
     padding: 12px 0 4px;
     flex-wrap: wrap;
 }
 
 .page-btn {
     padding: 5px 11px;
-    border: 1px solid #dee2e6;
-    background: white;
-    color: #3498db;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--primary);
     cursor: pointer;
-    border-radius: 4px;
-    font-size: 0.9rem;
+    border-radius: 3px;
+    font-size: 0.85rem;
+    font-family: var(--mono);
     min-width: 34px;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 
 .page-btn:hover:not(:disabled) {
-    background: #3498db;
+    background: var(--primary);
     color: white;
-    border-color: #3498db;
+    border-color: var(--primary);
 }
 
 .page-btn.active {
-    background: #3498db;
+    background: var(--primary);
     color: white;
-    border-color: #3498db;
-    font-weight: bold;
+    border-color: var(--primary);
+    font-weight: 700;
 }
 
 .page-btn:disabled {
-    color: #adb5bd;
+    color: var(--text-3);
     cursor: default;
-    background: #f8f9fa;
-    border-color: #dee2e6;
+    background: var(--surface-2);
+    border-color: var(--border);
 }
 
 .page-ellipsis {
     padding: 5px 4px;
-    color: #6c757d;
+    color: var(--text-3);
     font-size: 0.9rem;
 }
 
@@ -1508,14 +1670,14 @@ body {
 .freeze-months-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
+    gap: 14px;
 }
 
 .freeze-month-card {
-    border: 1px solid #e9ecef;
-    border-radius: 8px;
-    padding: 12px;
-    background: #fafafa;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+    background: var(--surface-alt);
 }
 
 .freeze-month-header {
@@ -1524,18 +1686,19 @@ body {
     align-items: center;
     margin-bottom: 8px;
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
+    color: var(--text);
 }
 
 .freeze-calendar {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     text-align: center;
 }
 
 .freeze-calendar th {
-    color: #6c757d;
+    color: var(--text-3);
     padding: 2px;
     font-weight: 500;
 }
@@ -1543,10 +1706,9 @@ body {
 .freeze-calendar td {
     padding: 3px 1px;
     width: 14.28%;
-    color: #212529;
+    color: var(--text);
 }
 
-/* Внутренний span — носитель круга */
 .cal-day-inner {
     display: inline-flex;
     align-items: center;
@@ -1557,54 +1719,48 @@ body {
     line-height: 1;
 }
 
-/* День фриза — красный круг */
 .freeze-day-marked {
-    background: #dc3545;
+    background: var(--danger);
     color: white !important;
     font-weight: 600;
 }
 
-/* Выходные — жёлтый фон ячейки */
 .freeze-calendar td.cal-weekend {
-    background: #fff3cd;
+    background: rgba(204, 122, 0, 0.08);
 }
 
-/* Сегодня — синий обвод, если не фриз и не выбран */
 .freeze-calendar td.cal-today .cal-day-inner:not(.freeze-day-marked):not(.selected) {
-    background: #e3f2fd;
-    border: 2px solid #2196f3;
-    color: #1565c0;
+    background: rgba(26, 111, 212, 0.10);
+    border: 2px solid var(--primary);
+    color: var(--primary);
     font-weight: 600;
 }
 
-/* Интерактивный: курсор на ячейках с днём */
 .freeze-calendar.interactive td[data-day] {
     cursor: pointer;
 }
 
-/* Интерактивный: hover */
 .freeze-calendar.interactive td[data-day]:hover .cal-day-inner:not(.selected) {
-    background: #f8d7da;
+    background: rgba(196, 30, 30, 0.10);
 }
 
-/* Интерактивный: выбранный день — красный круг */
 .freeze-calendar.interactive .cal-day-inner.selected {
-    background: #dc3545;
+    background: var(--danger);
     color: white !important;
     font-weight: 600;
 }
 
 /* ------------------------------------------------------------
-   15. Адаптивность (медиа-запросы)
+   15. Адаптивность
    ------------------------------------------------------------ */
 @media (max-width: 768px) {
     .nav-menu {
-        gap: 10px;
+        gap: 4px;
     }
 
     .nav-menu a {
-        padding: 6px 8px;
-        font-size: 0.9rem;
+        padding: 5px 8px;
+        font-size: 0.85rem;
     }
 
     .filter-row {
