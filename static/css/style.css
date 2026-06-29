@@ -1218,15 +1218,12 @@ body {
     padding: 6px 10px;
     box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
     font-size: 0.85rem;
-    max-width: 280px;
     pointer-events: none;
 }
 
 .dep-tooltip-item {
     padding: 4px 0;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 .dep-tooltip-item + .dep-tooltip-item {
     border-top: 1px solid #eee;
