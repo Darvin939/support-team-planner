@@ -90,6 +90,37 @@
                 </div>
             </div>
         </div>
+        <div class="filter-group filter-dropdown" style="min-width: 180px">
+            <label>Статус работы</label>
+            <div class="dropdown-container">
+                <button type="button" class="dropdown-toggle" onclick="toggleDropdown('taskStatusDropdown')">
+                    <span class="dropdown-label">Все</span>
+                    <span class="dropdown-arrow">▼</span>
+                </button>
+                <div class="dropdown-menu" id="taskStatusDropdown">
+                    <label class="checkbox-item">
+                        <input type="checkbox" value="new" onchange="dropdownOnChange('taskStatusDropdown')">
+                        Новый
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" value="ready" onchange="dropdownOnChange('taskStatusDropdown')">
+                        К планированию
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" value="in_progress" onchange="dropdownOnChange('taskStatusDropdown')">
+                        В работе
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" value="done" onchange="dropdownOnChange('taskStatusDropdown')">
+                        Выполнено
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" value="cancelled" onchange="dropdownOnChange('taskStatusDropdown')">
+                        Отменено
+                    </label>
+                </div>
+            </div>
+        </div>
         <div class="filter-group filter-checkbox-group">
             <label class="checkbox-item">
                 <input type="checkbox" id="showCompleted" onchange="onShowCompletedChange()">

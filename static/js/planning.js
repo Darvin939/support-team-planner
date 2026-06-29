@@ -306,6 +306,7 @@ function renderTable() {
         // Добавляем data-task-id для идентификации задачи
         row.dataset.taskId = task.id;
         const taskStatus = task.task_status || 'new';
+        row.dataset.taskStatus = taskStatus;
         if (taskStatus !== 'new') row.classList.add(`task-row-status-${taskStatus}`);
 
         const critClass = task.criticality === 'high' ? 'criticality-high' :
@@ -414,6 +415,11 @@ function applyFilters() {
         .filter(cb => cb.checked)
         .map(cb => cb.value);
 
+    const taskStatusCheckboxes = document.querySelectorAll('#taskStatusDropdown input[type="checkbox"]');
+    const taskStatusFilter = Array.from(taskStatusCheckboxes)
+        .filter(cb => cb.checked)
+        .map(cb => cb.value);
+
     const rows = document.querySelectorAll('#tableBody tr');
     let visibleCount = 0;
 
@@ -448,6 +454,10 @@ function applyFilters() {
                 }
             });
             matches = matches && hasStatusMatch;
+        }
+
+        if (taskStatusFilter.length > 0) {
+            matches = matches && taskStatusFilter.includes(row.dataset.taskStatus);
         }
 
         row.style.display = matches ? '' : 'none';
