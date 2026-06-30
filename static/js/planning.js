@@ -190,7 +190,7 @@ function scrollToToday() {
         - taskTh.offsetWidth / 2;
 }
 
-function loadData() {
+function loadData(centerToday = true) {
     clampDateRange('dateFrom', 'dateTo');
 
     const dateFrom = document.getElementById('dateFrom').value;
@@ -219,7 +219,7 @@ function loadData() {
         renderTable();
         renderPagination();
         applyFilters();
-        scrollToToday();
+        if (centerToday) scrollToToday();
     }).catch(error => console.error('Error loading data:', error));
 
     loadTodayCounters();
@@ -1531,7 +1531,7 @@ function moveAssignment(assignmentId, newDate) {
         })
     })
         .then(r => r.json())
-        .then(() => loadData())
+        .then(() => loadData(false))
         .catch(err => {
             console.error('Error moving assignment:', err);
             alert('Ошибка при переносе');
