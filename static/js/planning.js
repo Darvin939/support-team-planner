@@ -1225,10 +1225,6 @@ function setupDragScroll() {
     let isDragging = false;
     let startX = 0;
     let scrollLeft = 0;
-    let startTime = 0;
-    let movedDistance = 0;
-    let isMouseDown = false;
-    let mouseDownTarget = null;
 
     wrapper.style.cursor = 'grab';
 
@@ -1246,13 +1242,12 @@ function setupDragScroll() {
             return;
         }
 
+        // Предотвращаем нативное выделение текста при перетаскивании
+        e.preventDefault();
+
         isDragging = false;
-        movedDistance = 0;
-        isMouseDown = true;
-        mouseDownTarget = e.target;
         startX = e.pageX - wrapper.offsetLeft;
         scrollLeft = wrapper.scrollLeft;
-        startTime = Date.now();
 
         // Запоминаем начальную позицию мыши
         wrapper._startMouseX = e.pageX;
@@ -1261,15 +1256,14 @@ function setupDragScroll() {
 
     // Обработчик для mousemove на document
     document.addEventListener('mousemove', function (e) {
-        if (!wrapper._startMouseX) return;
+        if (wrapper._startMouseX === undefined) return;
 
         const deltaX = Math.abs(e.pageX - wrapper._startMouseX);
-        const deltaY = Math.abs(e.pageY - wrapper._startMouseY || 0);
+        const deltaY = Math.abs(e.pageY - wrapper._startMouseY);
         const totalDelta = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
         if (totalDelta > 5 && !isDragging) {
             isDragging = true;
-            movedDistance = totalDelta;
             wrapper.style.cursor = 'grabbing';
             wrapper.style.userSelect = 'none';
         }
@@ -1283,28 +1277,22 @@ function setupDragScroll() {
 
     // Обработчик для mouseup на document
     document.addEventListener('mouseup', function (e) {
-        if (wrapper._startMouseX !== undefined) {
-            // Если было перетаскивание - сбрасываем флаги
-            if (isDragging) {
-                wrapper.style.cursor = 'grab';
-                wrapper.style.userSelect = '';
-                // Предотвращаем клик
-                if (mouseDownTarget) {
-                    mouseDownTarget._preventClick = true;
-                }
-            }
+        if (wrapper._startMouseX === undefined) return;
 
-            wrapper._startMouseX = undefined;
-            wrapper._startMouseY = undefined;
+        wrapper._startMouseX = undefined;
+        wrapper._startMouseY = undefined;
+        wrapper.style.cursor = 'grab';
+        wrapper.style.userSelect = '';
 
-            setTimeout(() => {
-                isDragging = false;
-                isMouseDown = false;
-                if (mouseDownTarget) {
-                    mouseDownTarget._preventClick = false;
-                }
-                mouseDownTarget = null;
-            }, 50);
+        if (isDragging) {
+            // Браузер сейчас синхронно сгенерирует click, завершающий драг —
+            // его нужно погасить (см. ниже), поэтому сбрасываем флаг не сразу,
+            // а после этого клика. Сбрасываем здесь, а не в обработчике click,
+            // потому что если мышь при отпускании попала на другую ячейку
+            // (из-за скролла), click может прийти с target выше .schedule-cell
+            // и обработчик click его не увидит — тогда флаг останется висеть
+            // и погасит уже следующий, настоящий клик пользователя.
+            setTimeout(() => { isDragging = false; }, 0);
         }
     });
 
@@ -1319,14 +1307,8 @@ function setupDragScroll() {
             return;
         }
 
-        // Если было перетаскивание - игнорируем
-        if (isDragging || movedDistance > 5) {
-            e.stopPropagation();
-            return;
-        }
-
-        // Проверяем, не было ли предотвращения клика
-        if (cell._preventClick) {
+        // Если было перетаскивание - игнорируем этот клик (он завершает драг)
+        if (isDragging) {
             e.stopPropagation();
             return;
         }
