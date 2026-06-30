@@ -87,6 +87,14 @@ function clearSearchText() {
     loadData();
 }
 
+function normalizeTimeSpent(value) {
+    return (value && value !== '00:00') ? value : null;
+}
+
+function clearTimeSpent() {
+    document.getElementById('assignmentTimeSpent').value = '00:00';
+}
+
 function clearDepsSearch() {
     const input = document.getElementById('depsSearch');
     if (!input) return;
@@ -405,7 +413,12 @@ function renderTable() {
                         <span class="schedule-status">${getStatusDisplay(assignment.status)}</span>
                         <span class="schedule-comment">${assignment.comment || ''}</span>
                         <span class="schedule-employee">${assignment.employee_name}</span>
-                        ${assignment.is_psi ? '<span class="schedule-psi">ПСИ</span>' : ''}
+                        ${(assignment.is_psi || assignment.time_spent) ? `
+                        <span class="schedule-badges">
+                            ${assignment.is_psi ? '<span class="schedule-psi">ПСИ</span>' : ''}
+                            ${assignment.time_spent ? `<span class="schedule-time-spent">${assignment.time_spent}</span>` : ''}
+                        </span>
+                        ` : ''}
                     </div>
                 `;
             }
@@ -880,7 +893,6 @@ function toggleAutoAssign() {
     document.getElementById('autoBlockGroup').style.display = enabled ? '' : 'none';
     document.getElementById('assignmentEmployeeGroup').style.display = enabled ? 'none' : '';
     document.getElementById('assignmentCommentGroup').style.display = enabled ? 'none' : '';
-    document.getElementById('assignmentPsiGroup').style.display = enabled ? 'none' : '';
 
     const statusSelect = document.getElementById('assignmentStatus');
     statusSelect.disabled = enabled;
@@ -944,6 +956,7 @@ function openAssignmentModal(taskId, dateStr) {
         assignEmployee.value = assignment.employee_id || '';
         assignComment.value = assignment.comment || '';
         document.getElementById('assignmentPsi').checked = !!assignment.is_psi;
+        document.getElementById('assignmentTimeSpent').value = assignment.time_spent || '00:00';
         saveBtn.style.display = 'none';
         updateBtn.style.display = 'inline-block';
         deleteBtn.style.display = 'inline-block';
@@ -955,6 +968,7 @@ function openAssignmentModal(taskId, dateStr) {
         assignEmployee.value = '';
         assignComment.value = '';
         document.getElementById('assignmentPsi').checked = false;
+        document.getElementById('assignmentTimeSpent').value = '00:00';
         saveBtn.style.display = 'inline-block';
         updateBtn.style.display = 'none';
         deleteBtn.style.display = 'none';
@@ -980,6 +994,7 @@ function saveAssignment(event) {
     const employeeId = document.getElementById('assignmentEmployee').value;
     const comment = document.getElementById('assignmentComment').value;
     const isPsi = document.getElementById('assignmentPsi').checked;
+    const timeSpent = document.getElementById('assignmentTimeSpent').value;
 
     fetch('/api/assignment', {
         method: 'POST',
@@ -994,13 +1009,14 @@ function saveAssignment(event) {
             status: status,
             employee_id: employeeId ? parseInt(employeeId) : null,
             comment: comment,
-            is_psi: isPsi
+            is_psi: isPsi,
+            time_spent: normalizeTimeSpent(timeSpent)
         })
     })
         .then(response => response.json())
         .then(() => {
             closeModal('assignmentModal');
-            loadData();
+            loadData(false);
         })
         .catch(error => {
             console.error('Error saving assignment:', error);
@@ -1012,6 +1028,8 @@ function saveAutoAssignment() {
     const taskId = parseInt(document.getElementById('assignmentTaskId').value);
     const assignmentIdVal = document.getElementById('assignmentId').value;
     const currentAssignmentId = assignmentIdVal ? parseInt(assignmentIdVal) : null;
+    const isPsi = document.getElementById('assignmentPsi').checked;
+    const timeSpent = document.getElementById('assignmentTimeSpent').value;
 
     const templateBlocks = getSelectedTemplateBlocks();
 
@@ -1065,7 +1083,8 @@ function saveAutoAssignment() {
                 status: 'new',
                 employee_id: null,
                 comment: null,
-                is_psi: false
+                is_psi: d === dates[0] ? isPsi : false,
+                time_spent: normalizeTimeSpent(timeSpent)
             })
         });
     });
@@ -1527,7 +1546,8 @@ function moveAssignment(assignmentId, newDate) {
             status: a.status,
             employee_id: a.employee_id || null,
             comment: a.comment || '',
-            is_psi: !!a.is_psi
+            is_psi: !!a.is_psi,
+            time_spent: a.time_spent || null
         })
     })
         .then(r => r.json())

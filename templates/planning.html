@@ -176,19 +176,39 @@
                 </select>
             </div>
 
-            <div class="form-group">
-                <label for="assignmentDate">Дата</label>
-                <input type="date" id="assignmentDate" min="2000-01-01" max="2099-12-31">
+            <div class="form-group-row">
+                <div class="form-group">
+                    <label for="assignmentDate">Дата</label>
+                    <input type="date" id="assignmentDate" min="2000-01-01" max="2099-12-31">
+                </div>
+                <div class="form-group" id="assignmentTimeSpentGroup">
+                    <label for="assignmentTimeSpent">Затраченное время</label>
+                    <div class="time-input-row">
+                        <input type="time" id="assignmentTimeSpent">
+                        <button type="button" class="time-input-clear" onclick="clearTimeSpent()" title="Очистить">×</button>
+                    </div>
+                </div>
             </div>
 
-            <div class="form-group">
-                <label class="toggle-switch-label">
-                    <span>Автоназначение по графику</span>
-                    <span class="toggle-switch">
-                        <input type="checkbox" id="autoAssignToggle" onchange="toggleAutoAssign()">
-                        <span class="toggle-slider"></span>
-                    </span>
-                </label>
+            <div class="form-group-row">
+                <div class="form-group">
+                    <label class="toggle-switch-label">
+                        <span>Автоназначение</span>
+                        <span class="toggle-switch">
+                            <input type="checkbox" id="autoAssignToggle" onchange="toggleAutoAssign()">
+                            <span class="toggle-slider"></span>
+                        </span>
+                    </label>
+                </div>
+                <div class="form-group" id="assignmentPsiGroup">
+                    <label class="toggle-switch-label">
+                        <span>ПСИ</span>
+                        <span class="toggle-switch">
+                            <input type="checkbox" id="assignmentPsi">
+                            <span class="toggle-slider"></span>
+                        </span>
+                    </label>
+                </div>
             </div>
 
             <div class="form-group" id="manualBlockGroup">
@@ -248,13 +268,6 @@
             <div class="form-group" id="assignmentCommentGroup">
                 <label for="assignmentComment">Комментарий</label>
                 <input type="text" id="assignmentComment" placeholder="Комментарий..." maxlength="45">
-            </div>
-
-            <div class="form-group" id="assignmentPsiGroup">
-                <label class="checkbox-item">
-                    <input type="checkbox" id="assignmentPsi">
-                    ПСИ
-                </label>
             </div>
 
             <div class="form-actions">

@@ -285,6 +285,16 @@ h1, h2, h3 {
     min-width: 150px;
 }
 
+.form-group-row {
+    display: flex;
+    gap: 12px;
+}
+
+.form-group-row .form-group {
+    flex: 1;
+    min-width: 0;
+}
+
 /* Фильтры */
 .filter-section {
     background: var(--surface);
@@ -360,6 +370,32 @@ h1, h2, h3 {
     padding: 0 2px;
 }
 .filter-input-clear:hover { color: var(--text); }
+
+.time-input-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.time-input-row input[type="time"] {
+    padding-right: 28px;
+}
+
+.time-input-clear {
+    position: absolute;
+    right: 6px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    color: var(--text-3);
+    line-height: 1;
+    padding: 0 2px;
+}
+
+.time-input-clear:hover {
+    color: var(--text);
+}
 
 /* Выпадающие списки с чекбоксами */
 .filter-dropdown {
@@ -1293,6 +1329,24 @@ h1, h2, h3 {
     line-height: 1.5;
 }
 
+.schedule-time-spent {
+    display: inline-block;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    color: var(--text-inverse);
+    background: var(--primary);
+    border-radius: 3px;
+    padding: 0 4px;
+    line-height: 1.5;
+}
+
+.schedule-badges {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
 /* Статусный цвет — только левая граница + акцент текста статуса */
 .schedule-info.status-new {
     border-left-color: var(--primary);
@@ -1897,6 +1951,10 @@ h1, h2, h3 {
 
     .form-row input {
         width: 100%;
+    }
+
+    .form-group-row {
+        flex-direction: column;
     }
 
     .modal-content {

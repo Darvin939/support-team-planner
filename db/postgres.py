@@ -88,6 +88,7 @@ _PG_SCHEMA_STMTS = [
         status      TEXT NOT NULL DEFAULT 'new',
         employee_id INTEGER,
         comment     TEXT,
+        time_spent  TEXT,
         FOREIGN KEY (task_id)     REFERENCES tasks (id)     ON DELETE CASCADE,
         FOREIGN KEY (employee_id) REFERENCES employees (id),
         UNIQUE (task_id, date)

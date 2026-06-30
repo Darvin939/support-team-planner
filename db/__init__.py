@@ -571,6 +571,7 @@ def get_assignment(conn, task_id, date_str):
                   a.employee_id,
                   a.comment,
                   a.is_psi,
+                  a.time_spent,
                   e.last_name   as employee_last_name,
                   e.first_name  as employee_first_name,
                   e.middle_name as employee_middle_name
@@ -594,6 +595,7 @@ def get_assignments_by_team_in_period(conn, team_id, start_date, end_date):
                   a.employee_id,
                   a.comment,
                   a.is_psi,
+                  a.time_spent,
                   e.last_name   as employee_last_name,
                   e.first_name  as employee_first_name,
                   e.middle_name as employee_middle_name
@@ -608,7 +610,7 @@ def get_assignments_by_team_in_period(conn, team_id, start_date, end_date):
 
 
 @with_db_connection()
-def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, status, employee_id, comment, is_psi=0):
+def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, status, employee_id, comment, is_psi=0, time_spent=None):
     """Создать или обновить назначение"""
     existing = conn.execute('SELECT 1 FROM assignments WHERE id = ?', (assignment_id,)).fetchone()
 
@@ -621,15 +623,16 @@ def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, s
                    status      = ?,
                    employee_id = ?,
                    comment     = ?,
-                   is_psi      = ?
+                   is_psi      = ?,
+                   time_spent  = ?
                WHERE id = ?''',
-            (date_str, task_id, block, status, employee_id, comment, is_psi, assignment_id)
+            (date_str, task_id, block, status, employee_id, comment, is_psi, time_spent, assignment_id)
         )
     else:
         conn.execute(
-            '''INSERT INTO assignments (task_id, date, block, status, employee_id, comment, is_psi)
-               VALUES (?, ?, ?, ?, ?, ?, ?)''',
-            (task_id, date_str, block, status, employee_id, comment, is_psi)
+            '''INSERT INTO assignments (task_id, date, block, status, employee_id, comment, is_psi, time_spent)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+            (task_id, date_str, block, status, employee_id, comment, is_psi, time_spent)
         )
 
 
