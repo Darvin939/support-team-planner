@@ -313,8 +313,12 @@
 {% else %}
 <p class="empty-state-hint">Выберите команду для начала планирования</p>
 <script>
-    const savedTeam = localStorage.getItem('selectedTeamId');
-    if (savedTeam && savedTeam !== '0') window.location.replace('/planning/' + savedTeam);
+    if (new URLSearchParams(window.location.search).has('invalid_team')) {
+        localStorage.removeItem('selectedTeamId');
+    } else {
+        const savedTeam = localStorage.getItem('selectedTeamId');
+        if (savedTeam && savedTeam !== '0') window.location.replace('/planning/' + savedTeam);
+    }
 </script>
 {% endif %}
 {% endblock %}

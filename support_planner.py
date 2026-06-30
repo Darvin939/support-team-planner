@@ -108,7 +108,7 @@ def planning(request: Request, team_id: int):
     teams = db.get_all_teams()
     team = db.get_team_by_id(team_id)
     if not team:
-        return RedirectResponse(url='/planning', status_code=302)
+        return RedirectResponse(url='/planning?invalid_team=1', status_code=302)
 
     employees = db.get_all_employees()
     allowed_templates = db.get_team_allowed_templates(team_id)
