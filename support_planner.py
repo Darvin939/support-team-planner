@@ -166,13 +166,15 @@ def statistics_page(request: Request):
 # === API для назначений ===
 
 @app.get('/api/assignments/{team_id}')
-def get_assignments_api(team_id: int, start_date: Optional[str] = None, end_date: Optional[str] = None):
+def get_assignments_api(team_id: int, start_date: Optional[str] = None, end_date: Optional[str] = None,
+                        task_ids: Optional[str] = None):
     """API для получения назначений команды"""
     if not start_date or not end_date:
         today = date.today()
         start_date = start_date or (today - timedelta(days=30)).strftime('%Y-%m-%d')
         end_date = end_date or (today + timedelta(days=60)).strftime('%Y-%m-%d')
-    assignments = db.get_assignments_by_team_in_period(team_id, start_date, end_date)
+    parsed_task_ids = [int(x) for x in task_ids.split(',') if x.strip()] if task_ids else None
+    assignments = db.get_assignments_by_team_in_period(team_id, start_date, end_date, task_ids=parsed_task_ids)
 
     result = []
     for a in assignments:
@@ -212,7 +214,8 @@ def save_assignment_api(data: AssignmentIn):
     if task and task['task_status'] in ('done', 'cancelled'):
         return JSONResponse({'error': 'Нельзя изменять назначения завершённой или отменённой задачи'}, status_code=400)
 
-    db.create_or_update_assignment(data.assignment_id, data.task_id, data.date, block, data.status, data.employee_id, comment, 1 if data.is_psi else 0, time_spent)
+    db.create_or_update_assignment(data.assignment_id, data.task_id, data.date, block, data.status, data.employee_id,
+                                   comment, 1 if data.is_psi else 0, time_spent)
     if data.status == 'planned':
         db.maybe_advance_task_to_in_progress(data.task_id)
     return {'success': True}
@@ -237,7 +240,8 @@ def get_tasks_api(team_id: int, offset: int = 0, limit: int = 20, search: str = 
     tasks = db.get_tasks_by_team(team_id, offset=offset, limit=limit, search=search_val, show_completed=show_completed)
     total = db.get_tasks_count_by_team(team_id, search=search_val, show_completed=show_completed)
     return {
-        'tasks': [{'id': t['id'], 'name': t['name'], 'description': t['description'], 'criticality': t['criticality'], 'task_status': t['task_status']} for t in tasks],
+        'tasks': [{'id': t['id'], 'name': t['name'], 'description': t['description'], 'criticality': t['criticality'],
+                   'task_status': t['task_status']} for t in tasks],
         'total': total
     }
 
@@ -267,8 +271,9 @@ def save_task_api(data: TaskIn):
 
 
 @app.get('/api/tasks/{team_id}/deps')
-def get_team_deps(team_id: int):
-    rows = db.get_all_deps_for_team(team_id)
+def get_team_deps(team_id: int, task_ids: Optional[str] = None):
+    parsed_task_ids = [int(x) for x in task_ids.split(',') if x.strip()] if task_ids else None
+    rows = db.get_all_deps_for_team(team_id, task_ids=parsed_task_ids)
     return [{'task_id': r['task_id'], 'dep_id': r['dep_id'],
              'dep_name': r['dep_name'], 'dep_status': r['dep_status']} for r in rows]
 
@@ -560,4 +565,5 @@ def delete_template_api(template_id: int):
 
 if __name__ == '__main__':
     import uvicorn
+
     uvicorn.run(app, port=5093, host="0.0.0.0")

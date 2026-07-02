@@ -504,18 +504,24 @@ def maybe_advance_task_to_in_progress(conn, task_id):
 # === TASK DEPENDENCIES ===
 
 @with_db_connection(commit_on_success=False)
-def get_all_deps_for_team(conn, team_id):
+def get_all_deps_for_team(conn, team_id, task_ids=None):
+    """Получить зависимости задач команды (опционально ограниченные списком task_ids)"""
+    if task_ids is not None and len(task_ids) == 0:
+        return []
     # @formatter:off
-    return conn.execute(
-        '''SELECT td.task_id, td.depends_on_task_id AS dep_id,
-                  dep.name AS dep_name, dep.task_status AS dep_status
-           FROM task_dependencies td
-           JOIN tasks src ON td.task_id            = src.id
-           JOIN tasks dep ON td.depends_on_task_id = dep.id
-           WHERE src.team_id = ?''',
-        (team_id,)
-    ).fetchall()
+    query = '''SELECT td.task_id, td.depends_on_task_id AS dep_id,
+                      dep.name AS dep_name, dep.task_status AS dep_status
+               FROM task_dependencies td
+               JOIN tasks src ON td.task_id            = src.id
+               JOIN tasks dep ON td.depends_on_task_id = dep.id
+               WHERE src.team_id = ?'''
     # @formatter:on
+    params = [team_id]
+    if task_ids:
+        placeholders = ','.join('?' * len(task_ids))
+        query += f' AND td.task_id IN ({placeholders})'
+        params.extend(task_ids)
+    return conn.execute(query, tuple(params)).fetchall()
 
 
 @with_db_connection()
@@ -584,29 +590,36 @@ def get_assignment(conn, task_id, date_str):
 
 
 @with_db_connection(commit_on_success=False)
-def get_assignments_by_team_in_period(conn, team_id, start_date, end_date):
-    """Получить все назначения команды в период"""
-    return conn.execute(
-        '''SELECT a.id,
-                  a.task_id,
-                  a.date,
-                  a.block,
-                  a.status,
-                  a.employee_id,
-                  a.comment,
-                  a.is_psi,
-                  a.time_spent,
-                  e.last_name   as employee_last_name,
-                  e.first_name  as employee_first_name,
-                  e.middle_name as employee_middle_name
-           FROM assignments a
-                    JOIN tasks t ON a.task_id = t.id
-                    LEFT JOIN employees e ON a.employee_id = e.id
-           WHERE t.team_id = ?
-             AND a.date BETWEEN ? AND ?
-           ORDER BY a.date, t.id''',
-        (team_id, start_date, end_date)
-    ).fetchall()
+def get_assignments_by_team_in_period(conn, team_id, start_date, end_date, task_ids=None):
+    """Получить все назначения команды в период (опционально ограниченные списком task_ids)"""
+    if task_ids is not None and len(task_ids) == 0:
+        return []
+    # @formatter:off
+    query = '''SELECT a.id,
+                      a.task_id,
+                      a.date,
+                      a.block,
+                      a.status,
+                      a.employee_id,
+                      a.comment,
+                      a.is_psi,
+                      a.time_spent,
+                      e.last_name   as employee_last_name,
+                      e.first_name  as employee_first_name,
+                      e.middle_name as employee_middle_name
+               FROM assignments a
+                        JOIN tasks t ON a.task_id = t.id
+                        LEFT JOIN employees e ON a.employee_id = e.id
+               WHERE t.team_id = ?
+                 AND a.date BETWEEN ? AND ?'''
+    # @formatter:on
+    params = [team_id, start_date, end_date]
+    if task_ids:
+        placeholders = ','.join('?' * len(task_ids))
+        query += f' AND a.task_id IN ({placeholders})'
+        params.extend(task_ids)
+    query += ' ORDER BY a.date, t.id'
+    return conn.execute(query, tuple(params)).fetchall()
 
 
 @with_db_connection()

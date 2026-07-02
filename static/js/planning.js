@@ -84,7 +84,7 @@ function clearSearchText() {
     if (!input) return;
     input.value = '';
     currentPage = 1;
-    loadData();
+    loadData(true, false);
 }
 
 function normalizeTimeSpent(value) {
@@ -144,11 +144,11 @@ document.addEventListener('DOMContentLoaded', function () {
     loadData();
 
     // Обработчики для фильтров
-    document.getElementById('dateFrom').addEventListener('change', () => { currentPage = 1; loadData(); });
-    document.getElementById('dateTo').addEventListener('change', () => { currentPage = 1; loadData(); });
+    document.getElementById('dateFrom').addEventListener('change', () => { currentPage = 1; loadData(true, false); });
+    document.getElementById('dateTo').addEventListener('change', () => { currentPage = 1; loadData(true, false); });
     document.getElementById('searchText').addEventListener('input', () => {
         clearTimeout(searchDebounceTimer);
-        searchDebounceTimer = setTimeout(() => { currentPage = 1; loadData(); }, 300);
+        searchDebounceTimer = setTimeout(() => { currentPage = 1; loadData(true, false); }, 300);
     });
     // document.getElementById('criticalityDropdown').addEventListener('change', applyFilters);
     // document.getElementById('statusDropdown').addEventListener('change', applyFilters);
@@ -198,7 +198,7 @@ function scrollToToday() {
         - taskTh.offsetWidth / 2;
 }
 
-function loadData(centerToday = true) {
+function loadData(centerToday = true, refreshCounters = true) {
     clampDateRange('dateFrom', 'dateTo');
 
     const dateFrom = document.getElementById('dateFrom').value;
@@ -211,26 +211,45 @@ function loadData(centerToday = true) {
     const search = document.getElementById('searchText').value.trim();
     const offset = (currentPage - 1) * PAGE_SIZE;
 
-    Promise.all([
-        fetch(`/api/tasks/${teamId}?offset=${offset}&limit=${PAGE_SIZE}&search=${encodeURIComponent(search)}&show_completed=${showCompleted}`).then(r => r.json()),
-        fetch(`/api/assignments/${teamId}?start_date=${dateFrom}&end_date=${dateTo}`).then(r => r.json()),
-        fetch(`/api/tasks/${teamId}/deps`).then(r => r.json()),
-    ]).then(([taskData, assignData, depsRows]) => {
-        tasksData = taskData.tasks;
-        totalTasksCount = taskData.total;
-        assignmentsData = assignData;
-        depsData = {};
-        depsRows.forEach(r => {
-            if (!depsData[r.task_id]) depsData[r.task_id] = [];
-            depsData[r.task_id].push(r);
-        });
-        renderTable();
-        renderPagination();
-        applyFilters();
-        if (centerToday) scrollToToday();
-    }).catch(error => console.error('Error loading data:', error));
+    if (refreshCounters) loadTodayCounters();
 
-    loadTodayCounters();
+    fetch(`/api/tasks/${teamId}?offset=${offset}&limit=${PAGE_SIZE}&search=${encodeURIComponent(search)}&show_completed=${showCompleted}`)
+        .then(r => r.json())
+        .then(taskData => {
+            tasksData = taskData.tasks;
+            totalTasksCount = taskData.total;
+
+            const taskIds = tasksData.map(t => t.id);
+
+            if (taskIds.length === 0) {
+                assignmentsData = [];
+                depsData = {};
+                renderTable();
+                renderPagination();
+                applyFilters();
+                if (centerToday) scrollToToday();
+                return;
+            }
+
+            const idsParam = taskIds.join(',');
+
+            return Promise.all([
+                fetch(`/api/assignments/${teamId}?start_date=${dateFrom}&end_date=${dateTo}&task_ids=${idsParam}`).then(r => r.json()),
+                fetch(`/api/tasks/${teamId}/deps?task_ids=${idsParam}`).then(r => r.json()),
+            ]).then(([assignData, depsRows]) => {
+                assignmentsData = assignData;
+                depsData = {};
+                depsRows.forEach(r => {
+                    if (!depsData[r.task_id]) depsData[r.task_id] = [];
+                    depsData[r.task_id].push(r);
+                });
+                renderTable();
+                renderPagination();
+                applyFilters();
+                if (centerToday) scrollToToday();
+            });
+        })
+        .catch(error => console.error('Error loading data:', error));
 }
 
 function loadTodayCounters() {
@@ -526,7 +545,7 @@ function renderPagination() {
 function onShowCompletedChange() {
     showCompleted = document.getElementById('showCompleted').checked;
     currentPage = 1;
-    loadData();
+    loadData(true, false);
 }
 
 function showToast(taskName, status) {
@@ -582,7 +601,7 @@ function goToPage(page) {
     const totalPages = Math.ceil(totalTasksCount / PAGE_SIZE);
     if (page < 1 || page > totalPages) return;
     currentPage = page;
-    loadData();
+    loadData(true, false);
 }
 
 document.addEventListener('keydown', function (e) {
