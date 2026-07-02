@@ -26,6 +26,7 @@ _SCHEMA = '''
         last_name TEXT NOT NULL,
         first_name TEXT NOT NULL,
         middle_name TEXT,
+        password_hash TEXT,
         UNIQUE(last_name, first_name, middle_name)
     );
 
@@ -91,6 +92,36 @@ _SCHEMA = '''
         PRIMARY KEY(team_id, template_id)
     );
 
+    -- Таблицы истории изменений намеренно без FOREIGN KEY на task_id/assignment_id/changed_by_employee_id:
+    -- запись истории должна пережить удаление задачи/назначения/сотрудника, который она описывает.
+    CREATE TABLE IF NOT EXISTS task_history (
+        id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id                INTEGER NOT NULL,
+        action                 TEXT NOT NULL,
+        field_name             TEXT,
+        old_value              TEXT,
+        new_value              TEXT,
+        changed_at             TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        changed_by_employee_id INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS assignment_history (
+        id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+        assignment_id          INTEGER NOT NULL,
+        task_id                INTEGER NOT NULL,
+        date                   DATE NOT NULL,
+        action                 TEXT NOT NULL,
+        field_name             TEXT,
+        old_value              TEXT,
+        new_value              TEXT,
+        changed_at             TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        changed_by_employee_id INTEGER
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_task_history_task_id ON task_history (task_id);
+    CREATE INDEX IF NOT EXISTS idx_assignment_history_assignment_id ON assignment_history (assignment_id);
+    CREATE INDEX IF NOT EXISTS idx_assignment_history_task_id ON assignment_history (task_id);
+
     CREATE index if NOT EXISTS idx_assignments_task_id ON assignments (task_id);
     CREATE index if NOT EXISTS idx_assignments_date ON assignments (date);
     CREATE index if NOT EXISTS idx_assignments_status ON assignments (status);
@@ -148,6 +179,10 @@ class SQLiteBackend(DBBackend):
             pass
         try:
             conn.execute("ALTER TABLE assignments ADD COLUMN time_spent TEXT")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE employees ADD COLUMN password_hash TEXT")
         except Exception:
             pass
         conn.commit()

@@ -1954,7 +1954,177 @@ h1, h2, h3 {
 }
 
 /* ------------------------------------------------------------
-   15. Адаптивность
+   15. Модалка с панелью истории изменений (задачи и назначения)
+   ------------------------------------------------------------ */
+.modal-content-with-history {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: max-width 0.28s ease;
+}
+
+.modal-content-with-history.history-open {
+    max-width: 940px;
+}
+
+.modal-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.btn-history-toggle {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.btn-history-toggle:hover {
+    background: var(--surface-2);
+    color: var(--text);
+}
+
+.btn-history-toggle.active {
+    background: var(--surface-2);
+    color: var(--text);
+    border-color: var(--border-strong);
+}
+
+.modal-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+
+.modal-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-y: auto;
+}
+
+.modal-history-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 0;
+    width: 0;
+    min-height: 0;
+    padding: 16px 0;
+    opacity: 0;
+    overflow: hidden;
+    border-left: 1px solid transparent;
+    transition: flex-basis 0.28s ease, width 0.28s ease, opacity 0.2s ease, padding 0.28s ease, border-color 0.28s ease;
+}
+
+.modal-history-panel.open {
+    flex: 0 0 400px;
+    width: 400px;
+    padding: 16px;
+    opacity: 1;
+    border-left-color: var(--border);
+}
+
+.history-panel-header {
+    flex: 0 0 auto;
+    margin-bottom: 8px;
+}
+
+.history-panel-header h3 {
+    font-size: 0.95rem;
+    color: var(--text-2);
+    margin: 0;
+}
+
+.history-list {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.history-pagination {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding-top: 10px;
+    margin-top: 10px;
+    border-top: 1px solid var(--border);
+    color: var(--text-3);
+    font-size: 0.8rem;
+}
+
+.history-entry {
+    font-size: 0.85rem;
+    padding: 6px 10px;
+    background: var(--surface-2);
+    border-radius: 4px;
+    color: var(--text);
+}
+
+.history-entry-assignment {
+    border-left: 3px solid var(--border-strong);
+    padding-left: 8px;
+}
+
+.history-entry-time {
+    color: var(--text-3);
+    font-size: 0.78rem;
+}
+
+.history-arrow {
+    color: var(--primary);
+    font-weight: 700;
+    margin: 0 3px;
+}
+
+.history-empty {
+    color: var(--text-3);
+    font-size: 0.85rem;
+}
+
+/* ------------------------------------------------------------
+   16. Страница входа
+   ------------------------------------------------------------ */
+.login-container {
+    min-height: 80vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.login-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 32px;
+    width: 100%;
+    max-width: 380px;
+}
+
+.login-hint {
+    color: var(--text-2);
+    font-size: 0.85rem;
+    margin: 8px 0;
+}
+
+.flash-message {
+    background: rgba(196, 30, 30, 0.1);
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin-bottom: 14px;
+}
+
+/* ------------------------------------------------------------
+   17. Адаптивность
    ------------------------------------------------------------ */
 @media (max-width: 768px) {
     .nav-menu {
@@ -1998,6 +2168,29 @@ h1, h2, h3 {
     .modal-content {
         width: 95%;
         margin: 10px;
+    }
+
+    .modal-content-with-history.history-open {
+        max-width: 95%;
+    }
+
+    .modal-body {
+        flex-direction: column;
+    }
+
+    .modal-history-panel {
+        width: auto;
+        flex: 0 0 0;
+        padding: 0 16px;
+        border-left: none;
+        border-top: 1px solid transparent;
+    }
+
+    .modal-history-panel.open {
+        flex: 0 0 240px;
+        width: auto;
+        padding: 16px;
+        border-top-color: var(--border);
     }
 
     .filter-dropdown {

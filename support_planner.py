@@ -1,18 +1,54 @@
+import os
 from datetime import date, timedelta
 from typing import Optional, List, Union
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
+from starlette.middleware.sessions import SessionMiddleware
 
+import auth
 import db
 import utils
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+_SESSION_SECRET_KEY = os.environ.get('SESSION_SECRET_KEY')
+if not _SESSION_SECRET_KEY:
+    _SESSION_SECRET_KEY = 'dev-insecure-secret-change-me'
+    print('WARNING: SESSION_SECRET_KEY не задан, используется небезопасный ключ по умолчанию '
+          '(сессии не переживут смену ключа; задайте переменную окружения для продакшена)')
+
+_PUBLIC_PATHS = {'/login', '/logout'}
+
+
+# Starlette's add_middleware() prepends to the middleware stack, so the middleware added
+# LAST runs FIRST. require_login must run only after SessionMiddleware has populated
+# request.session, so it's registered (via @app.middleware) before add_middleware(SessionMiddleware)
+# below is called.
+@app.middleware('http')
+async def require_login(request: Request, call_next):
+    path = request.url.path
+    if path in _PUBLIC_PATHS or path.startswith('/static/'):
+        return await call_next(request)
+    if not request.session.get('employee_id'):
+        if path.startswith('/api/'):
+            return JSONResponse({'error': 'Не авторизован'}, status_code=401)
+        return RedirectResponse(url='/login', status_code=302)
+    return await call_next(request)
+
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=_SESSION_SECRET_KEY,
+    session_cookie='sp_session',
+    max_age=60 * 60 * 24 * 30,
+    same_site='lax',
+)
 
 
 # === Pydantic-модели для тела запросов ===
@@ -61,6 +97,7 @@ class EmployeeIn(BaseModel):
     last_name: str = ""
     first_name: str = ""
     middle_name: Optional[str] = None
+    password: Optional[str] = None
 
 
 class FreezeDayIn(BaseModel):
@@ -91,6 +128,40 @@ VALID_TASK_TRANSITIONS = {
 @app.get('/', response_class=HTMLResponse)
 def root():
     return RedirectResponse(url='/planning', status_code=302)
+
+
+@app.get('/login', response_class=HTMLResponse)
+def login_page(request: Request):
+    """Страница входа"""
+    employees = db.get_all_employees()
+    return templates.TemplateResponse(request, 'login.html', {'employees': employees, 'error_message': None})
+
+
+@app.post('/login', response_class=HTMLResponse)
+def login_submit(request: Request, employee_id: str = Form(...), password: str = Form(...)):
+    """Обработка входа по сотруднику и паролю"""
+    employees = db.get_all_employees()
+    try:
+        emp_id = int(employee_id)
+    except (TypeError, ValueError):
+        emp_id = None
+
+    auth_row = db.get_employee_auth(emp_id) if emp_id else None
+    if not auth_row or not auth.verify_password(password, auth_row['password_hash']):
+        return templates.TemplateResponse(
+            request, 'login.html',
+            {'employees': employees, 'error_message': 'Неверный сотрудник или пароль'},
+            status_code=401)
+
+    request.session['employee_id'] = emp_id
+    return RedirectResponse(url='/planning', status_code=302)
+
+
+@app.post('/logout')
+def logout(request: Request):
+    """Выход из системы"""
+    request.session.clear()
+    return RedirectResponse(url='/login', status_code=302)
 
 
 @app.get('/planning', response_class=HTMLResponse)
@@ -198,7 +269,7 @@ def get_assignments_api(team_id: int, start_date: Optional[str] = None, end_date
 
 
 @app.post('/api/assignment')
-def save_assignment_api(data: AssignmentIn):
+def save_assignment_api(request: Request, data: AssignmentIn):
     """API для сохранения назначения"""
     block = (data.block or '').strip() or None
     comment = (data.comment or '').strip() or None
@@ -214,21 +285,31 @@ def save_assignment_api(data: AssignmentIn):
     if task and task['task_status'] in ('done', 'cancelled'):
         return JSONResponse({'error': 'Нельзя изменять назначения завершённой или отменённой задачи'}, status_code=400)
 
+    changed_by = request.session.get('employee_id')
     db.create_or_update_assignment(data.assignment_id, data.task_id, data.date, block, data.status, data.employee_id,
-                                   comment, 1 if data.is_psi else 0, time_spent)
+                                   comment, 1 if data.is_psi else 0, time_spent, changed_by=changed_by)
     if data.status == 'planned':
         db.maybe_advance_task_to_in_progress(data.task_id)
     return {'success': True}
 
 
 @app.delete('/api/assignment/{assignment_id}')
-def delete_assignment_api(assignment_id: int):
+def delete_assignment_api(request: Request, assignment_id: int):
     """API для удаления назначения"""
     task = db.get_task_status_by_assignment(assignment_id)
     if task and task['task_status'] in ('done', 'cancelled'):
         return JSONResponse({'error': 'Нельзя изменять назначения завершённой или отменённой задачи'}, status_code=400)
-    db.delete_assignment(assignment_id)
+    db.delete_assignment(assignment_id, changed_by=request.session.get('employee_id'))
     return {'success': True}
+
+
+@app.get('/api/assignment/{assignment_id}/history')
+def get_assignment_history_api(assignment_id: int, offset: int = 0, limit: int = 20):
+    """История изменений назначения (с пагинацией)"""
+    return {
+        'history': db.get_assignment_history(assignment_id, offset=offset, limit=limit),
+        'total': db.get_assignment_history_count(assignment_id)
+    }
 
 
 # === API для задач ===
@@ -247,7 +328,7 @@ def get_tasks_api(team_id: int, offset: int = 0, limit: int = 20, search: str = 
 
 
 @app.post('/api/task')
-def save_task_api(data: TaskIn):
+def save_task_api(request: Request, data: TaskIn):
     """API для сохранения задачи"""
     name = data.name.strip()
     description = (data.description or '').strip() or None
@@ -260,7 +341,8 @@ def save_task_api(data: TaskIn):
         if task and task['task_status'] in ('done', 'cancelled'):
             return JSONResponse({'error': 'Нельзя редактировать завершённую или отменённую задачу'}, status_code=400)
 
-    task_id = int(db.create_or_update_task(data.task_id, data.team_id, name, description, data.criticality))
+    task_id = int(db.create_or_update_task(data.task_id, data.team_id, name, description, data.criticality,
+                                            changed_by=request.session.get('employee_id')))
 
     if data.dependency_ids is not None:
         if data.dependency_ids and db.has_dependency_cycle(task_id, data.dependency_ids):
@@ -286,17 +368,17 @@ def get_active_tasks_list(team_id: int):
 
 
 @app.delete('/api/task/{task_id}')
-def delete_task_api(task_id: int):
+def delete_task_api(request: Request, task_id: int):
     """API для удаления задачи"""
     task = db.get_task_status(task_id)
     if task and task['task_status'] in ('done', 'cancelled'):
         return JSONResponse({'error': 'Нельзя удалить завершённую или отменённую задачу'}, status_code=400)
-    db.delete_task(task_id)
+    db.delete_task(task_id, changed_by=request.session.get('employee_id'))
     return {'success': True}
 
 
 @app.patch('/api/tasks/{task_id}/status')
-def update_task_status_api(task_id: int, data: TaskStatusIn):
+def update_task_status_api(request: Request, task_id: int, data: TaskStatusIn):
     """Обновить статус задачи"""
     task = db.get_task_status(task_id)
     if not task:
@@ -305,8 +387,17 @@ def update_task_status_api(task_id: int, data: TaskStatusIn):
     allowed = VALID_TASK_TRANSITIONS.get(current_status, set())
     if data.status not in allowed:
         return JSONResponse({'error': f'Недопустимый переход: {current_status} → {data.status}'}, status_code=400)
-    db.update_task_status(task_id, data.status)
+    db.update_task_status(task_id, data.status, changed_by=request.session.get('employee_id'))
     return {'success': True}
+
+
+@app.get('/api/task/{task_id}/history')
+def get_task_history_api(task_id: int, offset: int = 0, limit: int = 20):
+    """Объединённая история задачи и всех связанных с ней назначений (с пагинацией)"""
+    return {
+        'history': db.get_task_full_history(task_id, offset=offset, limit=limit),
+        'total': db.get_task_full_history_count(task_id)
+    }
 
 
 # === API для команд ===
@@ -381,11 +472,12 @@ def create_employee_api(data: EmployeeIn):
     last_name = data.last_name.strip()
     first_name = data.first_name.strip()
     middle_name = (data.middle_name or '').strip() or None
+    password_hash = auth.hash_password(data.password) if (data.password or '').strip() else None
 
     if not last_name or not first_name:
         return JSONResponse({'error': 'Фамилия и имя обязательны'}, status_code=400)
 
-    employee_id = db.create_employee(last_name, first_name, middle_name)
+    employee_id = db.create_employee(last_name, first_name, middle_name, password_hash)
     if employee_id:
         return {'id': employee_id, 'success': True}
     else:
@@ -398,11 +490,12 @@ def update_employee_api(employee_id: int, data: EmployeeIn):
     last_name = data.last_name.strip()
     first_name = data.first_name.strip()
     middle_name = (data.middle_name or '').strip() or None
+    password_hash = auth.hash_password(data.password) if (data.password or '').strip() else None
 
     if not last_name or not first_name:
         return JSONResponse({'error': 'Фамилия и имя обязательны'}, status_code=400)
 
-    success = db.update_employee(employee_id, last_name, first_name, middle_name)
+    success = db.update_employee(employee_id, last_name, first_name, middle_name, password_hash)
     if success:
         return {'success': True}
     else:
@@ -410,9 +503,9 @@ def update_employee_api(employee_id: int, data: EmployeeIn):
 
 
 @app.delete('/api/employees/{employee_id}')
-def delete_employee_api(employee_id: int):
+def delete_employee_api(request: Request, employee_id: int):
     """Удалить сотрудника"""
-    db.delete_employee(employee_id)
+    db.delete_employee(employee_id, changed_by=request.session.get('employee_id'))
     return {'success': True}
 
 

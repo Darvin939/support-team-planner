@@ -63,6 +63,7 @@ function openTeamModal(teamId) {
     }
 
     modal.style.display = 'flex';
+    lockBodyScroll();
 }
 
 function saveTeam(event) {
@@ -113,6 +114,7 @@ function deleteTeam(teamId) {
 
 function closeModal(modalId) {
     document.getElementById(modalId).style.display = 'none';
+    unlockBodyScroll();
 }
 
 // === СОТРУДНИКИ ===
@@ -126,10 +128,12 @@ function openEmployeeModal(employeeId) {
     const lastNameField = document.getElementById('employeeLastName');
     const firstNameField = document.getElementById('employeeFirstName');
     const middleNameField = document.getElementById('employeeMiddleName');
+    const passwordField = document.getElementById('employeePassword');
     const saveBtn = document.getElementById('saveEmployeeBtn');
     const updateBtn = document.getElementById('updateEmployeeBtn');
 
     idField.value = employeeId || '';
+    passwordField.value = '';
 
     if (employeeId) {
         const emp = employeesData.find(e => e.id === employeeId);
@@ -149,6 +153,7 @@ function openEmployeeModal(employeeId) {
     }
 
     modal.style.display = 'flex';
+    lockBodyScroll();
 }
 
 function saveEmployee(event) {
@@ -158,6 +163,7 @@ function saveEmployee(event) {
     const lastName = document.getElementById('employeeLastName').value.trim();
     const firstName = document.getElementById('employeeFirstName').value.trim();
     const middleName = document.getElementById('employeeMiddleName').value.trim();
+    const password = document.getElementById('employeePassword').value;
 
     if (!lastName || !firstName) {
         alert('Введите фамилию и имя сотрудника');
@@ -170,7 +176,10 @@ function saveEmployee(event) {
     fetch(url, {
         method: method,
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({last_name: lastName, first_name: firstName, middle_name: middleName || null})
+        body: JSON.stringify({
+            last_name: lastName, first_name: firstName, middle_name: middleName || null,
+            password: password || null
+        })
     })
         .then(response => response.json())
         .then(data => {
@@ -324,6 +333,7 @@ function openTemplateModal(templateId) {
     }
 
     modal.style.display = 'flex';
+    lockBodyScroll();
 }
 
 function saveTemplate(event) {
@@ -495,6 +505,7 @@ function openFreezeMonthModal(month) {
 
     renderModalCalendar();
     document.getElementById('freezeMonthModal').style.display = 'flex';
+    lockBodyScroll();
 }
 
 function onFreezeMonthSelectChange() {

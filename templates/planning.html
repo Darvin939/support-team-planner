@@ -157,11 +157,17 @@
 
 <!-- Модальное окно для назначения -->
 <div class="modal" id="assignmentModal">
-    <div class="modal-content">
+    <div class="modal-content modal-content-with-history" id="assignmentModalContent">
         <div class="modal-header">
             <h2 id="modalTitle">Работа</h2>
-            <span class="modal-close" onclick="closeModal('assignmentModal')">&times;</span>
+            <div class="modal-header-actions">
+                <button type="button" class="btn-history-toggle" id="assignmentHistoryToggle"
+                        onclick="toggleHistoryPanel('assignment')" style="display:none;" title="История изменений">🕓 История</button>
+                <span class="modal-close" onclick="closeModal('assignmentModal')">&times;</span>
+            </div>
         </div>
+        <div class="modal-body">
+        <div class="modal-main">
         <form id="taskForm" onsubmit="saveAssignment(event)">
             <input type="hidden" id="assignmentTaskId" value="">
             <input type="hidden" id="taskDate" value="">
@@ -279,16 +285,29 @@
                 <button type="button" class="btn btn-secondary" onclick="closeModal('assignmentModal')">Закрыть</button>
             </div>
         </form>
+        </div>
+        <div class="modal-history-panel" id="assignmentHistoryPanel">
+            <div class="history-panel-header"><h3>История изменений</h3></div>
+            <div id="assignmentHistoryList" class="history-list"></div>
+            <div id="assignmentHistoryPagination" class="history-pagination"></div>
+        </div>
+        </div>
     </div>
 </div>
 
 <!-- Модальное окно для добавления задачи -->
 <div class="modal" id="taskModal">
-    <div class="modal-content">
+    <div class="modal-content modal-content-with-history" id="taskModalContent">
         <div class="modal-header">
             <h2>Добавить работу</h2>
-            <span class="modal-close" onclick="closeModal('taskModal')">&times;</span>
+            <div class="modal-header-actions">
+                <button type="button" class="btn-history-toggle" id="taskHistoryToggle"
+                        onclick="toggleHistoryPanel('task')" style="display:none;" title="История изменений">🕓 История</button>
+                <span class="modal-close" onclick="closeModal('taskModal')">&times;</span>
+            </div>
         </div>
+        <div class="modal-body">
+        <div class="modal-main">
         <form onsubmit="saveTask(event)">
             <input type="hidden" id="taskId" value="">
             <div class="form-group">
@@ -321,6 +340,13 @@
                 <button type="button" class="btn btn-secondary" onclick="closeModal('taskModal')">Отмена</button>
             </div>
         </form>
+        </div>
+        <div class="modal-history-panel" id="taskHistoryPanel">
+            <div class="history-panel-header"><h3>История изменений</h3></div>
+            <div id="taskHistoryList" class="history-list"></div>
+            <div id="taskHistoryPagination" class="history-pagination"></div>
+        </div>
+        </div>
     </div>
 </div>
 {% else %}

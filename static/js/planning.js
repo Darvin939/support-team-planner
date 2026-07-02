@@ -42,6 +42,8 @@ const statusMap = {
     'success': 'Успешно'
 };
 
+const CRITICALITY_LABELS = {high: 'Высокая', medium: 'Средняя', low: 'Низкая'};
+
 const DEP_STATUS_LABELS = {
     new: 'Новый', ready: 'К планированию', in_progress: 'В работе',
     done: 'Выполнено', cancelled: 'Отменено'
@@ -259,7 +261,7 @@ function loadTodayCounters() {
         .then(r => r.json())
         .then(data => {
             const statusLabels = {new: 'Новый', planned: 'Запланировано'};
-            const critLabels = {high: 'Высокая', medium: 'Средняя', low: 'Низкая'};
+            const critLabels = CRITICALITY_LABELS;
             const statusCounts = {new: 0, planned: 0};
             const critCounts = {high: 0, medium: 0, low: 0};
 
@@ -925,6 +927,153 @@ function toggleAutoAssign() {
     }
 }
 
+const HISTORY_FIELD_LABELS = {
+    name: 'Название', description: 'Описание', criticality: 'Критичность', task_status: 'Статус',
+    date: 'Дата', block: 'Блок', status: 'Статус', employee_id: 'Исполнитель',
+    comment: 'Комментарий', is_psi: 'ПСИ', time_spent: 'Время выполнения'
+};
+
+function getEmployeeName(employeeId) {
+    if (!employeeId) return '—';
+    const select = document.getElementById('assignmentEmployee');
+    const opt = select && Array.from(select.options).find(o => o.value === String(employeeId));
+    return opt ? opt.textContent.trim() : `#${employeeId}`;
+}
+
+function formatHistoryValue(field, value) {
+    if (value === null || value === undefined || value === '') return '—';
+    if (field === 'criticality') return CRITICALITY_LABELS[value] || value;
+    if (field === 'task_status') return TASK_STATUS_LABELS[value] || value;
+    if (field === 'status') return statusMap[value] || value;
+    if (field === 'employee_id') return getEmployeeName(value);
+    if (field === 'is_psi') return (value === '1' || value === 1 || value === true) ? 'Да' : 'Нет';
+    return value;
+}
+
+function renderHistoryEntries(entries, container, defaultEntity, showAssignmentContext) {
+    if (!entries || entries.length === 0) {
+        container.innerHTML = '<div class="history-empty">Изменений пока нет</div>';
+        return;
+    }
+
+    container.innerHTML = entries.map(e => {
+        const entity = e.entity || defaultEntity;
+        const isAssignmentRow = entity === 'assignment';
+        const who = e.changed_by_last_name
+            ? `${e.changed_by_last_name} ${(e.changed_by_first_name || '').charAt(0)}.${e.changed_by_middle_name ? e.changed_by_middle_name.charAt(0) + '.' : ''}`
+            : 'Система';
+
+        let text;
+        if (e.action === 'create') {
+            text = isAssignmentRow ? `Назначение на ${e.date} создано` : 'Задача создана';
+        } else if (e.action === 'delete') {
+            text = isAssignmentRow ? `Назначение на ${e.date} удалено` : 'Задача удалена';
+        } else {
+            const label = HISTORY_FIELD_LABELS[e.field_name] || e.field_name;
+            const changeText = `${label}: ${formatHistoryValue(e.field_name, e.old_value)} <span class="history-arrow">➜</span> ${formatHistoryValue(e.field_name, e.new_value)}`;
+            text = (showAssignmentContext && isAssignmentRow) ? `Назначение на ${e.date} — ${changeText}` : changeText;
+        }
+
+        const cls = showAssignmentContext && isAssignmentRow ? 'history-entry history-entry-assignment' : 'history-entry';
+        return `<div class="${cls}"><div class="history-entry-time">${e.changed_at} — ${who}</div><div>${text}</div></div>`;
+    }).join('');
+}
+
+const HISTORY_PAGE_SIZE = 10;
+const historyPanels = {
+    assignment: {open: false, offset: 0, total: 0},
+    task: {open: false, offset: 0, total: 0}
+};
+
+function historyPanelEl(kind) {
+    return {
+        panel: document.getElementById(kind === 'assignment' ? 'assignmentHistoryPanel' : 'taskHistoryPanel'),
+        modalContent: document.getElementById(kind === 'assignment' ? 'assignmentModalContent' : 'taskModalContent'),
+        toggleBtn: document.getElementById(kind === 'assignment' ? 'assignmentHistoryToggle' : 'taskHistoryToggle'),
+        list: document.getElementById(kind === 'assignment' ? 'assignmentHistoryList' : 'taskHistoryList'),
+        pagination: document.getElementById(kind === 'assignment' ? 'assignmentHistoryPagination' : 'taskHistoryPagination'),
+        id: kind === 'assignment' ? document.getElementById('assignmentId').value : document.getElementById('taskId').value
+    };
+}
+
+function resetHistoryPanel(kind) {
+    const state = historyPanels[kind];
+    state.open = false;
+    state.offset = 0;
+    state.total = 0;
+    const el = historyPanelEl(kind);
+    el.panel.classList.remove('open');
+    el.modalContent.classList.remove('history-open');
+    el.modalContent.style.height = '';
+    el.toggleBtn.classList.remove('active');
+    el.toggleBtn.textContent = '🕓 История';
+    el.list.innerHTML = '';
+    el.pagination.innerHTML = '';
+}
+
+function toggleHistoryPanel(kind) {
+    const state = historyPanels[kind];
+    const el = historyPanelEl(kind);
+
+    // Фиксируем естественную высоту модалки один раз, при первом раскрытии панели
+    // за это открытие модалки, и держим её неизменной до следующего resetHistoryPanel
+    // (открытия модалки заново). Так переключение истории туда-обратно меняет только
+    // ширину и не "растягивает" модалку при закрытии до того, как доиграет анимация ширины.
+    if (!el.modalContent.style.height) {
+        el.modalContent.style.height = el.modalContent.getBoundingClientRect().height + 'px';
+    }
+
+    state.open = !state.open;
+    el.panel.classList.toggle('open', state.open);
+    el.modalContent.classList.toggle('history-open', state.open);
+    el.toggleBtn.classList.toggle('active', state.open);
+    el.toggleBtn.textContent = state.open ? '✕ Скрыть историю' : '🕓 История';
+
+    if (state.open) {
+        loadHistoryPage(kind, 0);
+    }
+}
+
+function loadHistoryPage(kind, offset) {
+    const state = historyPanels[kind];
+    const el = historyPanelEl(kind);
+    if (!el.id) return;
+    state.offset = offset;
+    el.list.innerHTML = '<span class="hint">Загрузка...</span>';
+    el.pagination.innerHTML = '';
+
+    const url = kind === 'assignment'
+        ? `/api/assignment/${el.id}/history?offset=${offset}&limit=${HISTORY_PAGE_SIZE}`
+        : `/api/task/${el.id}/history?offset=${offset}&limit=${HISTORY_PAGE_SIZE}`;
+
+    fetch(url)
+        .then(r => r.json())
+        .then(data => {
+            state.total = data.total;
+            renderHistoryEntries(data.history, el.list, kind, kind === 'task');
+            renderHistoryPagination(kind);
+        })
+        .catch(() => { el.list.innerHTML = '<span class="hint">Ошибка загрузки истории</span>'; });
+}
+
+function renderHistoryPagination(kind) {
+    const state = historyPanels[kind];
+    const el = historyPanelEl(kind);
+    const totalPages = Math.ceil(state.total / HISTORY_PAGE_SIZE);
+    if (totalPages <= 1) {
+        el.pagination.innerHTML = '';
+        return;
+    }
+    const currentPage = Math.floor(state.offset / HISTORY_PAGE_SIZE) + 1;
+    const from = state.total === 0 ? 0 : state.offset + 1;
+    const to = Math.min(state.offset + HISTORY_PAGE_SIZE, state.total);
+    el.pagination.innerHTML = `
+        <button class="page-btn" onclick="loadHistoryPage('${kind}', ${Math.max(0, state.offset - HISTORY_PAGE_SIZE)})" ${currentPage === 1 ? 'disabled' : ''}>←</button>
+        <span>${from}–${to} из ${state.total}</span>
+        <button class="page-btn" onclick="loadHistoryPage('${kind}', ${state.offset + HISTORY_PAGE_SIZE})" ${currentPage === totalPages ? 'disabled' : ''}>→</button>
+    `;
+}
+
 function openAssignmentModal(taskId, dateStr) {
     const modal = document.getElementById('assignmentModal');
     const title = document.getElementById('modalTitle');
@@ -979,6 +1128,8 @@ function openAssignmentModal(taskId, dateStr) {
         saveBtn.style.display = 'none';
         updateBtn.style.display = 'inline-block';
         deleteBtn.style.display = 'inline-block';
+        resetHistoryPanel('assignment');
+        document.getElementById('assignmentHistoryToggle').style.display = 'inline-block';
     } else {
         title.textContent = `Новая запись: ${task.name}`;
         assignmentIdField.value = '';
@@ -991,9 +1142,12 @@ function openAssignmentModal(taskId, dateStr) {
         saveBtn.style.display = 'inline-block';
         updateBtn.style.display = 'none';
         deleteBtn.style.display = 'none';
+        resetHistoryPanel('assignment');
+        document.getElementById('assignmentHistoryToggle').style.display = 'none';
     }
 
     modal.style.display = 'flex';
+    lockBodyScroll();
 }
 
 function saveAssignment(event) {
@@ -1157,12 +1311,16 @@ function openTaskModal(taskId) {
         taskCriticalityField.value = task.criticality;
         saveBtn.style.display = 'none';
         updateBtn.style.display = 'inline-block';
+        resetHistoryPanel('task');
+        document.getElementById('taskHistoryToggle').style.display = 'inline-block';
     } else {
         taskNameField.value = '';
         taskDescriptionField.value = '';
         taskCriticalityField.value = 'medium';
         saveBtn.style.display = 'inline-block';
         updateBtn.style.display = 'none';
+        resetHistoryPanel('task');
+        document.getElementById('taskHistoryToggle').style.display = 'none';
     }
 
     currentDepIds = new Set((depsData[taskId] || []).map(d => d.dep_id));
@@ -1193,7 +1351,8 @@ function openTaskModal(taskId) {
         })
         .catch(() => { depsList.innerHTML = '<span class="hint">Ошибка загрузки</span>'; });
 
-    modal.style.display = 'flex'
+    modal.style.display = 'flex';
+    lockBodyScroll();
 }
 
 function saveTask(event) {
@@ -1228,7 +1387,7 @@ function saveTask(event) {
         .then(data => {
             if (data.error) { alert(data.error); return; }
             closeModal('taskModal');
-            loadData();
+            loadData(false);
         })
         .catch(error => {
             console.error('Error saving task:', error);
@@ -1254,6 +1413,7 @@ function deleteTask(taskId) {
 
 function closeModal(modalId) {
     document.getElementById(modalId).style.display = 'none';
+    unlockBodyScroll();
 }
 
 function setupDragScroll() {

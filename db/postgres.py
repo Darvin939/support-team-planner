@@ -57,10 +57,11 @@ _PG_SCHEMA_STMTS = [
     "CREATE INDEX IF NOT EXISTS idx_team_blocks_team_id ON team_blocks (team_id)",
 
     """CREATE TABLE IF NOT EXISTS employees (
-        id          SERIAL PRIMARY KEY,
-        last_name   TEXT NOT NULL,
-        first_name  TEXT NOT NULL,
-        middle_name TEXT,
+        id            SERIAL PRIMARY KEY,
+        last_name     TEXT NOT NULL,
+        first_name    TEXT NOT NULL,
+        middle_name   TEXT,
+        password_hash TEXT,
         UNIQUE (last_name, first_name, middle_name)
     )""",
 
@@ -88,6 +89,7 @@ _PG_SCHEMA_STMTS = [
         status      TEXT NOT NULL DEFAULT 'new',
         employee_id INTEGER,
         comment     TEXT,
+        is_psi      INTEGER NOT NULL DEFAULT 0,
         time_spent  TEXT,
         FOREIGN KEY (task_id)     REFERENCES tasks (id)     ON DELETE CASCADE,
         FOREIGN KEY (employee_id) REFERENCES employees (id),
@@ -104,6 +106,35 @@ _PG_SCHEMA_STMTS = [
         FOREIGN KEY (task_id)            REFERENCES tasks (id) ON DELETE CASCADE,
         FOREIGN KEY (depends_on_task_id) REFERENCES tasks (id) ON DELETE CASCADE
     )""",
+
+    # Таблицы истории изменений намеренно без FOREIGN KEY на task_id/assignment_id/changed_by_employee_id:
+    # запись истории должна пережить удаление задачи/назначения/сотрудника, который она описывает.
+    """CREATE TABLE IF NOT EXISTS task_history (
+        id                     SERIAL PRIMARY KEY,
+        task_id                INTEGER NOT NULL,
+        action                 TEXT NOT NULL,
+        field_name             TEXT,
+        old_value              TEXT,
+        new_value              TEXT,
+        changed_at             TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        changed_by_employee_id INTEGER
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_task_history_task_id ON task_history (task_id)",
+
+    """CREATE TABLE IF NOT EXISTS assignment_history (
+        id                     SERIAL PRIMARY KEY,
+        assignment_id          INTEGER NOT NULL,
+        task_id                INTEGER NOT NULL,
+        date                   DATE NOT NULL,
+        action                 TEXT NOT NULL,
+        field_name             TEXT,
+        old_value              TEXT,
+        new_value              TEXT,
+        changed_at             TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        changed_by_employee_id INTEGER
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_assignment_history_assignment_id ON assignment_history (assignment_id)",
+    "CREATE INDEX IF NOT EXISTS idx_assignment_history_task_id ON assignment_history (task_id)",
 ]
 # @formatter:on
 

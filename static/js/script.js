@@ -108,6 +108,18 @@ function clampDateRange(fromId, toId) {
     }
 }
 
+// Блокировка скролла фоновой страницы, пока открыто модальное окно
+function lockBodyScroll() {
+    document.body.style.overflow = 'hidden';
+}
+
+function unlockBodyScroll() {
+    const anyOpen = Array.from(document.querySelectorAll('.modal')).some(m => m.style.display === 'flex');
+    if (!anyOpen) {
+        document.body.style.overflow = '';
+    }
+}
+
 // Закрытие модального окна по Escape
 function closeModalByEscapeBtn(e) {
     if (e.key === 'Escape') {
@@ -117,6 +129,7 @@ function closeModalByEscapeBtn(e) {
                 modal.style.display = 'none';
             }
         });
+        unlockBodyScroll();
     }
 }
 
@@ -128,6 +141,7 @@ function closeModalByClick(e) {
             modal.style.display = 'none';
         }
     });
+    unlockBodyScroll();
 }
 
 // Закрытие выпадающих списков при клике вне их

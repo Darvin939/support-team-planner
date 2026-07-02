@@ -18,14 +18,19 @@
         {% endif %}
         <form method="POST" action="/login">
             <div class="form-group">
-                <label for="password">Пароль администратора:</label>
+                <label for="employee_id">Сотрудник:</label>
+                <select id="employee_id" name="employee_id" required>
+                    <option value="">— выберите —</option>
+                    {% for emp in employees %}
+                    <option value="{{ emp.id }}">{{ emp.last_name }} {{ emp.first_name }}{% if emp.middle_name %} {{ emp.middle_name }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="password">Пароль:</label>
                 <input type="password" id="password" name="password" required>
             </div>
             <button type="submit" class="btn btn-primary">Войти</button>
-        </form>
-        <p class="login-hint">Для обычного пользователя нажмите "Продолжить как гость"</p>
-        <form method="POST" action="/login">
-            <button type="submit" class="btn btn-primary">Продолжить как гость</button>
         </form>
     </div>
 </div>

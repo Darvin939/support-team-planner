@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -267,35 +268,57 @@ def get_all_employees(conn):
 
 
 @with_db_connection(commit_on_success=False)
-def create_employee(conn, last_name, first_name, middle_name=None):
+def create_employee(conn, last_name, first_name, middle_name=None, password_hash=None):
     """Создать сотрудника"""
     cursor = conn.execute(
-        '''INSERT INTO employees (last_name, first_name, middle_name)
-           VALUES (?, ?, ?)''',
-        (last_name, first_name, middle_name))
+        '''INSERT INTO employees (last_name, first_name, middle_name, password_hash)
+           VALUES (?, ?, ?, ?)''',
+        (last_name, first_name, middle_name, password_hash))
     conn.commit()
     return _backend.last_insert_id(cursor)
 
 
 @with_db_connection(default_return=False, raise_on_error=False)
-def update_employee(conn, employee_id, last_name, first_name, middle_name=None):
-    """Обновить сотрудника"""
-    conn.execute(
-        '''UPDATE employees
-           SET last_name   = ?,
-               first_name  = ?,
-               middle_name = ?
-           WHERE id = ?''', (last_name, first_name, middle_name, employee_id))
+def update_employee(conn, employee_id, last_name, first_name, middle_name=None, password_hash=None):
+    """Обновить сотрудника. password_hash=None означает "не менять пароль"."""
+    if password_hash is not None:
+        conn.execute(
+            '''UPDATE employees
+               SET last_name     = ?,
+                   first_name    = ?,
+                   middle_name   = ?,
+                   password_hash = ?
+               WHERE id = ?''', (last_name, first_name, middle_name, password_hash, employee_id))
+    else:
+        conn.execute(
+            '''UPDATE employees
+               SET last_name   = ?,
+                   first_name  = ?,
+                   middle_name = ?
+               WHERE id = ?''', (last_name, first_name, middle_name, employee_id))
     return True
 
 
+@with_db_connection(commit_on_success=False)
+def get_employee_auth(conn, employee_id):
+    """Получить хэш пароля сотрудника для проверки при входе"""
+    row = conn.execute('SELECT id, password_hash FROM employees WHERE id = ?', (employee_id,)).fetchone()
+    return dict(row) if row else None
+
+
 @with_db_connection()
-def delete_employee(conn, employee_id):
+def delete_employee(conn, employee_id, changed_by=None):
     """Удалить сотрудника"""
-    count = conn.execute('SELECT COUNT(*) as count FROM assignments WHERE employee_id = ?', (employee_id,)).fetchone()[
-        'count']
-    if count > 0:
+    affected = conn.execute(
+        'SELECT id, task_id, date, employee_id FROM assignments WHERE employee_id = ?', (employee_id,)
+    ).fetchall()
+    if affected:
         conn.execute('UPDATE assignments SET employee_id = NULL WHERE employee_id = ?', (employee_id,))
+        for row in affected:
+            _record_assignment_history(
+                conn, row['id'], row['task_id'], row['date'], 'update',
+                field_name='employee_id', old_value=str(row['employee_id']), new_value=None,
+                changed_by=changed_by)
     conn.execute('DELETE FROM employees WHERE id = ?', (employee_id,))
 
 
@@ -430,6 +453,22 @@ def get_tasks_count_by_team(conn, team_id, search=None, show_completed=False):
     ).fetchone()[0]
 
 
+def _record_task_history(conn, task_id, action, field_name=None, old_value=None, new_value=None, changed_by=None):
+    conn.execute(
+        '''INSERT INTO task_history (task_id, action, field_name, old_value, new_value, changed_by_employee_id)
+           VALUES (?, ?, ?, ?, ?, ?)''',
+        (task_id, action, field_name, old_value, new_value, changed_by))
+
+
+def _record_assignment_history(conn, assignment_id, task_id, date_str, action, field_name=None, old_value=None,
+                                new_value=None, changed_by=None):
+    conn.execute(
+        '''INSERT INTO assignment_history
+               (assignment_id, task_id, date, action, field_name, old_value, new_value, changed_by_employee_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+        (assignment_id, task_id, date_str, action, field_name, old_value, new_value, changed_by))
+
+
 @with_db_connection(commit_on_success=False)
 def task_exists(conn, task_id):
     """Проверить существование задачи"""
@@ -437,10 +476,15 @@ def task_exists(conn, task_id):
 
 
 @with_db_connection(commit_on_success=False)
-def create_or_update_task(conn, task_id, team_id, name, description, criticality='medium'):
+def create_or_update_task(conn, task_id, team_id, name, description, criticality='medium', changed_by=None):
     """Создать или обновить задачу"""
-    existing = conn.execute('SELECT 1 FROM tasks WHERE id = ?', (task_id,)).fetchone()
+    existing = conn.execute('SELECT name, description, criticality FROM tasks WHERE id = ?', (task_id,)).fetchone()
     if existing:
+        for field, new_val in (('name', name), ('description', description), ('criticality', criticality)):
+            old_val = existing[field]
+            if old_val != new_val:
+                _record_task_history(conn, task_id, 'update', field_name=field,
+                                      old_value=old_val, new_value=new_val, changed_by=changed_by)
         conn.execute(
             '''UPDATE tasks
                SET name        = ?,
@@ -455,14 +499,26 @@ def create_or_update_task(conn, task_id, team_id, name, description, criticality
             'INSERT INTO tasks (team_id, name, description, criticality) VALUES (?, ?, ?, ?)',
             (team_id, name, description, criticality)
         )
-        conn.commit()
         task_id = _backend.last_insert_id(cursor)
+        snapshot = json.dumps({'team_id': team_id, 'name': name, 'description': description,
+                                'criticality': criticality}, ensure_ascii=False)
+        _record_task_history(conn, task_id, 'create', new_value=snapshot, changed_by=changed_by)
+        conn.commit()
     return task_id
 
 
 @with_db_connection()
-def delete_task(conn, task_id):
+def delete_task(conn, task_id, changed_by=None):
     """Удалить задачу"""
+    task = conn.execute('SELECT * FROM tasks WHERE id = ?', (task_id,)).fetchone()
+    if task:
+        assignments = conn.execute('SELECT * FROM assignments WHERE task_id = ?', (task_id,)).fetchall()
+        for a in assignments:
+            snapshot = json.dumps({k: a[k] for k in a.keys()}, ensure_ascii=False, default=str)
+            _record_assignment_history(conn, a['id'], task_id, a['date'], 'delete',
+                                        old_value=snapshot, changed_by=changed_by)
+        snapshot = json.dumps({k: task[k] for k in task.keys()}, ensure_ascii=False, default=str)
+        _record_task_history(conn, task_id, 'delete', old_value=snapshot, changed_by=changed_by)
     conn.execute('DELETE FROM tasks WHERE id = ?', (task_id,))
 
 
@@ -482,8 +538,12 @@ def get_task_status_by_assignment(conn, assignment_id):
 
 
 @with_db_connection()
-def update_task_status(conn, task_id, new_status):
+def update_task_status(conn, task_id, new_status, changed_by=None):
     """Обновить статус задачи"""
+    current = conn.execute("SELECT task_status FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    if current and current['task_status'] != new_status:
+        _record_task_history(conn, task_id, 'update', field_name='task_status',
+                              old_value=current['task_status'], new_value=new_status, changed_by=changed_by)
     conn.execute("UPDATE tasks SET task_status = ? WHERE id = ?", (new_status, task_id))
     return True
 
@@ -623,11 +683,20 @@ def get_assignments_by_team_in_period(conn, team_id, start_date, end_date, task_
 
 
 @with_db_connection()
-def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, status, employee_id, comment, is_psi=0, time_spent=None):
+def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, status, employee_id, comment,
+                                 is_psi=0, time_spent=None, changed_by=None):
     """Создать или обновить назначение"""
-    existing = conn.execute('SELECT 1 FROM assignments WHERE id = ?', (assignment_id,)).fetchone()
+    existing = conn.execute('SELECT * FROM assignments WHERE id = ?', (assignment_id,)).fetchone()
+
+    new_values = {'date': date_str, 'task_id': task_id, 'block': block, 'status': status,
+                  'employee_id': employee_id, 'comment': comment, 'is_psi': is_psi, 'time_spent': time_spent}
 
     if existing:
+        for field, new_val in new_values.items():
+            old_val = existing[field]
+            if old_val != new_val:
+                _record_assignment_history(conn, assignment_id, task_id, date_str, 'update', field_name=field,
+                                            old_value=old_val, new_value=new_val, changed_by=changed_by)
         conn.execute(
             '''UPDATE assignments
                SET date        = ?,
@@ -642,16 +711,25 @@ def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, s
             (date_str, task_id, block, status, employee_id, comment, is_psi, time_spent, assignment_id)
         )
     else:
-        conn.execute(
+        cursor = conn.execute(
             '''INSERT INTO assignments (task_id, date, block, status, employee_id, comment, is_psi, time_spent)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
             (task_id, date_str, block, status, employee_id, comment, is_psi, time_spent)
         )
+        new_assignment_id = _backend.last_insert_id(cursor)
+        snapshot = json.dumps(new_values, ensure_ascii=False, default=str)
+        _record_assignment_history(conn, new_assignment_id, task_id, date_str, 'create',
+                                    new_value=snapshot, changed_by=changed_by)
 
 
 @with_db_connection()
-def delete_assignment(conn, assignment_id):
+def delete_assignment(conn, assignment_id, changed_by=None):
     """Удалить назначение"""
+    assignment = conn.execute('SELECT * FROM assignments WHERE id = ?', (assignment_id,)).fetchone()
+    if assignment:
+        snapshot = json.dumps({k: assignment[k] for k in assignment.keys()}, ensure_ascii=False, default=str)
+        _record_assignment_history(conn, assignment_id, assignment['task_id'], assignment['date'], 'delete',
+                                    old_value=snapshot, changed_by=changed_by)
     conn.execute('DELETE FROM assignments WHERE id = ?', (assignment_id,))
 
 
@@ -689,6 +767,102 @@ def get_active_assignments_in_period(conn, team_id, start_date, end_date, team_i
               " t.name")
 
     return conn.execute(query, tuple(params)).fetchall()
+
+
+# === HISTORY ===
+@with_db_connection(commit_on_success=False)
+def get_task_history(conn, task_id):
+    """История изменений самой задачи (без назначений)"""
+    # @formatter:off
+    rows = conn.execute(
+        '''SELECT th.*,
+                  e.last_name AS changed_by_last_name,
+                  e.first_name AS changed_by_first_name,
+                  e.middle_name AS changed_by_middle_name
+           FROM task_history th
+               LEFT JOIN employees e ON th.changed_by_employee_id = e.id
+           WHERE th.task_id = ?
+           ORDER BY th.changed_at, th.id''',
+        (task_id,)
+    ).fetchall()
+    # @formatter:on
+    return [dict(r) for r in rows]
+
+
+@with_db_connection(commit_on_success=False)
+def get_assignment_history(conn, assignment_id, offset=0, limit=20):
+    """История изменений конкретного назначения (пока оно существует), новые сверху"""
+    # @formatter:off
+    rows = conn.execute(
+        '''SELECT ah.*,
+                  e.last_name AS changed_by_last_name,
+                  e.first_name AS changed_by_first_name,
+                  e.middle_name AS changed_by_middle_name
+           FROM assignment_history ah
+               LEFT JOIN employees e ON ah.changed_by_employee_id = e.id
+           WHERE ah.assignment_id = ?
+           ORDER BY ah.changed_at DESC, ah.id DESC
+           LIMIT ? OFFSET ?''',
+        (assignment_id, limit, offset)
+    ).fetchall()
+    # @formatter:on
+    return [dict(r) for r in rows]
+
+
+@with_db_connection(commit_on_success=False)
+def get_assignment_history_count(conn, assignment_id):
+    """Общее количество записей истории назначения (для пагинации)"""
+    row = conn.execute(
+        'SELECT COUNT(*) AS count FROM assignment_history WHERE assignment_id = ?', (assignment_id,)
+    ).fetchone()
+    return row['count']
+
+
+@with_db_connection(commit_on_success=False)
+def get_task_full_history(conn, task_id, offset=0, limit=20):
+    """Объединённая история задачи: её собственные изменения + история всех назначений
+    по ней (включая удалённые - assignment_history.task_id денормализован и переживает
+    удаление самого назначения). Новые записи сверху."""
+    # @formatter:off
+    rows = conn.execute(
+        '''SELECT * FROM (
+               SELECT th.id AS id, th.task_id AS task_id, NULL AS assignment_id, NULL AS date,
+                      th.action AS action, th.field_name AS field_name, th.old_value AS old_value,
+                      th.new_value AS new_value, th.changed_at AS changed_at,
+                      th.changed_by_employee_id AS changed_by_employee_id, 'task' AS entity,
+                      e.last_name AS changed_by_last_name, e.first_name AS changed_by_first_name,
+                      e.middle_name AS changed_by_middle_name
+               FROM task_history th
+                   LEFT JOIN employees e ON th.changed_by_employee_id = e.id
+               WHERE th.task_id = ?
+               UNION ALL
+               SELECT ah.id AS id, ah.task_id AS task_id, ah.assignment_id AS assignment_id, ah.date AS date,
+                      ah.action AS action, ah.field_name AS field_name, ah.old_value AS old_value,
+                      ah.new_value AS new_value, ah.changed_at AS changed_at,
+                      ah.changed_by_employee_id AS changed_by_employee_id, 'assignment' AS entity,
+                      e.last_name AS changed_by_last_name, e.first_name AS changed_by_first_name,
+                      e.middle_name AS changed_by_middle_name
+               FROM assignment_history ah
+                   LEFT JOIN employees e ON ah.changed_by_employee_id = e.id
+               WHERE ah.task_id = ?
+           ) combined
+           ORDER BY changed_at DESC, id DESC
+           LIMIT ? OFFSET ?''',
+        (task_id, task_id, limit, offset)
+    ).fetchall()
+    # @formatter:on
+    return [dict(r) for r in rows]
+
+
+@with_db_connection(commit_on_success=False)
+def get_task_full_history_count(conn, task_id):
+    """Общее количество записей объединённой истории задачи (для пагинации)"""
+    row = conn.execute(
+        '''SELECT (SELECT COUNT(*) FROM task_history WHERE task_id = ?) +
+                  (SELECT COUNT(*) FROM assignment_history WHERE task_id = ?) AS count''',
+        (task_id, task_id)
+    ).fetchone()
+    return row['count']
 
 
 # === Инициализация БД при импорте ===

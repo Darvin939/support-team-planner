@@ -16,6 +16,7 @@
                 <li><a href="/planning">Планирование</a></li>
                 <li><a href="/statistics">Статистика</a></li>
                 <li><a href="/settings">Настройки</a></li>
+                <li><a href="#" onclick="fetch('/logout',{method:'POST'}).then(()=>location.href='/login');return false;">Выйти</a></li>
             </ul>
             <button id="themeToggle" class="theme-toggle" title="Светлая / тёмная тема">☀</button>
         </div>
