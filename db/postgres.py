@@ -4,6 +4,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 
+import auth
 from db.backend import DBBackend
 
 # PL/pgSQL реализация того же алгоритма скользящего окна, что и _fuzzy_word_in в db/sqlite.py
@@ -228,3 +229,11 @@ class PostgresBackend(DBBackend):
         conn.execute(_FUZZY_WORD_IN_SQL)
         for stmt in _PG_SCHEMA_STMTS:
             conn.execute(stmt)
+        # Сотрудник по умолчанию для первого входа (пароль можно сменить в настройках).
+        # INSERT OR IGNORE полагается на UNIQUE(last_name, first_name, middle_name) — безопасно
+        # выполнять при каждом запуске, не создаёт дублей. middle_name='' (не NULL): NULL никогда
+        # не считается равным другому NULL в UNIQUE-констрейнте, так что с NULL проверка бы не сработала.
+        conn.execute(
+            "INSERT OR IGNORE INTO employees (last_name, first_name, middle_name, password_hash) VALUES (?, ?, ?, ?)",
+            ('Администратор', '', '', auth.hash_password('q12345678'))
+        )

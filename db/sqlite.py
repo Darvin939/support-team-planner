@@ -1,5 +1,6 @@
 import sqlite3
 
+import auth
 from db.backend import DBBackend
 
 DB_PATH = 'database.db'
@@ -172,17 +173,12 @@ class SQLiteBackend(DBBackend):
     def init_schema(self, conn) -> None:
         conn.execute('PRAGMA foreign_keys = ON;')
         conn.executescript(_SCHEMA)
-        conn.execute('DROP TABLE IF EXISTS team_blocks')
-        try:
-            conn.execute("ALTER TABLE assignments ADD COLUMN is_psi INTEGER NOT NULL DEFAULT 0")
-        except Exception:
-            pass
-        try:
-            conn.execute("ALTER TABLE assignments ADD COLUMN time_spent TEXT")
-        except Exception:
-            pass
-        try:
-            conn.execute("ALTER TABLE employees ADD COLUMN password_hash TEXT")
-        except Exception:
-            pass
+        # Сотрудник по умолчанию для первого входа (пароль можно сменить в настройках).
+        # INSERT OR IGNORE полагается на UNIQUE(last_name, first_name, middle_name) — безопасно
+        # выполнять при каждом запуске, не создаёт дублей. middle_name='' (не NULL): NULL никогда
+        # не считается равным другому NULL в UNIQUE-констрейнте, так что с NULL проверка бы не сработала.
+        conn.execute(
+            "INSERT OR IGNORE INTO employees (last_name, first_name, middle_name, password_hash) VALUES (?, ?, ?, ?)",
+            ('Администратор', '', '', auth.hash_password('q12345678'))
+        )
         conn.commit()

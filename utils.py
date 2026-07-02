@@ -3,8 +3,10 @@ def format_employee_name(last_name, first_name, middle_name=None):
     Форматирует ФИО сотрудника в формат: Фамилия И.О.
     Пример: Иванов И.И.
     """
-    if not last_name or not first_name:
+    if not last_name:
         return ''
+    if not first_name:
+        return last_name
 
     # Берем первую букву имени с точкой
     first_initial = first_name[0].upper() + '.'

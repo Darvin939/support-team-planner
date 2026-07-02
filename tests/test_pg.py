@@ -142,7 +142,8 @@ class TestPostgresBackendInterface(unittest.TestCase):
         conn = MagicMock()
         b.init_schema(conn)
         from db.postgres import _PG_SCHEMA_STMTS
-        self.assertEqual(conn.execute.call_count, 1 + len(_PG_SCHEMA_STMTS))
+        # +1 для fuzzy_word_in, +1 для seed-вставки сотрудника по умолчанию (INSERT OR IGNORE)
+        self.assertEqual(conn.execute.call_count, 2 + len(_PG_SCHEMA_STMTS))
 
 
 # ── интеграционный тест ──────────────────────────────────────────────────────

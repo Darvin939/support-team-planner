@@ -165,10 +165,13 @@ Two separate status machines coexist — do not confuse them:
   `/api/active-assignments/{team_id}` (team_id=0 for all teams)
 - **Authentication**: per-employee login (no roles) via `GET/POST /login` and `POST /logout`. The whole app (pages and
   `/api/*`) sits behind the `require_login` middleware in `support_planner.py` except `/login`, `/logout`, and
-  `/static/*`. There's no self-service signup or "first admin" bootstrap flow — a brand-new `employees` row has
-  `password_hash = NULL` and simply cannot log in until someone sets a password for it directly (via the Settings
-  employee modal, itself gated by login — so the very first password has to be seeded straight into the DB, e.g.
-  `UPDATE employees SET password_hash = ... WHERE id = ...` using a hash from `auth.hash_password()`).
+  `/static/*`. There's no self-service signup, but there is a bootstrap account: `SQLiteBackend.init_schema()` /
+  `PostgresBackend.init_schema()` both seed an `employees` row named `Администратор` (empty first/middle name) with
+  password `q123456789` via `INSERT OR IGNORE`, on every startup. This relies on `middle_name` being `''` rather than
+  `NULL` in that seed row — `UNIQUE(last_name, first_name, middle_name)` never treats two `NULL`s as equal, so a `NULL`
+  `middle_name` would silently defeat the `OR IGNORE` dedup and create a fresh duplicate admin row on every restart.
+  Any other brand-new `employees` row still starts with `password_hash = NULL` and can't log in until a password is
+  set for it via the Settings employee modal (which itself requires being logged in as someone else first).
 - **Change history**: every create/update/delete on a task or assignment is logged (see `task_history`/
   `assignment_history` above), attributed to whichever employee is in the current session (`changed_by`, nullable —
   history rows from before the login feature existed, or written with no session, have `changed_by_employee_id = NULL`).
