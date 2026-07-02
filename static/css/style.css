@@ -1576,6 +1576,44 @@ h1, h2, h3 {
 /* ------------------------------------------------------------
    13. Настройки (команды, сотрудники, фриз-дни)
    ------------------------------------------------------------ */
+.settings-tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+}
+
+.tab-button {
+    padding: 10px 18px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-3);
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.tab-button:hover {
+    color: var(--text);
+}
+
+.tab-button.active {
+    color: var(--text);
+    border-bottom-color: var(--primary);
+    font-weight: 500;
+}
+
+.tab-panel {
+    display: none;
+}
+
+.tab-panel.active {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
 .settings-container {
     display: grid;
     gap: 20px;

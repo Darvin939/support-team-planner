@@ -550,3 +550,18 @@ function deleteFreezeMonth(month) {
 }
 
 renderFreezeMonthsGrid();
+
+// === ВКЛАДКИ ===
+
+const SETTINGS_TAB_KEY = 'settingsActiveTab';
+
+function switchSettingsTab(tab) {
+    document.querySelectorAll('.tab-button').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
+    document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('active', panel.dataset.tabPanel === tab));
+    localStorage.setItem(SETTINGS_TAB_KEY, tab);
+}
+
+const savedSettingsTab = localStorage.getItem(SETTINGS_TAB_KEY);
+if (savedSettingsTab && document.querySelector(`.tab-button[data-tab="${savedSettingsTab}"]`)) {
+    switchSettingsTab(savedSettingsTab);
+}

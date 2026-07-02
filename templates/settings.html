@@ -11,8 +11,16 @@
     <h1>Настройки</h1>
 </div>
 
+<div class="settings-tabs">
+    <button class="tab-button active" data-tab="teams" onclick="switchSettingsTab('teams')">Команды</button>
+    <button class="tab-button" data-tab="employees" onclick="switchSettingsTab('employees')">Сотрудники</button>
+    <button class="tab-button" data-tab="blocks" onclick="switchSettingsTab('blocks')">Блоки и шаблоны</button>
+    <button class="tab-button" data-tab="freeze" onclick="switchSettingsTab('freeze')">Дни фриза</button>
+</div>
+
 <div class="settings-container">
     <!-- Команды -->
+    <div class="tab-panel active" data-tab-panel="teams">
     <div class="settings-section">
         <h2>Команды</h2>
         <div class="add-form">
@@ -40,6 +48,7 @@
             </div>
             {% endfor %}
         </div>
+    </div>
     </div>
 
     <!-- Модальное окно команды -->
@@ -71,6 +80,7 @@
     </div>
 
     <!-- Сотрудники -->
+    <div class="tab-panel" data-tab-panel="employees">
     <div class="settings-section">
         <h2>Сотрудники</h2>
         <div class="add-form">
@@ -89,6 +99,7 @@
             </li>
             {% endfor %}
         </ul>
+    </div>
     </div>
 
     <!-- Модальное окно сотрудника -->
@@ -123,6 +134,7 @@
     </div>
 
     <!-- Блоки -->
+    <div class="tab-panel" data-tab-panel="blocks">
     <div class="settings-section">
         <h2>Блоки раскатки</h2>
         <div class="add-form">
@@ -175,6 +187,7 @@
             {% endfor %}
         </div>
     </div>
+    </div>
 
     <!-- Модальное окно шаблона -->
     <div class="modal" id="templateModal">
@@ -206,6 +219,7 @@
     </div>
 
     <!-- Дни фриза -->
+    <div class="tab-panel" data-tab-panel="freeze">
     <div class="settings-section">
         <h2>Дни фриза</h2>
         <div class="add-form">
@@ -214,6 +228,7 @@
             </div>
         </div>
         <div id="freezeMonthsGrid" class="freeze-months-grid"></div>
+    </div>
     </div>
 
     <!-- Модальное окно дней фриза (календарь месяца) -->
