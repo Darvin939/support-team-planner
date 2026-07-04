@@ -329,7 +329,7 @@
                 </select>
             </div>
 
-            <div class="form-group">
+            <div class="form-group" id="taskDepsGroup">
                 <label>Зависит от</label>
                 <div id="taskDepsList" class="deps-list"></div>
             </div>
@@ -337,7 +337,7 @@
             <div class="form-actions">
                 <button type="submit" class="btn btn-success" id="saveTaskBtn">Создать</button>
                 <button type="submit" class="btn btn-primary" id="updateTaskBtn">Обновить</button>
-                <button type="button" class="btn btn-secondary" onclick="closeModal('taskModal')">Отмена</button>
+                <button type="button" class="btn btn-secondary" id="taskCancelBtn" onclick="closeModal('taskModal')">Отмена</button>
             </div>
         </form>
         </div>

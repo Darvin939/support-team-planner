@@ -43,6 +43,7 @@ _SCHEMA = '''
         description text,
         criticality text NOT NULL DEFAULT 'medium',
         task_status TEXT NOT NULL DEFAULT 'new',
+        is_deleted INTEGER NOT NULL DEFAULT 0,
         FOREIGN key (team_id) REFERENCES teams (id) ON DELETE cascade
     );
 
@@ -56,9 +57,9 @@ _SCHEMA = '''
         comment text,
         is_psi INTEGER NOT NULL DEFAULT 0,
         time_spent text,
+        is_deleted INTEGER NOT NULL DEFAULT 0,
         FOREIGN key (task_id) REFERENCES tasks (id) ON DELETE cascade,
-        FOREIGN key (employee_id) REFERENCES employees (id),
-        UNIQUE (task_id, date)
+        FOREIGN key (employee_id) REFERENCES employees (id)
     );
 
     CREATE TABLE IF NOT EXISTS task_dependencies (
@@ -93,8 +94,10 @@ _SCHEMA = '''
         PRIMARY KEY(team_id, template_id)
     );
 
-    -- Таблицы истории изменений намеренно без FOREIGN KEY на task_id/assignment_id/changed_by_employee_id:
-    -- запись истории должна пережить удаление задачи/назначения/сотрудника, который она описывает.
+    -- Задачи/назначения теперь не удаляются физически (см. tasks.is_deleted/assignments.is_deleted) — это делает
+    -- FK на таблицы истории безопасным: запись истории переживёт "удаление" задачи/назначения, потому что строка
+    -- на самом деле никуда не девается. FK на changed_by_employee_id — ON DELETE SET NULL, а не CASCADE: сотрудников
+    -- по-прежнему физически удаляют (delete_employee), и запись истории должна остаться, просто без автора.
     CREATE TABLE IF NOT EXISTS task_history (
         id                     INTEGER PRIMARY KEY AUTOINCREMENT,
         task_id                INTEGER NOT NULL,
@@ -103,7 +106,9 @@ _SCHEMA = '''
         old_value              TEXT,
         new_value              TEXT,
         changed_at             TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        changed_by_employee_id INTEGER
+        changed_by_employee_id INTEGER,
+        FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE CASCADE,
+        FOREIGN KEY (changed_by_employee_id) REFERENCES employees (id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS assignment_history (
@@ -116,7 +121,10 @@ _SCHEMA = '''
         old_value              TEXT,
         new_value              TEXT,
         changed_at             TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        changed_by_employee_id INTEGER
+        changed_by_employee_id INTEGER,
+        FOREIGN KEY (assignment_id) REFERENCES assignments (id) ON DELETE CASCADE,
+        FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE CASCADE,
+        FOREIGN KEY (changed_by_employee_id) REFERENCES employees (id) ON DELETE SET NULL
     );
 
     CREATE INDEX IF NOT EXISTS idx_task_history_task_id ON task_history (task_id);
@@ -127,6 +135,7 @@ _SCHEMA = '''
     CREATE index if NOT EXISTS idx_assignments_date ON assignments (date);
     CREATE index if NOT EXISTS idx_assignments_status ON assignments (status);
     CREATE index if NOT EXISTS idx_tasks_team_id ON tasks (team_id);
+    CREATE UNIQUE INDEX if NOT EXISTS ux_assignments_task_date ON assignments (task_id, date) WHERE is_deleted = 0;
 '''
 # @formatter:on
 

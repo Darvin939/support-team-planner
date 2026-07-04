@@ -35,7 +35,13 @@ async def require_login(request: Request, call_next):
     path = request.url.path
     if path in _PUBLIC_PATHS or path.startswith('/static/'):
         return await call_next(request)
-    if not request.session.get('employee_id'):
+    employee_id = request.session.get('employee_id')
+    if not employee_id or not db.employee_exists(employee_id):
+        # Сессия может ссылаться на сотрудника, которого больше нет (удалили, БД пересоздали) —
+        # обращаемся с этим так же, как с отсутствием сессии, а не пропускаем дальше: иначе запись
+        # в task_history/assignment_history упадёт с FOREIGN KEY constraint failed при первом же
+        # создании/изменении задачи или назначения.
+        request.session.clear()
         if path.startswith('/api/'):
             return JSONResponse({'error': 'Не авторизован'}, status_code=401)
         return RedirectResponse(url='/login', status_code=302)
@@ -234,6 +240,29 @@ def statistics_page(request: Request):
     })
 
 
+@app.get('/journal', response_class=HTMLResponse)
+def journal_select(request: Request):
+    """Страница журнала изменений — выбор команды"""
+    teams = db.get_all_teams()
+    return templates.TemplateResponse(request, 'history.html', {
+        'teams': teams,
+        'team': None,
+    })
+
+
+@app.get('/journal/{team_id}', response_class=HTMLResponse)
+def journal_page(request: Request, team_id: int):
+    """Журнал изменений команды"""
+    teams = db.get_all_teams()
+    team = db.get_team_by_id(team_id)
+    if not team:
+        return RedirectResponse(url='/journal?invalid_team=1', status_code=302)
+    return templates.TemplateResponse(request, 'history.html', {
+        'teams': teams,
+        'team': team,
+    })
+
+
 # === API для назначений ===
 
 @app.get('/api/assignments/{team_id}')
@@ -282,7 +311,7 @@ def save_assignment_api(request: Request, data: AssignmentIn):
         return JSONResponse({'error': 'Task not found'}, status_code=404)
 
     task = db.get_task_status(data.task_id)
-    if task and task['task_status'] in ('done', 'cancelled'):
+    if task and (task['task_status'] in ('done', 'cancelled') or task['is_deleted']):
         return JSONResponse({'error': 'Нельзя изменять назначения завершённой или отменённой задачи'}, status_code=400)
 
     changed_by = request.session.get('employee_id')
@@ -297,7 +326,7 @@ def save_assignment_api(request: Request, data: AssignmentIn):
 def delete_assignment_api(request: Request, assignment_id: int):
     """API для удаления назначения"""
     task = db.get_task_status_by_assignment(assignment_id)
-    if task and task['task_status'] in ('done', 'cancelled'):
+    if task and (task['task_status'] in ('done', 'cancelled') or task['is_deleted']):
         return JSONResponse({'error': 'Нельзя изменять назначения завершённой или отменённой задачи'}, status_code=400)
     db.delete_assignment(assignment_id, changed_by=request.session.get('employee_id'))
     return {'success': True}
@@ -338,7 +367,7 @@ def save_task_api(request: Request, data: TaskIn):
 
     if data.task_id:
         task = db.get_task_status(data.task_id)
-        if task and task['task_status'] in ('done', 'cancelled'):
+        if task and (task['task_status'] in ('done', 'cancelled') or task['is_deleted']):
             return JSONResponse({'error': 'Нельзя редактировать завершённую или отменённую задачу'}, status_code=400)
 
     task_id = int(db.create_or_update_task(data.task_id, data.team_id, name, description, data.criticality,
@@ -356,8 +385,8 @@ def save_task_api(request: Request, data: TaskIn):
 def get_team_deps(team_id: int, task_ids: Optional[str] = None):
     parsed_task_ids = [int(x) for x in task_ids.split(',') if x.strip()] if task_ids else None
     rows = db.get_all_deps_for_team(team_id, task_ids=parsed_task_ids)
-    return [{'task_id': r['task_id'], 'dep_id': r['dep_id'],
-             'dep_name': r['dep_name'], 'dep_status': r['dep_status']} for r in rows]
+    return [{'task_id': r['task_id'], 'dep_id': r['dep_id'], 'dep_name': r['dep_name'],
+             'dep_status': r['dep_status'], 'dep_is_deleted': bool(r['dep_is_deleted'])} for r in rows]
 
 
 @app.get('/api/tasks/{team_id}/active-list')
@@ -371,7 +400,7 @@ def get_active_tasks_list(team_id: int):
 def delete_task_api(request: Request, task_id: int):
     """API для удаления задачи"""
     task = db.get_task_status(task_id)
-    if task and task['task_status'] in ('done', 'cancelled'):
+    if task and (task['task_status'] in ('done', 'cancelled') or task['is_deleted']):
         return JSONResponse({'error': 'Нельзя удалить завершённую или отменённую задачу'}, status_code=400)
     db.delete_task(task_id, changed_by=request.session.get('employee_id'))
     return {'success': True}
@@ -397,6 +426,15 @@ def get_task_history_api(task_id: int, offset: int = 0, limit: int = 20):
     return {
         'history': db.get_task_full_history(task_id, offset=offset, limit=limit),
         'total': db.get_task_full_history_count(task_id)
+    }
+
+
+@app.get('/api/journal/{team_id}')
+def get_team_history_api(team_id: int, offset: int = 0, limit: int = 50):
+    """Журнал изменений команды: все изменения задач и назначений (с пагинацией)"""
+    return {
+        'items': db.get_team_history(team_id, offset=offset, limit=limit),
+        'total': db.get_team_history_count(team_id)
     }
 
 

@@ -112,11 +112,6 @@ function deleteTeam(teamId) {
         .catch(() => alert('Ошибка при удалении команды'));
 }
 
-function closeModal(modalId) {
-    document.getElementById(modalId).style.display = 'none';
-    unlockBodyScroll();
-}
-
 // === СОТРУДНИКИ ===
 
 let employeesData = settingsInit.employees || [];

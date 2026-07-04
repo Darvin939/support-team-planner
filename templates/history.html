@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}{% if team %}Журнал изменений - {{ team.name }}{% else %}Журнал изменений{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Журнал изменений</h1>
+</div>
+
+<div class="team-selector">
+    <label for="teamSelect">Команда:</label>
+    <select id="teamSelect" onchange="saveTeamId(this.value); if(this.value) window.location.href='/journal/'+this.value; else window.location.href='/journal'">
+        <option value="">-- Выберите команду --</option>
+        {% for t in teams %}
+        <option value="{{ t.id }}" {% if team and team.id == t.id %}selected{% endif %}>{{ t.name }}</option>
+        {% endfor %}
+    </select>
+</div>
+
+{% if team %}
+<script id="journalData" type="application/json">
+{"team_id": {{ team.id }}}
+</script>
+
+<p class="hint">Все изменения задач и назначений команды «{{ team.name }}», включая удалённые. Новые сверху.</p>
+
+<div id="journalPaginationTop" class="pagination-container"></div>
+<div id="journalList" class="journal-list"></div>
+<div id="journalPagination" class="pagination-container"></div>
+
+<!-- Модальное окно просмотра истории конкретной задачи (только чтение — переход из строки журнала) -->
+<div class="modal" id="journalTaskModal">
+    <div class="modal-content journal-history-modal" id="journalModalContent">
+        <div class="modal-header">
+            <h2 id="journalModalTitle">История задачи</h2>
+            <span class="modal-close" onclick="closeModal('journalTaskModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="journalTaskId" value="">
+            <div id="journalHistoryList" class="history-list"></div>
+            <div id="journalHistoryPagination" class="history-pagination"></div>
+        </div>
+    </div>
+</div>
+{% else %}
+<p class="empty-state-hint">Выберите команду, чтобы посмотреть журнал изменений</p>
+<script>
+    if (new URLSearchParams(window.location.search).has('invalid_team')) {
+        localStorage.removeItem('selectedTeamId');
+    } else {
+        const savedTeam = localStorage.getItem('selectedTeamId');
+        if (savedTeam && savedTeam !== '0') window.location.replace('/journal/' + savedTeam);
+    }
+</script>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/history.js"></script>
+{% endblock %}

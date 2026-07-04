@@ -253,6 +253,7 @@ h1, h2, h3 {
 }
 
 .form-group input:read-only,
+.form-group textarea:read-only,
 .form-group select:disabled {
     background: var(--surface-2);
     cursor: not-allowed;
@@ -1428,6 +1429,7 @@ h1, h2, h3 {
 
 .dep-badge-cancelled { background: rgba(196, 30, 30, 0.10); color: var(--danger); }
 .dep-badge-pending   { background: rgba(204, 122, 0, 0.10);  color: var(--crit-mid); }
+.dep-badge-deleted   { background: rgba(0, 0, 0, 0.08);      color: var(--text-3); }
 
 .dep-tooltip {
     display: none;
@@ -1967,6 +1969,17 @@ h1, h2, h3 {
     max-width: 940px;
 }
 
+/* Модалка «История задачи» на странице журнала — история видна всегда (нет кнопки-
+   переключателя), поэтому ей не подходит .modal-content-with-history (создан для
+   переключения ширины 500px/940px по кнопке) — нужна собственная, сразу широкая, ширина. */
+.journal-history-modal {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    max-width: 700px;
+    height: min(650px, 90vh);
+}
+
 .modal-header-actions {
     display: flex;
     align-items: center;
@@ -2090,7 +2103,48 @@ h1, h2, h3 {
 }
 
 /* ------------------------------------------------------------
-   16. Страница входа
+   16. Журнал изменений (страница /journal)
+   ------------------------------------------------------------ */
+.journal-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.journal-item {
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+    font-size: 0.9rem;
+}
+
+.journal-item:hover {
+    background: var(--surface-2);
+    border-color: var(--primary);
+}
+
+.journal-deleted-tag {
+    display: inline-block;
+    font-size: 0.75rem;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.08);
+    color: var(--text-3);
+    margin-left: 4px;
+}
+
+#journalModalContent .modal-body {
+    flex-direction: column;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+/* ------------------------------------------------------------
+   17. Страница входа
    ------------------------------------------------------------ */
 .login-container {
     min-height: 80vh;
@@ -2124,7 +2178,7 @@ h1, h2, h3 {
 }
 
 /* ------------------------------------------------------------
-   17. Адаптивность
+   18. Адаптивность
    ------------------------------------------------------------ */
 @media (max-width: 768px) {
     .nav-menu {

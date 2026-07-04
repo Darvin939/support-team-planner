@@ -260,6 +260,13 @@ def delete_template(conn, template_id):
 
 # === EMPLOYEES CRUD ===
 @with_db_connection(commit_on_success=False)
+def employee_exists(conn, employee_id):
+    """Проверить существование сотрудника (используется для валидации сессии в require_login —
+    сессия может пережить удаление сотрудника или пересоздание БД)"""
+    return conn.execute('SELECT 1 FROM employees WHERE id = ?', (employee_id,)).fetchone()
+
+
+@with_db_connection(commit_on_success=False)
 def get_all_employees(conn):
     """Получить всех сотрудников"""
     employees = conn.execute(
@@ -409,6 +416,7 @@ def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, show_compl
         f'''SELECT id, name, description, criticality, task_status
             FROM tasks
             WHERE team_id = ?
+              AND is_deleted = 0
             {completed_clause}
             {search_clause}
             ORDER BY CASE criticality
@@ -448,7 +456,7 @@ def get_tasks_count_by_team(conn, team_id, search=None, show_completed=False):
     else:
         search_clause = ""
     return conn.execute(
-        f"SELECT COUNT(*) FROM tasks WHERE team_id = ? {completed_clause} {search_clause}",
+        f"SELECT COUNT(*) FROM tasks WHERE team_id = ? AND is_deleted = 0 {completed_clause} {search_clause}",
         params
     ).fetchone()[0]
 
@@ -471,8 +479,8 @@ def _record_assignment_history(conn, assignment_id, task_id, date_str, action, f
 
 @with_db_connection(commit_on_success=False)
 def task_exists(conn, task_id):
-    """Проверить существование задачи"""
-    return conn.execute('SELECT 1 FROM tasks WHERE id = ?', (task_id,)).fetchone()
+    """Проверить существование (неудалённой) задачи"""
+    return conn.execute('SELECT 1 FROM tasks WHERE id = ? AND is_deleted = 0', (task_id,)).fetchone()
 
 
 @with_db_connection(commit_on_success=False)
@@ -509,30 +517,33 @@ def create_or_update_task(conn, task_id, team_id, name, description, criticality
 
 @with_db_connection()
 def delete_task(conn, task_id, changed_by=None):
-    """Удалить задачу"""
-    task = conn.execute('SELECT * FROM tasks WHERE id = ?', (task_id,)).fetchone()
-    if task:
-        assignments = conn.execute('SELECT * FROM assignments WHERE task_id = ?', (task_id,)).fetchall()
-        for a in assignments:
-            snapshot = json.dumps({k: a[k] for k in a.keys()}, ensure_ascii=False, default=str)
-            _record_assignment_history(conn, a['id'], task_id, a['date'], 'delete',
-                                        old_value=snapshot, changed_by=changed_by)
-        snapshot = json.dumps({k: task[k] for k in task.keys()}, ensure_ascii=False, default=str)
-        _record_task_history(conn, task_id, 'delete', old_value=snapshot, changed_by=changed_by)
-    conn.execute('DELETE FROM tasks WHERE id = ?', (task_id,))
+    """Мягко удалить задачу (is_deleted=1, без физического DELETE) вместе со всеми её назначениями"""
+    task = conn.execute('SELECT is_deleted FROM tasks WHERE id = ?', (task_id,)).fetchone()
+    if not task or task['is_deleted']:
+        return  # не существует или уже удалена — идемпотентно
+    _record_task_history(conn, task_id, 'update', field_name='is_deleted',
+                          old_value='0', new_value='1', changed_by=changed_by)
+    conn.execute('UPDATE tasks SET is_deleted = 1 WHERE id = ?', (task_id,))
+    assignments = conn.execute(
+        'SELECT id, date FROM assignments WHERE task_id = ? AND is_deleted = 0', (task_id,)
+    ).fetchall()
+    for a in assignments:
+        _record_assignment_history(conn, a['id'], task_id, a['date'], 'update', field_name='is_deleted',
+                                    old_value='0', new_value='1', changed_by=changed_by)
+    conn.execute('UPDATE assignments SET is_deleted = 1 WHERE task_id = ? AND is_deleted = 0', (task_id,))
 
 
 @with_db_connection(commit_on_success=False)
 def get_task_status(conn, task_id):
-    """Получить текущий статус задачи"""
-    return conn.execute('SELECT task_status FROM tasks WHERE id = ?', (task_id,)).fetchone()
+    """Получить текущий статус задачи и признак удаления"""
+    return conn.execute('SELECT task_status, is_deleted FROM tasks WHERE id = ?', (task_id,)).fetchone()
 
 
 @with_db_connection(commit_on_success=False)
 def get_task_status_by_assignment(conn, assignment_id):
-    """Получить статус задачи по ID назначения"""
+    """Получить статус задачи и признак её удаления по ID назначения"""
     return conn.execute(
-        'SELECT t.task_status FROM assignments a JOIN tasks t ON a.task_id = t.id WHERE a.id = ?',
+        'SELECT t.task_status, t.is_deleted FROM assignments a JOIN tasks t ON a.task_id = t.id WHERE a.id = ?',
         (assignment_id,)
     ).fetchone()
 
@@ -570,7 +581,7 @@ def get_all_deps_for_team(conn, team_id, task_ids=None):
         return []
     # @formatter:off
     query = '''SELECT td.task_id, td.depends_on_task_id AS dep_id,
-                      dep.name AS dep_name, dep.task_status AS dep_status
+                      dep.name AS dep_name, dep.task_status AS dep_status, dep.is_deleted AS dep_is_deleted
                FROM task_dependencies td
                JOIN tasks src ON td.task_id            = src.id
                JOIN tasks dep ON td.depends_on_task_id = dep.id
@@ -619,7 +630,7 @@ def has_dependency_cycle(conn, task_id, new_dep_ids):
 def get_active_tasks_flat(conn, team_id):
     return conn.execute(
         "SELECT id, name, task_status, criticality FROM tasks"
-        " WHERE team_id = ? AND task_status NOT IN ('done', 'cancelled') ORDER BY name",
+        " WHERE team_id = ? AND is_deleted = 0 AND task_status NOT IN ('done', 'cancelled') ORDER BY name",
         (team_id,)
     ).fetchall()
 
@@ -644,7 +655,8 @@ def get_assignment(conn, task_id, date_str):
            FROM assignments a
                     LEFT JOIN employees e ON a.employee_id = e.id
            WHERE a.task_id = ?
-             AND a.date = ?''',
+             AND a.date = ?
+             AND a.is_deleted = 0''',
         (task_id, date_str)
     ).fetchone()
 
@@ -671,6 +683,7 @@ def get_assignments_by_team_in_period(conn, team_id, start_date, end_date, task_
                         JOIN tasks t ON a.task_id = t.id
                         LEFT JOIN employees e ON a.employee_id = e.id
                WHERE t.team_id = ?
+                 AND a.is_deleted = 0
                  AND a.date BETWEEN ? AND ?'''
     # @formatter:on
     params = [team_id, start_date, end_date]
@@ -724,13 +737,15 @@ def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, s
 
 @with_db_connection()
 def delete_assignment(conn, assignment_id, changed_by=None):
-    """Удалить назначение"""
-    assignment = conn.execute('SELECT * FROM assignments WHERE id = ?', (assignment_id,)).fetchone()
-    if assignment:
-        snapshot = json.dumps({k: assignment[k] for k in assignment.keys()}, ensure_ascii=False, default=str)
-        _record_assignment_history(conn, assignment_id, assignment['task_id'], assignment['date'], 'delete',
-                                    old_value=snapshot, changed_by=changed_by)
-    conn.execute('DELETE FROM assignments WHERE id = ?', (assignment_id,))
+    """Мягко удалить назначение (is_deleted=1, без физического DELETE)"""
+    row = conn.execute(
+        'SELECT task_id, date, is_deleted FROM assignments WHERE id = ?', (assignment_id,)
+    ).fetchone()
+    if not row or row['is_deleted']:
+        return  # не существует или уже удалено — идемпотентно
+    _record_assignment_history(conn, assignment_id, row['task_id'], row['date'], 'update', field_name='is_deleted',
+                                old_value='0', new_value='1', changed_by=changed_by)
+    conn.execute('UPDATE assignments SET is_deleted = 1 WHERE id = ?', (assignment_id,))
 
 
 # === STATISTICS ===
@@ -749,7 +764,9 @@ def get_active_assignments_in_period(conn, team_id, start_date, end_date, team_i
                    JOIN teams tm ON t.team_id = tm.id
                    LEFT JOIN employees e ON a.employee_id = e.id
                WHERE a.status IN ('new', 'planned')
+                 AND a.is_deleted = 0
                  AND t.task_status NOT IN ('done', 'cancelled')
+                 AND t.is_deleted = 0
                  AND a.date BETWEEN ? AND ?'''
     # @formatter:on
     params = [start_date, end_date]
@@ -861,6 +878,59 @@ def get_task_full_history_count(conn, task_id):
         '''SELECT (SELECT COUNT(*) FROM task_history WHERE task_id = ?) +
                   (SELECT COUNT(*) FROM assignment_history WHERE task_id = ?) AS count''',
         (task_id, task_id)
+    ).fetchone()
+    return row['count']
+
+
+@with_db_connection(commit_on_success=False)
+def get_team_history(conn, team_id, offset=0, limit=50):
+    """Журнал изменений команды: все изменения задач и назначений по всем задачам команды
+    (включая удалённые задачи/назначения — is_deleted теперь отдельный флаг, а не физическое
+    удаление, поэтому JOIN на tasks/assignments безопасен и не требует восстановления из JSON).
+    Новые записи сверху."""
+    # @formatter:off
+    rows = conn.execute(
+        '''SELECT * FROM (
+               SELECT th.id AS id, th.task_id AS task_id, NULL AS assignment_id, NULL AS date,
+                      th.action AS action, th.field_name AS field_name, th.old_value AS old_value,
+                      th.new_value AS new_value, th.changed_at AS changed_at,
+                      th.changed_by_employee_id AS changed_by_employee_id, 'task' AS entity,
+                      t.name AS task_name, t.is_deleted AS task_is_deleted,
+                      e.last_name AS changed_by_last_name, e.first_name AS changed_by_first_name,
+                      e.middle_name AS changed_by_middle_name
+               FROM task_history th
+                   JOIN tasks t ON th.task_id = t.id
+                   LEFT JOIN employees e ON th.changed_by_employee_id = e.id
+               WHERE t.team_id = ?
+               UNION ALL
+               SELECT ah.id AS id, ah.task_id AS task_id, ah.assignment_id AS assignment_id, ah.date AS date,
+                      ah.action AS action, ah.field_name AS field_name, ah.old_value AS old_value,
+                      ah.new_value AS new_value, ah.changed_at AS changed_at,
+                      ah.changed_by_employee_id AS changed_by_employee_id, 'assignment' AS entity,
+                      t.name AS task_name, t.is_deleted AS task_is_deleted,
+                      e.last_name AS changed_by_last_name, e.first_name AS changed_by_first_name,
+                      e.middle_name AS changed_by_middle_name
+               FROM assignment_history ah
+                   JOIN tasks t ON ah.task_id = t.id
+                   LEFT JOIN employees e ON ah.changed_by_employee_id = e.id
+               WHERE t.team_id = ?
+           ) combined
+           ORDER BY changed_at DESC, id DESC
+           LIMIT ? OFFSET ?''',
+        (team_id, team_id, limit, offset)
+    ).fetchall()
+    # @formatter:on
+    return [dict(r) for r in rows]
+
+
+@with_db_connection(commit_on_success=False)
+def get_team_history_count(conn, team_id):
+    """Общее количество записей журнала изменений команды (для пагинации)"""
+    row = conn.execute(
+        '''SELECT (SELECT COUNT(*) FROM task_history th JOIN tasks t ON th.task_id = t.id WHERE t.team_id = ?) +
+                  (SELECT COUNT(*) FROM assignment_history ah JOIN tasks t ON ah.task_id = t.id
+                   WHERE t.team_id = ?) AS count''',
+        (team_id, team_id)
     ).fetchone()
     return row['count']
 

@@ -16,14 +16,6 @@ let totalTasksCount = 0;
 let searchDebounceTimer = null;
 let showCompleted = false;
 
-const TASK_STATUS_LABELS = {
-    new: 'Новый',
-    ready: 'К планированию',
-    in_progress: 'В работе',
-    done: 'Выполнено',
-    cancelled: 'Отменено'
-};
-
 const VALID_TASK_TRANSITIONS = {
     new: ['ready', 'in_progress', 'cancelled'],
     ready: ['in_progress', 'cancelled'],
@@ -34,15 +26,6 @@ const VALID_TASK_TRANSITIONS = {
 let autoAssignDates = {};      // blockId -> dateStr
 let autoAssignBaseDate = null;
 let autoAssignSelected = null; // id блока, "взятого в руки" для перемещения
-
-const statusMap = {
-    'new': 'Новый',
-    'planned': 'Запланировано',
-    'rollback': 'Откат',
-    'success': 'Успешно'
-};
-
-const CRITICALITY_LABELS = {high: 'Высокая', medium: 'Средняя', low: 'Низкая'};
 
 const DEP_STATUS_LABELS = {
     new: 'Новый', ready: 'К планированию', in_progress: 'В работе',
@@ -373,8 +356,13 @@ function renderTable() {
         let depWarning = '';
         const deps = depsData[task.id] || [];
         if (deps.length > 0) {
-            const cancelled = deps.filter(d => d.dep_status === 'cancelled');
-            const pending   = deps.filter(d => d.dep_status !== 'done' && d.dep_status !== 'cancelled');
+            const deleted   = deps.filter(d => d.dep_is_deleted);
+            const cancelled = deps.filter(d => !d.dep_is_deleted && d.dep_status === 'cancelled');
+            const pending   = deps.filter(d => !d.dep_is_deleted && d.dep_status !== 'done' && d.dep_status !== 'cancelled');
+            if (deleted.length > 0) {
+                const names = JSON.stringify(deleted.map(d => d.dep_name));
+                depWarning += `<span class="dep-badge dep-badge-deleted" data-deps='${names}'>🗑 зависимость удалена: ${deleted.length}</span>`;
+            }
             if (cancelled.length > 0) {
                 const names = JSON.stringify(cancelled.map(d => d.dep_name));
                 depWarning += `<span class="dep-badge dep-badge-cancelled" data-deps='${names}'>⛔ зависимость отменена: ${cancelled.length}</span>`;
@@ -386,7 +374,7 @@ function renderTable() {
         }
 
         const isTerminal = taskStatus === 'done' || taskStatus === 'cancelled';
-        const editBtn = isTerminal ? '' : `<button class="btn-edit" onclick="openTaskModal(${task.id})" title="Редактировать">✏️</button>`;
+        const editBtn = `<button class="btn-edit" onclick="openTaskModal(${task.id})" title="${isTerminal ? 'Просмотр' : 'Редактировать'}">${isTerminal ? '👁️' : '✏️'}</button>`;
         const deleteBtn = isTerminal ? '' : `<button class="btn-delete" onclick="deleteTask(${task.id})" title="Удалить">🗑️</button>`;
 
         const infoCell = document.createElement('td');
@@ -517,31 +505,7 @@ function applyFilters() {
 
 function renderPagination() {
     const totalPages = Math.ceil(totalTasksCount / PAGE_SIZE);
-    const bottom = document.getElementById('pagination');
-    const top = document.getElementById('pagination-top');
-    if (totalPages <= 1) {
-        bottom.innerHTML = '';
-        top.innerHTML = '';
-        return;
-    }
-
-    const pagesToShow = new Set([1, totalPages]);
-    for (let p = currentPage - 1; p <= currentPage + 1; p++) {
-        if (p > 1 && p < totalPages) pagesToShow.add(p);
-    }
-    const sorted = [...pagesToShow].sort((a, b) => a - b);
-
-    let html = `<button class="page-btn" onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>←</button>`;
-    let prev = 0;
-    sorted.forEach(p => {
-        if (prev && p - prev > 1) html += `<span class="page-ellipsis">…</span>`;
-        html += `<button class="page-btn${p === currentPage ? ' active' : ''}" onclick="goToPage(${p})">${p}</button>`;
-        prev = p;
-    });
-    html += `<button class="page-btn" onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>→</button>`;
-
-    bottom.innerHTML = html;
-    top.innerHTML = html;
+    renderSmartPagination(['pagination-top', 'pagination'], currentPage, totalPages, 'goToPage');
 }
 
 function onShowCompletedChange() {
@@ -927,153 +891,6 @@ function toggleAutoAssign() {
     }
 }
 
-const HISTORY_FIELD_LABELS = {
-    name: 'Название', description: 'Описание', criticality: 'Критичность', task_status: 'Статус',
-    date: 'Дата', block: 'Блок', status: 'Статус', employee_id: 'Исполнитель',
-    comment: 'Комментарий', is_psi: 'ПСИ', time_spent: 'Время выполнения'
-};
-
-function getEmployeeName(employeeId) {
-    if (!employeeId) return '—';
-    const select = document.getElementById('assignmentEmployee');
-    const opt = select && Array.from(select.options).find(o => o.value === String(employeeId));
-    return opt ? opt.textContent.trim() : `#${employeeId}`;
-}
-
-function formatHistoryValue(field, value) {
-    if (value === null || value === undefined || value === '') return '—';
-    if (field === 'criticality') return CRITICALITY_LABELS[value] || value;
-    if (field === 'task_status') return TASK_STATUS_LABELS[value] || value;
-    if (field === 'status') return statusMap[value] || value;
-    if (field === 'employee_id') return getEmployeeName(value);
-    if (field === 'is_psi') return (value === '1' || value === 1 || value === true) ? 'Да' : 'Нет';
-    return value;
-}
-
-function renderHistoryEntries(entries, container, defaultEntity, showAssignmentContext) {
-    if (!entries || entries.length === 0) {
-        container.innerHTML = '<div class="history-empty">Изменений пока нет</div>';
-        return;
-    }
-
-    container.innerHTML = entries.map(e => {
-        const entity = e.entity || defaultEntity;
-        const isAssignmentRow = entity === 'assignment';
-        const who = e.changed_by_last_name
-            ? `${e.changed_by_last_name} ${(e.changed_by_first_name || '').charAt(0)}.${e.changed_by_middle_name ? e.changed_by_middle_name.charAt(0) + '.' : ''}`
-            : 'Система';
-
-        let text;
-        if (e.action === 'create') {
-            text = isAssignmentRow ? `Назначение на ${e.date} создано` : 'Задача создана';
-        } else if (e.action === 'delete') {
-            text = isAssignmentRow ? `Назначение на ${e.date} удалено` : 'Задача удалена';
-        } else {
-            const label = HISTORY_FIELD_LABELS[e.field_name] || e.field_name;
-            const changeText = `${label}: ${formatHistoryValue(e.field_name, e.old_value)} <span class="history-arrow">➜</span> ${formatHistoryValue(e.field_name, e.new_value)}`;
-            text = (showAssignmentContext && isAssignmentRow) ? `Назначение на ${e.date} — ${changeText}` : changeText;
-        }
-
-        const cls = showAssignmentContext && isAssignmentRow ? 'history-entry history-entry-assignment' : 'history-entry';
-        return `<div class="${cls}"><div class="history-entry-time">${e.changed_at} — ${who}</div><div>${text}</div></div>`;
-    }).join('');
-}
-
-const HISTORY_PAGE_SIZE = 10;
-const historyPanels = {
-    assignment: {open: false, offset: 0, total: 0},
-    task: {open: false, offset: 0, total: 0}
-};
-
-function historyPanelEl(kind) {
-    return {
-        panel: document.getElementById(kind === 'assignment' ? 'assignmentHistoryPanel' : 'taskHistoryPanel'),
-        modalContent: document.getElementById(kind === 'assignment' ? 'assignmentModalContent' : 'taskModalContent'),
-        toggleBtn: document.getElementById(kind === 'assignment' ? 'assignmentHistoryToggle' : 'taskHistoryToggle'),
-        list: document.getElementById(kind === 'assignment' ? 'assignmentHistoryList' : 'taskHistoryList'),
-        pagination: document.getElementById(kind === 'assignment' ? 'assignmentHistoryPagination' : 'taskHistoryPagination'),
-        id: kind === 'assignment' ? document.getElementById('assignmentId').value : document.getElementById('taskId').value
-    };
-}
-
-function resetHistoryPanel(kind) {
-    const state = historyPanels[kind];
-    state.open = false;
-    state.offset = 0;
-    state.total = 0;
-    const el = historyPanelEl(kind);
-    el.panel.classList.remove('open');
-    el.modalContent.classList.remove('history-open');
-    el.modalContent.style.height = '';
-    el.toggleBtn.classList.remove('active');
-    el.toggleBtn.textContent = '🕓 История';
-    el.list.innerHTML = '';
-    el.pagination.innerHTML = '';
-}
-
-function toggleHistoryPanel(kind) {
-    const state = historyPanels[kind];
-    const el = historyPanelEl(kind);
-
-    // Фиксируем естественную высоту модалки один раз, при первом раскрытии панели
-    // за это открытие модалки, и держим её неизменной до следующего resetHistoryPanel
-    // (открытия модалки заново). Так переключение истории туда-обратно меняет только
-    // ширину и не "растягивает" модалку при закрытии до того, как доиграет анимация ширины.
-    if (!el.modalContent.style.height) {
-        el.modalContent.style.height = el.modalContent.getBoundingClientRect().height + 'px';
-    }
-
-    state.open = !state.open;
-    el.panel.classList.toggle('open', state.open);
-    el.modalContent.classList.toggle('history-open', state.open);
-    el.toggleBtn.classList.toggle('active', state.open);
-    el.toggleBtn.textContent = state.open ? '✕ Скрыть историю' : '🕓 История';
-
-    if (state.open) {
-        loadHistoryPage(kind, 0);
-    }
-}
-
-function loadHistoryPage(kind, offset) {
-    const state = historyPanels[kind];
-    const el = historyPanelEl(kind);
-    if (!el.id) return;
-    state.offset = offset;
-    el.list.innerHTML = '<span class="hint">Загрузка...</span>';
-    el.pagination.innerHTML = '';
-
-    const url = kind === 'assignment'
-        ? `/api/assignment/${el.id}/history?offset=${offset}&limit=${HISTORY_PAGE_SIZE}`
-        : `/api/task/${el.id}/history?offset=${offset}&limit=${HISTORY_PAGE_SIZE}`;
-
-    fetch(url)
-        .then(r => r.json())
-        .then(data => {
-            state.total = data.total;
-            renderHistoryEntries(data.history, el.list, kind, kind === 'task');
-            renderHistoryPagination(kind);
-        })
-        .catch(() => { el.list.innerHTML = '<span class="hint">Ошибка загрузки истории</span>'; });
-}
-
-function renderHistoryPagination(kind) {
-    const state = historyPanels[kind];
-    const el = historyPanelEl(kind);
-    const totalPages = Math.ceil(state.total / HISTORY_PAGE_SIZE);
-    if (totalPages <= 1) {
-        el.pagination.innerHTML = '';
-        return;
-    }
-    const currentPage = Math.floor(state.offset / HISTORY_PAGE_SIZE) + 1;
-    const from = state.total === 0 ? 0 : state.offset + 1;
-    const to = Math.min(state.offset + HISTORY_PAGE_SIZE, state.total);
-    el.pagination.innerHTML = `
-        <button class="page-btn" onclick="loadHistoryPage('${kind}', ${Math.max(0, state.offset - HISTORY_PAGE_SIZE)})" ${currentPage === 1 ? 'disabled' : ''}>←</button>
-        <span>${from}–${to} из ${state.total}</span>
-        <button class="page-btn" onclick="loadHistoryPage('${kind}', ${state.offset + HISTORY_PAGE_SIZE})" ${currentPage === totalPages ? 'disabled' : ''}>→</button>
-    `;
-}
-
 function openAssignmentModal(taskId, dateStr) {
     const modal = document.getElementById('assignmentModal');
     const title = document.getElementById('modalTitle');
@@ -1293,24 +1110,30 @@ function deleteAssignment() {
         });
 }
 
+let taskModalReadOnly = false;
+
 function openTaskModal(taskId) {
     const modal = document.getElementById('taskModal');
     const taskIdField = document.getElementById('taskId');
     const taskNameField = document.getElementById('newTaskName');
     const taskDescriptionField = document.getElementById('newTaskDescription');
     const taskCriticalityField = document.getElementById('newTaskCriticality');
+    const depsGroup = document.getElementById('taskDepsGroup');
+    const cancelBtn = document.getElementById('taskCancelBtn');
 
     const saveBtn = document.getElementById('saveTaskBtn');
     const updateBtn = document.getElementById('updateTaskBtn');
 
     taskIdField.value = taskId;
     const task = tasksData.find(t => t.id === taskId);
+    taskModalReadOnly = !!task && (task.task_status === 'done' || task.task_status === 'cancelled');
+
     if (task) {
         taskNameField.value = task.name;
         taskDescriptionField.value = task.description;
         taskCriticalityField.value = task.criticality;
         saveBtn.style.display = 'none';
-        updateBtn.style.display = 'inline-block';
+        updateBtn.style.display = taskModalReadOnly ? 'none' : 'inline-block';
         resetHistoryPanel('task');
         document.getElementById('taskHistoryToggle').style.display = 'inline-block';
     } else {
@@ -1323,40 +1146,57 @@ function openTaskModal(taskId) {
         document.getElementById('taskHistoryToggle').style.display = 'none';
     }
 
-    currentDepIds = new Set((depsData[taskId] || []).map(d => d.dep_id));
-    const depsList = document.getElementById('taskDepsList');
-    depsList.innerHTML = '<span class="hint">Загрузка...</span>';
-    fetch(`/api/tasks/${teamId}/active-list`)
-        .then(r => r.json())
-        .then(all => {
-            depPickerAll = all.filter(t => t.id !== taskId);
-            if (depPickerAll.length === 0) {
-                depsList.innerHTML = '<span class="hint">Нет других работ</span>';
-                return;
-            }
-            depsList.innerHTML =
-                '<div class="deps-search-row">' +
-                    '<input type="text" id="depsSearch" class="deps-search" placeholder="Поиск...">' +
-                    '<button type="button" class="deps-search-clear" onclick="clearDepsSearch()" title="Очистить">×</button>' +
-                '</div>' +
-                '<div id="depsCheckboxes" class="deps-checkboxes"></div>';
-            document.getElementById('depsSearch').addEventListener('input', renderDepCheckboxes);
-            document.getElementById('depsCheckboxes').addEventListener('change', e => {
-                const cb = e.target.closest('.dep-checkbox');
-                if (!cb) return;
-                const id = parseInt(cb.value);
-                if (cb.checked) currentDepIds.add(id); else currentDepIds.delete(id);
-            });
-            renderDepCheckboxes();
-        })
-        .catch(() => { depsList.innerHTML = '<span class="hint">Ошибка загрузки</span>'; });
+    taskNameField.readOnly = taskModalReadOnly;
+    taskDescriptionField.readOnly = taskModalReadOnly;
+    taskCriticalityField.disabled = taskModalReadOnly;
+    cancelBtn.textContent = taskModalReadOnly ? 'Закрыть' : 'Отмена';
+
+    if (taskModalReadOnly) {
+        // Просмотр завершённой/отменённой задачи: зависимости менять нельзя,
+        // поэтому не делаем лишний запрос и не рендерим список.
+        depsGroup.style.display = 'none';
+    } else {
+        depsGroup.style.display = '';
+        currentDepIds = new Set((depsData[taskId] || []).map(d => d.dep_id));
+        const depsList = document.getElementById('taskDepsList');
+        depsList.innerHTML = '<span class="hint">Загрузка...</span>';
+        fetch(`/api/tasks/${teamId}/active-list`)
+            .then(r => r.json())
+            .then(all => {
+                depPickerAll = all.filter(t => t.id !== taskId);
+                if (depPickerAll.length === 0) {
+                    depsList.innerHTML = '<span class="hint">Нет других работ</span>';
+                    return;
+                }
+                depsList.innerHTML =
+                    '<div class="deps-search-row">' +
+                        '<input type="text" id="depsSearch" class="deps-search" placeholder="Поиск...">' +
+                        '<button type="button" class="deps-search-clear" onclick="clearDepsSearch()" title="Очистить">×</button>' +
+                    '</div>' +
+                    '<div id="depsCheckboxes" class="deps-checkboxes"></div>';
+                document.getElementById('depsSearch').addEventListener('input', renderDepCheckboxes);
+                document.getElementById('depsCheckboxes').addEventListener('change', e => {
+                    const cb = e.target.closest('.dep-checkbox');
+                    if (!cb) return;
+                    const id = parseInt(cb.value);
+                    if (cb.checked) currentDepIds.add(id); else currentDepIds.delete(id);
+                });
+                renderDepCheckboxes();
+            })
+            .catch(() => { depsList.innerHTML = '<span class="hint">Ошибка загрузки</span>'; });
+    }
 
     modal.style.display = 'flex';
     lockBodyScroll();
+
+    if (taskModalReadOnly) {
+        toggleHistoryPanel('task'); // автораскрытие — в этом весь смысл просмотра терминальной задачи
+    }
 }
 
 function saveTask(event) {
     event.preventDefault();
+    if (taskModalReadOnly) return;
 
     const taskId = document.getElementById('taskId').value;
     const name = document.getElementById('newTaskName').value;
@@ -1409,11 +1249,6 @@ function deleteTask(taskId) {
             console.error('Error deleting task:', error);
             alert('Ошибка при удалении');
         });
-}
-
-function closeModal(modalId) {
-    document.getElementById(modalId).style.display = 'none';
-    unlockBodyScroll();
 }
 
 function setupDragScroll() {

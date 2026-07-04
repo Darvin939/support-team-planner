@@ -12,7 +12,6 @@ venv.bak/
 pyvenv.cfg
 
 # Distribution / packaging
-.Python
 build/
 develop-eggs/
 dist/
@@ -75,13 +74,11 @@ config.local.py
 *.temp
 
 # OS specific
-.DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
 .Trashes
 ehthumbs.db
-Thumbs.db
 *.dll
 *.exe
 
@@ -89,3 +86,5 @@ Thumbs.db
 debug.log
 error.log
 *.spec
+
+.claude/
