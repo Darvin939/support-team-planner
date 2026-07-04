@@ -570,14 +570,7 @@ function goToPage(page) {
     loadData(true, false);
 }
 
-document.addEventListener('keydown', function (e) {
-    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-    const tag = document.activeElement.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-    e.preventDefault();
-    if (e.key === 'ArrowLeft') goToPage(currentPage - 1);
-    else goToPage(currentPage + 1);
-});
+bindArrowKeyPagination(() => currentPage, goToPage);
 
 function getStatusColor(status) {
     const colors = {

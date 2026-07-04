@@ -78,3 +78,5 @@ function openJournalTaskModal(taskId) {
     document.getElementById('journalTaskModal').style.display = 'flex';
     lockBodyScroll();
 }
+
+bindArrowKeyPagination(() => Math.floor(journalOffset / JOURNAL_PAGE_SIZE) + 1, goToJournalPage);

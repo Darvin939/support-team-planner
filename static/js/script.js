@@ -136,6 +136,20 @@ function renderSmartPagination(containerIds, currentPage, totalPages, onPageClic
     containers.forEach(c => c.innerHTML = html);
 }
 
+// Переключение страниц клавишами ← → (вне полей ввода) — используется и на
+// странице планирования, и в журнале изменений
+function bindArrowKeyPagination(getCurrentPage, goToPageFn) {
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+        const tag = document.activeElement.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        e.preventDefault();
+        const currentPage = getCurrentPage();
+        if (e.key === 'ArrowLeft') goToPageFn(currentPage - 1);
+        else goToPageFn(currentPage + 1);
+    });
+}
+
 // Блокировка скролла фоновой страницы, пока открыто модальное окно
 function lockBodyScroll() {
     document.body.style.overflow = 'hidden';
@@ -205,9 +219,10 @@ function getEmployeeName(employeeId) {
 }
 
 function formatChangedBy(entry) {
-    return entry.changed_by_last_name
-        ? `${entry.changed_by_last_name} ${(entry.changed_by_first_name || '').charAt(0)}.${entry.changed_by_middle_name ? entry.changed_by_middle_name.charAt(0) + '.' : ''}`
-        : 'Система';
+    if (!entry.changed_by_last_name) return 'Система';
+    if (!entry.changed_by_first_name) return entry.changed_by_last_name;
+    const initials = `${entry.changed_by_first_name.charAt(0)}.${entry.changed_by_middle_name ? entry.changed_by_middle_name.charAt(0) + '.' : ''}`;
+    return `${entry.changed_by_last_name} ${initials}`;
 }
 
 function formatHistoryValue(field, value) {
