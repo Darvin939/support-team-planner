@@ -25,6 +25,31 @@ if not _SESSION_SECRET_KEY:
 
 _PUBLIC_PATHS = {'/login', '/logout'}
 
+# Ранги ролей: user < editor < admin — каждая следующая роль включает права предыдущей.
+_ROLE_RANK = {'user': 0, 'editor': 1, 'admin': 2}
+
+# Мутирующие эндпоинты, требующие роль не ниже admin (управление учётными записями — единственное,
+# что запрещено editor'у). GET /api/employees остаётся доступен всем ролям (нужен для выпадающих
+# списков назначения исполнителя в планировщике).
+_ADMIN_ONLY_API_PREFIXES = ('/api/employees',)
+
+# Мутирующие эндпоинты настроек, требующие роль не ниже editor (всё, кроме учётных записей).
+_EDITOR_API_PREFIXES = ('/api/teams', '/api/freeze-days', '/api/blocks', '/api/block-templates')
+
+
+def _required_rank(method: str, path: str) -> int:
+    """Минимальный ранг роли, необходимый для данного метода+пути. Страница /settings целиком
+    закрыта для user; GET-запросы везде остаются доступны любой роли (нужны планировщику)."""
+    if path == '/settings':
+        return _ROLE_RANK['editor']
+    if method == 'GET':
+        return _ROLE_RANK['user']
+    if any(path.startswith(p) for p in _ADMIN_ONLY_API_PREFIXES):
+        return _ROLE_RANK['admin']
+    if any(path.startswith(p) for p in _EDITOR_API_PREFIXES):
+        return _ROLE_RANK['editor']
+    return _ROLE_RANK['user']
+
 
 # Starlette's add_middleware() prepends to the middleware stack, so the middleware added
 # LAST runs FIRST. require_login must run only after SessionMiddleware has populated
@@ -36,7 +61,8 @@ async def require_login(request: Request, call_next):
     if path in _PUBLIC_PATHS or path.startswith('/static/'):
         return await call_next(request)
     employee_id = request.session.get('employee_id')
-    if not employee_id or not db.employee_exists(employee_id):
+    emp = db.employee_exists(employee_id) if employee_id else None
+    if not employee_id or not emp:
         # Сессия может ссылаться на сотрудника, которого больше нет (удалили, БД пересоздали) —
         # обращаемся с этим так же, как с отсутствием сессии, а не пропускаем дальше: иначе запись
         # в task_history/assignment_history упадёт с FOREIGN KEY constraint failed при первом же
@@ -45,6 +71,16 @@ async def require_login(request: Request, call_next):
         if path.startswith('/api/'):
             return JSONResponse({'error': 'Не авторизован'}, status_code=401)
         return RedirectResponse(url='/login', status_code=302)
+
+    # Роль читается из БД на каждый запрос (не из сессии), чтобы смена роли применялась
+    # немедленно, без необходимости перелогина.
+    role = emp['role']
+    request.state.role = role
+    if _ROLE_RANK.get(role, 0) < _required_rank(request.method, path):
+        if path.startswith('/api/'):
+            return JSONResponse({'error': 'Недостаточно прав'}, status_code=403)
+        return RedirectResponse(url='/planning', status_code=302)
+
     return await call_next(request)
 
 
@@ -104,6 +140,7 @@ class EmployeeIn(BaseModel):
     first_name: str = ""
     middle_name: Optional[str] = None
     password: Optional[str] = None
+    role: str = "user"
 
 
 class FreezeDayIn(BaseModel):
@@ -160,6 +197,7 @@ def login_submit(request: Request, employee_id: str = Form(...), password: str =
             status_code=401)
 
     request.session['employee_id'] = emp_id
+    request.session['role'] = auth_row['role']
     return RedirectResponse(url='/planning', status_code=302)
 
 
@@ -177,6 +215,7 @@ def planning_select(request: Request):
     return templates.TemplateResponse(request, 'planning.html', {
         'teams': teams,
         'team': None,
+        'current_role': request.state.role,
     })
 
 
@@ -210,6 +249,7 @@ def planning(request: Request, team_id: int):
         'team_blocks': team_blocks,
         'start_date': start_date.strftime('%Y-%m-%d'),
         'end_date': end_date.strftime('%Y-%m-%d'),
+        'current_role': request.state.role,
     })
 
 
@@ -228,6 +268,7 @@ def settings_page(request: Request):
         'freeze_days': freeze_days,
         'blocks': blocks,
         'block_templates': block_templates,
+        'current_role': request.state.role,
     })
 
 
@@ -237,6 +278,7 @@ def statistics_page(request: Request):
     teams = db.get_all_teams()
     return templates.TemplateResponse(request, 'statistics.html', {
         'teams': teams,
+        'current_role': request.state.role,
     })
 
 
@@ -247,6 +289,7 @@ def journal_select(request: Request):
     return templates.TemplateResponse(request, 'history.html', {
         'teams': teams,
         'team': None,
+        'current_role': request.state.role,
     })
 
 
@@ -260,6 +303,7 @@ def journal_page(request: Request, team_id: int):
     return templates.TemplateResponse(request, 'history.html', {
         'teams': teams,
         'team': team,
+        'current_role': request.state.role,
     })
 
 
@@ -504,6 +548,9 @@ def get_employees_api():
     return db.get_all_employees()
 
 
+_VALID_ROLES = {'admin', 'editor', 'user'}
+
+
 @app.post('/api/employees')
 def create_employee_api(data: EmployeeIn):
     """Создать сотрудника"""
@@ -514,8 +561,10 @@ def create_employee_api(data: EmployeeIn):
 
     if not last_name or not first_name:
         return JSONResponse({'error': 'Фамилия и имя обязательны'}, status_code=400)
+    if data.role not in _VALID_ROLES:
+        return JSONResponse({'error': 'Недопустимая роль'}, status_code=400)
 
-    employee_id = db.create_employee(last_name, first_name, middle_name, password_hash)
+    employee_id = db.create_employee(last_name, first_name, middle_name, password_hash, data.role)
     if employee_id:
         return {'id': employee_id, 'success': True}
     else:
@@ -532,8 +581,10 @@ def update_employee_api(employee_id: int, data: EmployeeIn):
 
     if not last_name or not first_name:
         return JSONResponse({'error': 'Фамилия и имя обязательны'}, status_code=400)
+    if data.role not in _VALID_ROLES:
+        return JSONResponse({'error': 'Недопустимая роль'}, status_code=400)
 
-    success = db.update_employee(employee_id, last_name, first_name, middle_name, password_hash)
+    success = db.update_employee(employee_id, last_name, first_name, middle_name, password_hash, data.role)
     if success:
         return {'success': True}
     else:

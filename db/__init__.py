@@ -261,32 +261,32 @@ def delete_template(conn, template_id):
 # === EMPLOYEES CRUD ===
 @with_db_connection(commit_on_success=False)
 def employee_exists(conn, employee_id):
-    """Проверить существование сотрудника (используется для валидации сессии в require_login —
-    сессия может пережить удаление сотрудника или пересоздание БД)"""
-    return conn.execute('SELECT 1 FROM employees WHERE id = ?', (employee_id,)).fetchone()
+    """Проверить существование сотрудника и получить его роль (используется для валидации сессии
+    в require_login — сессия может пережить удаление сотрудника или пересоздание БД)"""
+    return conn.execute('SELECT role FROM employees WHERE id = ?', (employee_id,)).fetchone()
 
 
 @with_db_connection(commit_on_success=False)
 def get_all_employees(conn):
     """Получить всех сотрудников"""
     employees = conn.execute(
-        'SELECT id, last_name, first_name, middle_name FROM employees ORDER BY last_name, first_name, middle_name').fetchall()
+        'SELECT id, last_name, first_name, middle_name, role FROM employees ORDER BY last_name, first_name, middle_name').fetchall()
     return [dict(emp) for emp in employees]
 
 
 @with_db_connection(commit_on_success=False)
-def create_employee(conn, last_name, first_name, middle_name=None, password_hash=None):
+def create_employee(conn, last_name, first_name, middle_name=None, password_hash=None, role='user'):
     """Создать сотрудника"""
     cursor = conn.execute(
-        '''INSERT INTO employees (last_name, first_name, middle_name, password_hash)
-           VALUES (?, ?, ?, ?)''',
-        (last_name, first_name, middle_name, password_hash))
+        '''INSERT INTO employees (last_name, first_name, middle_name, password_hash, role)
+           VALUES (?, ?, ?, ?, ?)''',
+        (last_name, first_name, middle_name, password_hash, role))
     conn.commit()
     return _backend.last_insert_id(cursor)
 
 
 @with_db_connection(default_return=False, raise_on_error=False)
-def update_employee(conn, employee_id, last_name, first_name, middle_name=None, password_hash=None):
+def update_employee(conn, employee_id, last_name, first_name, middle_name=None, password_hash=None, role='user'):
     """Обновить сотрудника. password_hash=None означает "не менять пароль"."""
     if password_hash is not None:
         conn.execute(
@@ -294,22 +294,24 @@ def update_employee(conn, employee_id, last_name, first_name, middle_name=None, 
                SET last_name     = ?,
                    first_name    = ?,
                    middle_name   = ?,
-                   password_hash = ?
-               WHERE id = ?''', (last_name, first_name, middle_name, password_hash, employee_id))
+                   password_hash = ?,
+                   role          = ?
+               WHERE id = ?''', (last_name, first_name, middle_name, password_hash, role, employee_id))
     else:
         conn.execute(
             '''UPDATE employees
                SET last_name   = ?,
                    first_name  = ?,
-                   middle_name = ?
-               WHERE id = ?''', (last_name, first_name, middle_name, employee_id))
+                   middle_name = ?,
+                   role        = ?
+               WHERE id = ?''', (last_name, first_name, middle_name, role, employee_id))
     return True
 
 
 @with_db_connection(commit_on_success=False)
 def get_employee_auth(conn, employee_id):
-    """Получить хэш пароля сотрудника для проверки при входе"""
-    row = conn.execute('SELECT id, password_hash FROM employees WHERE id = ?', (employee_id,)).fetchone()
+    """Получить хэш пароля и роль сотрудника для проверки при входе"""
+    row = conn.execute('SELECT id, password_hash, role FROM employees WHERE id = ?', (employee_id,)).fetchone()
     return dict(row) if row else None
 
 

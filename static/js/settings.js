@@ -124,6 +124,7 @@ function openEmployeeModal(employeeId) {
     const firstNameField = document.getElementById('employeeFirstName');
     const middleNameField = document.getElementById('employeeMiddleName');
     const passwordField = document.getElementById('employeePassword');
+    const roleField = document.getElementById('employeeRole');
     const saveBtn = document.getElementById('saveEmployeeBtn');
     const updateBtn = document.getElementById('updateEmployeeBtn');
 
@@ -136,6 +137,7 @@ function openEmployeeModal(employeeId) {
         lastNameField.value = emp ? emp.last_name : '';
         firstNameField.value = emp ? emp.first_name : '';
         middleNameField.value = emp ? (emp.middle_name || '') : '';
+        roleField.value = emp ? emp.role : 'user';
         saveBtn.style.display = 'none';
         updateBtn.style.display = 'inline-block';
     } else {
@@ -143,6 +145,7 @@ function openEmployeeModal(employeeId) {
         lastNameField.value = '';
         firstNameField.value = '';
         middleNameField.value = '';
+        roleField.value = 'user';
         saveBtn.style.display = 'inline-block';
         updateBtn.style.display = 'none';
     }
@@ -159,6 +162,7 @@ function saveEmployee(event) {
     const firstName = document.getElementById('employeeFirstName').value.trim();
     const middleName = document.getElementById('employeeMiddleName').value.trim();
     const password = document.getElementById('employeePassword').value;
+    const role = document.getElementById('employeeRole').value;
 
     if (!lastName || !firstName) {
         alert('Введите фамилию и имя сотрудника');
@@ -173,7 +177,7 @@ function saveEmployee(event) {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
             last_name: lastName, first_name: firstName, middle_name: middleName || null,
-            password: password || null
+            password: password || null, role: role
         })
     })
         .then(response => response.json())

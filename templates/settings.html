@@ -13,9 +13,9 @@
 
 <div class="settings-tabs">
     <button class="tab-button active" data-tab="teams" onclick="switchSettingsTab('teams')">Команды</button>
-    <button class="tab-button" data-tab="employees" onclick="switchSettingsTab('employees')">Сотрудники</button>
     <button class="tab-button" data-tab="blocks" onclick="switchSettingsTab('blocks')">Блоки и шаблоны</button>
     <button class="tab-button" data-tab="freeze" onclick="switchSettingsTab('freeze')">Дни фриза</button>
+    <button class="tab-button" data-tab="employees" onclick="switchSettingsTab('employees')">Сотрудники</button>
 </div>
 
 <div class="settings-container">
@@ -83,25 +83,30 @@
     <div class="tab-panel" data-tab-panel="employees">
     <div class="settings-section">
         <h2>Сотрудники</h2>
+        {% if current_role == 'admin' %}
         <div class="add-form">
             <div class="form-row">
                 <button class="btn btn-success" onclick="openEmployeeModal()">Добавить сотрудника</button>
             </div>
         </div>
+        {% endif %}
         <ul class="executors-list" id="employeesList">
             {% for emp in employees %}
             <li class="executor-item" data-id="{{ emp.id }}">
-                <span class="executor-name">{{ emp.last_name }} {{ emp.first_name }} {% if emp.middle_name %}{{ emp.middle_name }}{% endif %}</span>
+                <span class="executor-name">{{ emp.last_name }} {{ emp.first_name }} {% if emp.middle_name %}{{ emp.middle_name }}{% endif %} <span class="executor-role">({{ emp.role }})</span></span>
+                {% if current_role == 'admin' %}
                 <div>
                     <button class="btn btn-primary btn-sm" onclick="openEmployeeModal({{ emp.id }})">✏️</button>
                     <button class="btn btn-danger btn-sm" onclick="deleteEmployee({{ emp.id }})">🗑️</button>
                 </div>
+                {% endif %}
             </li>
             {% endfor %}
         </ul>
     </div>
     </div>
 
+    {% if current_role == 'admin' %}
     <!-- Модальное окно сотрудника -->
     <div class="modal" id="employeeModal">
         <div class="modal-content">
@@ -127,6 +132,14 @@
                     <label for="employeePassword">Пароль (оставьте пустым, чтобы не менять)</label>
                     <input type="password" id="employeePassword" placeholder="Новый пароль">
                 </div>
+                <div class="form-group">
+                    <label for="employeeRole">Роль</label>
+                    <select id="employeeRole">
+                        <option value="user">Пользователь</option>
+                        <option value="editor">Редактор</option>
+                        <option value="admin">Администратор</option>
+                    </select>
+                </div>
 
                 <div class="form-actions">
                     <button type="submit" class="btn btn-success" id="saveEmployeeBtn">Создать</button>
@@ -136,6 +149,7 @@
             </form>
         </div>
     </div>
+    {% endif %}
 
     <!-- Блоки -->
     <div class="tab-panel" data-tab-panel="blocks">
