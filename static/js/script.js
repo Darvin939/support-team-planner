@@ -1,4 +1,4 @@
-// Тёмная тема
+// Тема оформления (по умолчанию — тёмная операторская консоль, светлая — по выбору)
 (function () {
     const THEME_KEY = 'theme';
     const html = document.documentElement;
@@ -8,14 +8,31 @@
     document.addEventListener('DOMContentLoaded', function () {
         const btn = document.getElementById('themeToggle');
         if (!btn) return;
-        btn.textContent = html.getAttribute('data-theme') === 'dark' ? '☾' : '☀';
         btn.addEventListener('click', function () {
-            const isDark = html.getAttribute('data-theme') === 'dark';
-            const next = isDark ? '' : 'dark';
+            const isLight = html.getAttribute('data-theme') === 'light';
+            const next = isLight ? '' : 'light';
             html.setAttribute('data-theme', next);
             localStorage.setItem(THEME_KEY, next);
-            btn.textContent = next === 'dark' ? '☾' : '☀';
         });
+    });
+})();
+
+// Сайдбар на мобильных — выезжающая панель по кнопке-бургеру
+(function () {
+    document.addEventListener('DOMContentLoaded', function () {
+        const burger = document.getElementById('sidebarBurger');
+        const sidebar = document.getElementById('sidebar');
+        const scrim = document.getElementById('sidebarScrim');
+        if (!burger || !sidebar || !scrim) return;
+
+        function setOpen(open) {
+            sidebar.classList.toggle('open', open);
+            scrim.classList.toggle('open', open);
+            burger.setAttribute('aria-expanded', String(open));
+        }
+
+        burger.addEventListener('click', () => setOpen(!sidebar.classList.contains('open')));
+        scrim.addEventListener('click', () => setOpen(false));
     });
 })();
 
@@ -58,6 +75,12 @@ function updateDropdownLabel(dropdownId) {
         });
         label.textContent = values.slice(0, 2).join(', ') + (values.length > 2 ? ', ...' : '');
     }
+}
+
+// Плитка метрики для строк-счётчиков (планирование, статистика) — общий
+// формат "число сверху / подпись снизу", используется вместо плоского текста
+function statTile(label, value, extraClass) {
+    return `<span class="counter-item${extraClass ? ' ' + extraClass : ''}"><span class="counter-value">${value}</span><span class="counter-label">${label}</span></span>`;
 }
 
 // Функция для преобразования текста: находит URL и заменяет их на ссылки

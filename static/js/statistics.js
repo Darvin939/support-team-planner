@@ -129,16 +129,16 @@ function renderCounters(data, containerId) {
     });
 
     const container = document.getElementById(containerId);
-    let html = `<span class="counter-item">Всего: <b>${data.length}</b></span>`;
+    let html = statTile('Всего', data.length, 'counter-item-primary');
 
-    html += `<span class="counter-group-label">Статус:</span>`;
+    html += `<span class="counter-group-label">Статус</span>`;
     for (const [key, label] of Object.entries(statusLabels)) {
-        html += `<span class="counter-item counter-status-${key}">${label}: <b>${statusCounts[key]}</b></span>`;
+        html += statTile(label, statusCounts[key], `counter-status-${key}`);
     }
 
-    html += `<span class="counter-group-label">Критичность:</span>`;
+    html += `<span class="counter-group-label">Критичность</span>`;
     for (const [key, label] of Object.entries(critLabels)) {
-        html += `<span class="counter-item counter-crit-${key}">${label}: <b>${critCounts[key]}</b></span>`;
+        html += statTile(label, critCounts[key], `counter-crit-${key}`);
     }
 
     container.innerHTML = html;

@@ -1,49 +1,94 @@
 /* ============================================================
    Support Team Planner — Основные стили
-   "Диспетчерский Пульт" redesign
+   "Пульт оператора" redesign — тёмная операторская консоль
+   в духе технических дашбордов (сайдбар, статус-точки, моно
+   для технических данных), со светлой темой как альтернативой.
    ============================================================ */
 
 /* ------------------------------------------------------------
-   0. Дизайн-токены
+   0а. Шрифты (самостоятельный хостинг, без внешних запросов)
    ------------------------------------------------------------ */
-:root {
-    --bg:          #ECEAE5;
-    --surface:     #FFFFFF;
-    --surface-2:   #F3F2EE;
-    --surface-alt: #F7F6F3;
-    --chrome:      #16161D;
-    --border:      rgba(0, 0, 0, 0.09);
-    --border-strong: rgba(0, 0, 0, 0.16);
-    --text:        #1C1C22;
-    --text-2:      #5C5C68;
-    --text-3:      #9C9CA8;
-    --primary:     #1A6FD4;
-    --primary-h:   #1559AB;
-    --crit-high:   #C41E1E;
-    --crit-mid:    #CC7A00;
-    --crit-low:    #1C7A3C;
-    --success:     #1C7A3C;
-    --success-h:   #165E2E;
-    --danger:      #C41E1E;
-    --danger-h:    #9E1818;
-    --secondary:   #5C5C68;
-    --secondary-h: #48484F;
-    --text-inverse: #FFFFFF;
-    --shadow-float: 0 4px 12px rgba(0, 0, 0, 0.15);
-    --mono: Consolas, 'Cascadia Mono', Menlo, 'Courier New', monospace;
+@font-face {
+    font-family: 'InterVariable';
+    src: url('/static/fonts/InterVariable.woff2') format('woff2');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
 }
 
-[data-theme="dark"] {
-    --bg:          #111118;
-    --surface:     #1A1A22;
-    --surface-2:   #222230;
-    --surface-alt: #1E1E2A;
-    --chrome:      #0A0A10;
-    --border:      rgba(255, 255, 255, 0.07);
-    --border-strong: rgba(255, 255, 255, 0.14);
-    --text:        #ECEAE5;
-    --text-2:      #8A8A96;
-    --text-3:      #5A5A66;
+@font-face {
+    font-family: 'JetBrains Mono Variable';
+    src: url('/static/fonts/JetBrainsMono-Variable.woff2') format('woff2');
+    font-weight: 100 800;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* ------------------------------------------------------------
+   0б. Дизайн-токены — тёмная тема (по умолчанию)
+   ------------------------------------------------------------ */
+:root {
+    --bg:          #0B0F16;
+    --surface:     #131A24;
+    --surface-2:   #1B2430;
+    --surface-alt: #17202B;
+    --chrome:      #0A0E14;
+    --chrome-text: #F7F9FC;
+    --border:      rgba(148, 163, 184, 0.14);
+    --border-strong: rgba(148, 163, 184, 0.26);
+    --text:        #E7EAEF;
+    --text-2:      #8A93A6;
+    --text-3:      #5B6472;
+    --primary:     #2E7DF7;
+    --primary-h:   #4E92F9;
+    --crit-high:   #EF4444;
+    --crit-mid:    #F5A524;
+    --crit-low:    #22C55E;
+    --success:     #22C55E;
+    --success-h:   #3AD671;
+    --danger:      #EF4444;
+    --danger-h:    #F76A6A;
+    --secondary:   #4B5768;
+    --secondary-h: #5C6A7D;
+    --accent-purple: #7B4FD4;
+    --text-inverse: #F7F9FC;
+    --shadow-float: 0 12px 28px rgba(0, 0, 0, 0.45);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.24);
+    --radius-sm: 6px;
+    --radius: 9px;
+    --font-ui: 'InterVariable', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mono: 'JetBrains Mono Variable', 'JetBrains Mono', Consolas, 'Cascadia Mono', Menlo, monospace;
+    --sidebar-w: 216px;
+    --sidebar-w-collapsed: 60px;
+}
+
+[data-theme="light"] {
+    --bg:          #EEF1F6;
+    --surface:     #FFFFFF;
+    --surface-2:   #E7EBF1;
+    --surface-alt: #F5F7FA;
+    --chrome:      #F5F7FA;
+    --chrome-text: #10151F;
+    --border:      rgba(15, 23, 42, 0.10);
+    --border-strong: rgba(15, 23, 42, 0.18);
+    --text:        #10151F;
+    --text-2:      #545F70;
+    --text-3:      #8791A1;
+    --primary:     #1B67D6;
+    --primary-h:   #164FA6;
+    --crit-high:   #D33A3A;
+    --crit-mid:    #B36A00;
+    --crit-low:    #17864A;
+    --success:     #17864A;
+    --success-h:   #106538;
+    --danger:      #D33A3A;
+    --danger-h:    #AB2B2B;
+    --secondary:   #545F70;
+    --secondary-h: #3F4859;
+    --accent-purple: #6E3FBF;
+    --text-inverse: #FFFFFF;
+    --shadow-float: 0 10px 26px rgba(16, 22, 35, 0.16);
+    --shadow-card: 0 1px 3px rgba(16, 22, 35, 0.07);
 }
 
 /* ------------------------------------------------------------
@@ -55,11 +100,20 @@
     box-sizing: border-box;
 }
 
+html {
+    color-scheme: dark;
+}
+
+[data-theme="light"] {
+    color-scheme: light;
+}
+
 body {
-    font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family: var(--font-ui);
     background: var(--bg);
     color: var(--text);
     line-height: 1.6;
+    font-variant-numeric: tabular-nums;
 }
 
 h1, h2, h3 {
@@ -68,89 +122,175 @@ h1, h2, h3 {
 }
 
 /* ------------------------------------------------------------
-   2. Навигация
+   2. Каркас приложения и сайдбар
    ------------------------------------------------------------ */
-.navbar {
-    background: var(--chrome);
-    color: var(--text-inverse);
-    padding: 0 24px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    position: sticky;
+.app-shell {
+    display: flex;
+    min-height: 100vh;
+}
+
+.sidebar {
+    position: fixed;
     top: 0;
-    z-index: 100;
-}
-
-.nav-container {
-    max-width: 1400px;
-    margin: 0 auto;
+    left: 0;
+    bottom: 0;
+    width: var(--sidebar-w);
+    background: var(--chrome);
+    border-right: 1px solid var(--border);
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    height: 52px;
+    flex-direction: column;
+    z-index: 200;
+    transition: transform 0.22s ease;
 }
 
-.nav-brand {
-    color: var(--text-inverse);
+.sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 18px 18px 16px;
+    color: var(--chrome-text);
     text-decoration: none;
-    font-size: 1.05rem;
     font-weight: 700;
-    letter-spacing: -0.02em;
+    font-size: 0.95rem;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
 }
 
-.nav-right {
+.sidebar-brand-mark {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    color: var(--primary);
+}
+
+.sidebar-brand-mark svg { width: 100%; height: 100%; }
+
+.sidebar-brand-accent { color: var(--primary); }
+
+.sidebar-nav {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    overflow-y: auto;
+}
+
+.sidebar-link {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 11px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    color: color-mix(in srgb, var(--chrome-text) 62%, transparent);
+    text-decoration: none;
+    font-size: 0.88rem;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
 }
 
-.nav-menu {
-    list-style: none;
+.sidebar-link:hover {
+    background: color-mix(in srgb, var(--chrome-text) 6%, transparent);
+    color: var(--chrome-text);
+}
+
+.sidebar-link.active {
+    background: color-mix(in srgb, var(--primary) 16%, transparent);
+    color: var(--chrome-text);
+    box-shadow: inset 2px 0 0 var(--primary);
+}
+
+.sidebar-icon {
+    flex-shrink: 0;
+    width: 17px;
+    height: 17px;
     display: flex;
+}
+
+.sidebar-icon svg { width: 100%; height: 100%; }
+
+.sidebar-footer {
+    padding: 10px;
+    border-top: 1px solid color-mix(in srgb, var(--chrome-text) 8%, transparent);
+    display: flex;
+    flex-direction: column;
     gap: 2px;
 }
 
-.nav-menu a {
-    color: rgba(255, 255, 255, 0.68);
-    text-decoration: none;
-    padding: 6px 12px;
-    border-radius: 3px;
-    transition: background 0.2s, color 0.2s;
-    font-size: 0.9rem;
-}
-
-.nav-menu a:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--text-inverse);
-}
-
-.theme-toggle {
-    background: none;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    color: rgba(255, 255, 255, 0.68);
-    border-radius: 3px;
-    padding: 4px 9px;
-    cursor: pointer;
-    font-size: 0.95rem;
-    line-height: 1;
-    margin-left: 8px;
-    transition: all 0.2s;
+.sidebar-theme-toggle {
     display: flex;
     align-items: center;
+    gap: 11px;
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    background: none;
+    border: none;
+    color: color-mix(in srgb, var(--chrome-text) 62%, transparent);
+    font-size: 0.95rem;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s, color 0.15s;
 }
 
-.theme-toggle:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--text-inverse);
-    border-color: rgba(255, 255, 255, 0.36);
+.sidebar-theme-toggle:hover {
+    background: color-mix(in srgb, var(--chrome-text) 6%, transparent);
+    color: var(--chrome-text);
+}
+
+.theme-icon-sun, .theme-icon-moon {
+    flex-shrink: 0;
+    width: 17px;
+    height: 17px;
+}
+
+.theme-icon-sun svg, .theme-icon-moon svg { width: 100%; height: 100%; }
+
+.theme-icon-sun { display: none; }
+
+[data-theme="light"] .theme-icon-moon { display: none; }
+[data-theme="light"] .theme-icon-sun { display: flex; }
+
+.sidebar-burger {
+    display: none;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 220;
+    width: 38px;
+    height: 38px;
+    align-items: center;
+    justify-content: center;
+    background: var(--chrome);
+    color: var(--chrome-text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.sidebar-burger svg { width: 20px; height: 20px; }
+
+.sidebar-scrim {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 190;
 }
 
 /* ------------------------------------------------------------
    3. Контейнер и заголовки страниц
    ------------------------------------------------------------ */
+.app-main {
+    flex: 1;
+    min-width: 0;
+    margin-left: var(--sidebar-w);
+}
+
 .container {
     max-width: 1400px;
     margin: auto;
-    padding: 0 20px;
+    padding: 24px 24px 40px;
 }
 
 .page-header {
@@ -168,7 +308,7 @@ h1, h2, h3 {
 .btn {
     padding: 8px 16px;
     border: none;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     font-size: 0.95rem;
     font-family: inherit;
@@ -237,7 +377,7 @@ h1, h2, h3 {
     width: 100%;
     padding: 8px 12px;
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     font-size: 0.95rem;
     font-family: inherit;
     background: var(--surface);
@@ -277,7 +417,7 @@ h1, h2, h3 {
 .form-row input {
     padding: 8px 12px;
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     font-size: 0.95rem;
     font-family: inherit;
     background: var(--surface);
@@ -301,7 +441,7 @@ h1, h2, h3 {
     background: var(--surface);
     padding: 16px 20px;
     border: 1px solid var(--border);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    box-shadow: var(--shadow-card);
     margin-bottom: 16px;
 }
 
@@ -337,7 +477,7 @@ h1, h2, h3 {
 .filter-input {
     padding: 7px 12px;
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     font-size: 0.9rem;
     font-family: inherit;
     background: var(--surface);
@@ -414,7 +554,7 @@ h1, h2, h3 {
     padding: 7px 12px;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     font-size: 0.9rem;
     font-family: inherit;
@@ -456,7 +596,7 @@ h1, h2, h3 {
     right: 0;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
     z-index: 100;
     max-height: 200px;
@@ -480,7 +620,7 @@ h1, h2, h3 {
 }
 
 .checkbox-item:hover {
-    background: rgba(26, 111, 212, 0.07);
+    background: color-mix(in srgb, var(--primary) 7%, transparent);
 }
 
 .checkbox-item input[type="checkbox"] {
@@ -497,7 +637,7 @@ h1, h2, h3 {
 
 .block-checkbox-list {
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     padding: 4px 0;
     max-height: 160px;
     overflow-y: auto;
@@ -573,7 +713,7 @@ h1, h2, h3 {
 .auto-schedule-wrapper {
     overflow-x: auto;
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
 }
 
 .auto-schedule-table {
@@ -637,7 +777,7 @@ h1, h2, h3 {
 }
 
 .auto-block-cell:hover {
-    background: rgba(26, 111, 212, 0.06);
+    background: color-mix(in srgb, var(--primary) 6%, transparent);
 }
 
 .auto-block-cell.occupied {
@@ -648,7 +788,7 @@ h1, h2, h3 {
     display: inline-block;
     background: var(--primary);
     color: var(--text-inverse);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     padding: 2px 6px;
     margin: 2px;
     font-size: 0.75rem;
@@ -705,7 +845,7 @@ h1, h2, h3 {
     background: var(--surface);
     padding: 16px 20px;
     border: 1px solid var(--border);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    box-shadow: var(--shadow-card);
     margin-bottom: 16px;
 }
 
@@ -719,7 +859,7 @@ h1, h2, h3 {
 .team-selector select {
     padding: 7px 12px;
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     font-size: 0.95rem;
     font-family: inherit;
     background: var(--surface);
@@ -747,7 +887,7 @@ h1, h2, h3 {
     background: var(--surface);
     padding: 22px 24px;
     border: 1px solid var(--border);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    box-shadow: var(--shadow-card);
     margin-bottom: 16px;
 }
 
@@ -760,48 +900,86 @@ h1, h2, h3 {
 .stats-counters {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
+    align-items: stretch;
+    gap: 8px;
     margin-bottom: 14px;
 }
 
 .counter-group-label {
     font-weight: 600;
-    font-size: 0.85rem;
-    color: var(--text-2);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-3);
     align-self: center;
+    margin: 0 2px;
 }
 
 .counter-item {
-    padding: 5px 12px;
-    border-radius: 3px;
-    background: var(--surface-2);
-    font-size: 0.88rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 84px;
+    padding: 7px 14px;
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--tile-accent, transparent) 10%, var(--surface));
+    border: 1px solid var(--border);
     color: var(--text);
+}
+
+.counter-value {
     font-family: var(--mono);
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.counter-label {
+    font-size: 0.68rem;
+    color: var(--text-2);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.counter-item-primary {
+    --tile-accent: var(--primary);
+    border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+}
+
+.counter-item-primary .counter-value { color: var(--primary); font-size: 1.3rem; }
+.counter-item-primary .counter-label { color: var(--primary); opacity: 0.8; }
+
+/* На странице статистики счётчики лежат внутри карточки .stats-section с тем же
+   фоном var(--surface), что и сами плитки — без этого они сливаются с карточкой,
+   тогда как на планировании плитки стоят прямо на фоне страницы и хорошо видны.
+   Тонировка status/crit цветом идёт через --tile-accent, поэтому смена базового
+   фона тут не перебивает цветные варианты ниже (в отличие от прямого background). */
+.stats-section .counter-item {
+    background: color-mix(in srgb, var(--tile-accent, transparent) 10%, var(--surface-2));
 }
 
 .counter-status-new {
-    background: rgba(26, 111, 212, 0.10);
+    --tile-accent: var(--primary);
     color: var(--primary);
 }
 
 .counter-status-planned {
-    background: rgba(204, 122, 0, 0.10);
+    --tile-accent: var(--crit-mid);
     color: var(--crit-mid);
 }
 
 .counter-crit-high {
-    background: rgba(196, 30, 30, 0.10);
+    --tile-accent: var(--danger);
     color: var(--crit-high);
 }
 
 .counter-crit-medium {
-    background: rgba(204, 122, 0, 0.10);
+    --tile-accent: var(--crit-mid);
     color: var(--crit-mid);
 }
 
 .counter-crit-low {
-    background: rgba(28, 122, 60, 0.10);
+    --tile-accent: var(--success);
     color: var(--crit-low);
 }
 
@@ -833,7 +1011,7 @@ h1, h2, h3 {
 }
 
 .stats-table tbody tr:hover {
-    background: rgba(26, 111, 212, 0.04);
+    background: color-mix(in srgb, var(--primary) 4%, transparent);
 }
 
 /* ------------------------------------------------------------
@@ -845,20 +1023,25 @@ h1, h2, h3 {
     border-radius: 12px;
     font-weight: 700;
     font-size: 0.75rem;
-    color: var(--text-inverse);
+    border: 1px solid transparent;
 }
 
 .criticality-high {
-    background: var(--crit-high);
+    background: color-mix(in srgb, var(--crit-high) 12%, transparent);
+    border-color: color-mix(in srgb, var(--crit-high) 35%, transparent);
+    color: var(--crit-high);
 }
 
 .criticality-medium {
-    background: var(--crit-mid);
-    color: var(--text-inverse);
+    background: color-mix(in srgb, var(--crit-mid) 12%, transparent);
+    border-color: color-mix(in srgb, var(--crit-mid) 35%, transparent);
+    color: var(--crit-mid);
 }
 
 .criticality-low {
-    background: var(--crit-low);
+    background: color-mix(in srgb, var(--crit-low) 12%, transparent);
+    border-color: color-mix(in srgb, var(--crit-low) 35%, transparent);
+    color: var(--crit-low);
 }
 
 /* ------------------------------------------------------------
@@ -867,7 +1050,7 @@ h1, h2, h3 {
 .work-table-container {
     background: var(--surface);
     border: 1px solid var(--border);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    box-shadow: var(--shadow-card);
     overflow: hidden;
 }
 
@@ -981,31 +1164,31 @@ h1, h2, h3 {
 }
 
 .date-col.weekend {
-    background: rgba(204, 122, 0, 0.07);
+    background: color-mix(in srgb, var(--crit-mid) 7%, transparent);
 }
 
 .date-col.freeze {
-    background: rgba(196, 30, 30, 0.05) repeating-linear-gradient(
+    background: color-mix(in srgb, var(--danger) 5%, transparent) repeating-linear-gradient(
         45deg,
         transparent,
         transparent 5px,
-        rgba(196, 30, 30, 0.12) 5px,
-        rgba(196, 30, 30, 0.12) 10px
+        color-mix(in srgb, var(--danger) 12%, transparent) 5px,
+        color-mix(in srgb, var(--danger) 12%, transparent) 10px
     );
 }
 
 .date-col.current {
-    background: rgba(26, 111, 212, 0.07) !important;
+    background: color-mix(in srgb, var(--primary) 7%, transparent) !important;
     box-shadow: inset 0 -3px 0 var(--primary);
 }
 
 .date-col.current.weekend {
-    background: rgba(204, 122, 0, 0.09) !important;
+    background: color-mix(in srgb, var(--crit-mid) 9%, transparent) !important;
     box-shadow: inset 0 -3px 0 var(--crit-mid);
 }
 
 .date-col.current.freeze {
-    background: rgba(196, 30, 30, 0.07) !important;
+    background: color-mix(in srgb, var(--danger) 7%, transparent) !important;
     box-shadow: inset 0 -3px 0 var(--danger);
 }
 
@@ -1024,30 +1207,36 @@ h1, h2, h3 {
     border-radius: 10px;
     font-weight: 600;
     white-space: nowrap;
+    border: 1px solid transparent;
 }
 
 .task-status-new {
-    background: rgba(0, 0, 0, 0.06);
+    background: color-mix(in srgb, var(--text-2) 12%, transparent);
+    border-color: color-mix(in srgb, var(--text-2) 35%, transparent);
     color: var(--text-2);
 }
 
 .task-status-ready {
-    background: rgba(26, 111, 212, 0.12);
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    border-color: color-mix(in srgb, var(--primary) 35%, transparent);
     color: var(--primary);
 }
 
 .task-status-in_progress {
-    background: rgba(204, 122, 0, 0.12);
+    background: color-mix(in srgb, var(--crit-mid) 12%, transparent);
+    border-color: color-mix(in srgb, var(--crit-mid) 35%, transparent);
     color: var(--crit-mid);
 }
 
 .task-status-done {
-    background: rgba(28, 122, 60, 0.12);
+    background: color-mix(in srgb, var(--success) 12%, transparent);
+    border-color: color-mix(in srgb, var(--success) 35%, transparent);
     color: var(--success);
 }
 
 .task-status-cancelled {
-    background: rgba(196, 30, 30, 0.10);
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
+    border-color: color-mix(in srgb, var(--danger) 35%, transparent);
     color: var(--danger);
 }
 
@@ -1088,7 +1277,7 @@ h1, h2, h3 {
 }
 
 .task-status-btn-highlight {
-    background: rgba(28, 122, 60, 0.12);
+    background: color-mix(in srgb, var(--success) 12%, transparent);
     font-weight: 600;
 }
 
@@ -1115,7 +1304,7 @@ h1, h2, h3 {
     background: #1C1C28;
     color: #ECEAE5;
     padding: 10px 16px;
-    border-radius: 4px;
+    border-radius: var(--radius);
     font-size: 0.875rem;
     max-width: 320px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
@@ -1165,7 +1354,7 @@ h1, h2, h3 {
     font-size: 1rem;
     cursor: pointer;
     padding: 4px 8px;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     transition: all 0.15s;
 }
 
@@ -1181,7 +1370,7 @@ h1, h2, h3 {
     font-size: 1rem;
     cursor: pointer;
     padding: 4px 8px;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     transition: all 0.15s;
 }
 
@@ -1210,15 +1399,15 @@ h1, h2, h3 {
 }
 
 .schedule-cell:hover {
-    background: rgba(26, 111, 212, 0.05);
+    background: color-mix(in srgb, var(--primary) 5%, transparent);
 }
 
 .schedule-cell.weekend {
-    background: rgba(204, 122, 0, 0.06);
+    background: color-mix(in srgb, var(--crit-mid) 6%, transparent);
 }
 
 .schedule-cell.weekend:hover {
-    background: rgba(204, 122, 0, 0.10);
+    background: color-mix(in srgb, var(--crit-mid) 10%, transparent);
 }
 
 .schedule-cell.freeze {
@@ -1226,35 +1415,35 @@ h1, h2, h3 {
         45deg,
         transparent,
         transparent 5px,
-        rgba(196, 30, 30, 0.08) 5px,
-        rgba(196, 30, 30, 0.08) 10px
+        color-mix(in srgb, var(--danger) 8%, transparent) 5px,
+        color-mix(in srgb, var(--danger) 8%, transparent) 10px
     );
 }
 
 .schedule-cell.freeze.weekend {
     background-image: repeating-linear-gradient(
         45deg,
-        rgba(204, 122, 0, 0.05),
-        rgba(204, 122, 0, 0.05) 5px,
-        rgba(196, 30, 30, 0.08) 5px,
-        rgba(196, 30, 30, 0.08) 10px
+        color-mix(in srgb, var(--crit-mid) 5%, transparent),
+        color-mix(in srgb, var(--crit-mid) 5%, transparent) 5px,
+        color-mix(in srgb, var(--danger) 8%, transparent) 5px,
+        color-mix(in srgb, var(--danger) 8%, transparent) 10px
     );
 }
 
 .schedule-cell.current {
-    background: rgba(26, 111, 212, 0.06) !important;
+    background: color-mix(in srgb, var(--primary) 6%, transparent) !important;
 }
 
 .schedule-cell.current:hover {
-    background: rgba(26, 111, 212, 0.10) !important;
+    background: color-mix(in srgb, var(--primary) 10%, transparent) !important;
 }
 
 .schedule-cell.current.weekend {
-    background: rgba(204, 122, 0, 0.08) !important;
+    background: color-mix(in srgb, var(--crit-mid) 8%, transparent) !important;
 }
 
 .schedule-cell.current.weekend:hover {
-    background: rgba(204, 122, 0, 0.12) !important;
+    background: color-mix(in srgb, var(--crit-mid) 12%, transparent) !important;
 }
 
 .schedule-cell.current.freeze {
@@ -1262,8 +1451,8 @@ h1, h2, h3 {
         45deg,
         transparent,
         transparent 5px,
-        rgba(196, 30, 30, 0.08) 5px,
-        rgba(196, 30, 30, 0.08) 10px
+        color-mix(in srgb, var(--danger) 8%, transparent) 5px,
+        color-mix(in srgb, var(--danger) 8%, transparent) 10px
     ) !important;
 }
 
@@ -1272,7 +1461,7 @@ h1, h2, h3 {
    ------------------------------------------------------------ */
 .schedule-info {
     padding: 4px 7px 4px 9px;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     min-height: 32px;
     display: flex;
     flex-direction: column;
@@ -1293,12 +1482,46 @@ h1, h2, h3 {
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
-.schedule-location {
+/* Цепочка блоков назначения — стадии раскатки как соединённые узлы */
+.schedule-rail {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    row-gap: 2px;
+    line-height: 1.2;
+}
+
+.rail-node {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.rail-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--primary);
+}
+
+.rail-label {
     font-weight: 700;
     font-size: 0.85rem;
     color: var(--text);
-    line-height: 1.2;
 }
+
+.rail-connector {
+    width: 9px;
+    height: 1px;
+    background: var(--border-strong);
+    margin: 0 4px;
+    flex-shrink: 0;
+}
+
+.schedule-info.status-planned .rail-dot { background: var(--crit-mid); }
+.schedule-info.status-rollback .rail-dot { background: var(--danger); }
+.schedule-info.status-success .rail-dot { background: var(--success); }
 
 .schedule-status {
     font-size: 0.68rem;
@@ -1323,9 +1546,10 @@ h1, h2, h3 {
     font-size: 0.6rem;
     font-weight: 700;
     letter-spacing: 0.03em;
-    color: var(--text-inverse);
-    background: #7B4FD4;
-    border-radius: 3px;
+    color: var(--accent-purple);
+    background: color-mix(in srgb, var(--accent-purple) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-purple) 35%, transparent);
+    border-radius: var(--radius-sm);
     padding: 0 4px;
     line-height: 1.5;
 }
@@ -1335,9 +1559,10 @@ h1, h2, h3 {
     font-size: 0.6rem;
     font-weight: 700;
     letter-spacing: 0.03em;
-    color: var(--text-inverse);
-    background: var(--primary);
-    border-radius: 3px;
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+    border-radius: var(--radius-sm);
     padding: 0 4px;
     line-height: 1.5;
 }
@@ -1377,7 +1602,7 @@ h1, h2, h3 {
 /* Зависимости работ */
 .deps-list {
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     padding: 6px 8px;
 }
 
@@ -1393,7 +1618,7 @@ h1, h2, h3 {
     box-sizing: border-box;
     padding: 4px 28px 4px 8px;
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     font-size: 0.9rem;
     font-family: inherit;
     background: var(--surface);
@@ -1425,11 +1650,12 @@ h1, h2, h3 {
     border-radius: 10px;
     margin-left: 4px;
     white-space: nowrap;
+    border: 1px solid transparent;
 }
 
-.dep-badge-cancelled { background: rgba(196, 30, 30, 0.10); color: var(--danger); }
-.dep-badge-pending   { background: rgba(204, 122, 0, 0.10);  color: var(--crit-mid); }
-.dep-badge-deleted   { background: rgba(0, 0, 0, 0.08);      color: var(--text-3); }
+.dep-badge-cancelled { background: color-mix(in srgb, var(--danger) 12%, transparent);   border-color: color-mix(in srgb, var(--danger) 35%, transparent);   color: var(--danger); }
+.dep-badge-pending   { background: color-mix(in srgb, var(--crit-mid) 12%, transparent); border-color: color-mix(in srgb, var(--crit-mid) 35%, transparent); color: var(--crit-mid); }
+.dep-badge-deleted   { background: color-mix(in srgb, var(--text-3) 12%, transparent);   border-color: color-mix(in srgb, var(--text-3) 35%, transparent);   color: var(--text-3); }
 
 .dep-tooltip {
     display: none;
@@ -1437,7 +1663,7 @@ h1, h2, h3 {
     z-index: 2000;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius);
     padding: 6px 10px;
     box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
     font-size: 0.85rem;
@@ -1472,19 +1698,19 @@ h1, h2, h3 {
     z-index: 1000;
     min-width: 80px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     transition: none !important;
     will-change: transform;
 }
 
 .schedule-cell.drag-over {
-    background: rgba(26, 111, 212, 0.10) !important;
+    background: color-mix(in srgb, var(--primary) 10%, transparent) !important;
     outline: 2px dashed var(--primary);
     outline-offset: -2px;
 }
 
 .schedule-cell.drag-invalid {
-    background: rgba(196, 30, 30, 0.08) !important;
+    background: color-mix(in srgb, var(--danger) 8%, transparent) !important;
     outline: 2px dashed var(--danger);
     outline-offset: -2px;
     cursor: not-allowed;
@@ -1512,7 +1738,7 @@ h1, h2, h3 {
 
 .modal-content {
     background: var(--surface);
-    border-radius: 4px;
+    border-radius: var(--radius);
     border: 1px solid var(--border);
     max-width: 500px;
     width: 90%;
@@ -1625,7 +1851,7 @@ h1, h2, h3 {
     background: var(--surface);
     padding: 22px 24px;
     border: 1px solid var(--border);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    box-shadow: var(--shadow-card);
 }
 
 .settings-section h2 {
@@ -1641,7 +1867,7 @@ h1, h2, h3 {
 .team-card {
     margin-top: 5px;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius);
     padding: 14px;
     background: var(--surface-alt);
 }
@@ -1668,7 +1894,7 @@ h1, h2, h3 {
     padding: 7px 12px;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     margin-bottom: 4px;
     display: flex;
     justify-content: space-between;
@@ -1740,7 +1966,7 @@ h1, h2, h3 {
     right: 0;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius);
     max-height: 160px;
     overflow-y: auto;
     z-index: 100;
@@ -1772,8 +1998,9 @@ h1, h2, h3 {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    background: var(--primary);
-    color: var(--text-inverse);
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    color: var(--primary);
+    border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
     border-radius: 12px;
     padding: 3px 10px;
     font-size: 0.85rem;
@@ -1832,7 +2059,7 @@ h1, h2, h3 {
     background: var(--surface);
     color: var(--primary);
     cursor: pointer;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     font-size: 0.85rem;
     font-family: var(--mono);
     min-width: 34px;
@@ -1880,7 +2107,7 @@ h1, h2, h3 {
 
 .freeze-month-card {
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius);
     padding: 10px;
     background: var(--surface-alt);
 }
@@ -1931,11 +2158,11 @@ h1, h2, h3 {
 }
 
 .freeze-calendar td.cal-weekend {
-    background: rgba(204, 122, 0, 0.08);
+    background: color-mix(in srgb, var(--crit-mid) 8%, transparent);
 }
 
 .freeze-calendar td.cal-today .cal-day-inner:not(.freeze-day-marked):not(.selected) {
-    background: rgba(26, 111, 212, 0.10);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
     border: 2px solid var(--primary);
     color: var(--primary);
     font-weight: 600;
@@ -1946,7 +2173,7 @@ h1, h2, h3 {
 }
 
 .freeze-calendar.interactive td[data-day]:hover .cal-day-inner:not(.selected) {
-    background: rgba(196, 30, 30, 0.10);
+    background: color-mix(in srgb, var(--danger) 10%, transparent);
 }
 
 .freeze-calendar.interactive .cal-day-inner.selected {
@@ -1990,7 +2217,7 @@ h1, h2, h3 {
     background: none;
     border: 1px solid var(--border);
     color: var(--text-2);
-    border-radius: 4px;
+    border-radius: var(--radius);
     padding: 4px 10px;
     font-size: 0.82rem;
     cursor: pointer;
@@ -2077,7 +2304,7 @@ h1, h2, h3 {
     font-size: 0.85rem;
     padding: 6px 10px;
     background: var(--surface-2);
-    border-radius: 4px;
+    border-radius: var(--radius);
     color: var(--text);
 }
 
@@ -2156,10 +2383,59 @@ h1, h2, h3 {
 .login-box {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius);
     padding: 32px;
     width: 100%;
     max-width: 380px;
+    box-shadow: var(--shadow-card);
+}
+
+.login-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    margin-bottom: 4px;
+}
+
+.login-brand-mark {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    color: var(--primary);
+}
+
+.login-brand-mark svg { width: 100%; height: 100%; }
+
+.login-theme-toggle {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    border-radius: var(--radius-sm);
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.login-theme-toggle .theme-icon-sun,
+.login-theme-toggle .theme-icon-moon {
+    width: 18px;
+    height: 18px;
+}
+
+.login-theme-toggle:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
 }
 
 .login-hint {
@@ -2169,10 +2445,10 @@ h1, h2, h3 {
 }
 
 .flash-message {
-    background: rgba(196, 30, 30, 0.1);
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
     border: 1px solid var(--danger);
     color: var(--danger);
-    border-radius: 4px;
+    border-radius: var(--radius);
     padding: 10px 14px;
     margin-bottom: 14px;
 }
@@ -2181,13 +2457,30 @@ h1, h2, h3 {
    18. Адаптивность
    ------------------------------------------------------------ */
 @media (max-width: 768px) {
-    .nav-menu {
-        gap: 4px;
+    .sidebar {
+        transform: translateX(-100%);
+        box-shadow: var(--shadow-float);
     }
 
-    .nav-menu a {
-        padding: 5px 8px;
-        font-size: 0.85rem;
+    .sidebar.open {
+        transform: translateX(0);
+    }
+
+    .sidebar-scrim.open {
+        display: block;
+    }
+
+    .sidebar-burger {
+        display: flex;
+    }
+
+    .app-main {
+        margin-left: 0;
+    }
+
+    .container {
+        padding: 24px 16px 32px;
+        padding-top: 64px;
     }
 
     .filter-row {

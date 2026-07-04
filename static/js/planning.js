@@ -253,16 +253,16 @@ function loadTodayCounters() {
                 if (critCounts[a.criticality] !== undefined) critCounts[a.criticality]++;
             });
 
-            let html = `<span class="counter-item">На сегодня: <b>${data.length}</b></span>`;
+            let html = statTile('На сегодня', data.length, 'counter-item-primary');
 
-            html += `<span class="counter-group-label">Статус:</span>`;
+            html += `<span class="counter-group-label">Статус</span>`;
             for (const [key, label] of Object.entries(statusLabels)) {
-                html += `<span class="counter-item counter-status-${key}">${label}: <b>${statusCounts[key]}</b></span>`;
+                html += statTile(label, statusCounts[key], `counter-status-${key}`);
             }
 
-            html += `<span class="counter-group-label">Критичность:</span>`;
+            html += `<span class="counter-group-label">Критичность</span>`;
             for (const [key, label] of Object.entries(critLabels)) {
-                html += `<span class="counter-item counter-crit-${key}">${label}: <b>${critCounts[key]}</b></span>`;
+                html += statTile(label, critCounts[key], `counter-crit-${key}`);
             }
 
             document.getElementById('planningCounters').innerHTML = html;
@@ -418,7 +418,7 @@ function renderTable() {
                 const statusColor = getStatusColor(assignment.status);
                 cell.innerHTML = `
                     <div class="schedule-info ${statusColor}" data-assignment-id="${assignment.id}">
-                        <span class="schedule-location">${assignment.block || ''}</span>
+                        ${renderBlockRail(assignment.block)}
                         <span class="schedule-status">${getStatusDisplay(assignment.status)}</span>
                         <span class="schedule-comment">${assignment.comment || ''}</span>
                         <span class="schedule-employee">${assignment.employee_name}</span>
@@ -590,6 +590,15 @@ function getStatusDisplay(status) {
         'success': 'Успешно'
     };
     return map[status] || status;
+}
+
+// Цепочка блоков назначения ("ГФ, Б1" -> ГФ●──●Б1) — визуально показывает,
+// что это стадии одной раскатки, а не произвольный список тегов
+function renderBlockRail(blockStr) {
+    const names = (blockStr || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (names.length === 0) return '<span class="schedule-rail"></span>';
+    const nodes = names.map(name => `<span class="rail-node"><span class="rail-dot"></span><span class="rail-label">${name}</span></span>`);
+    return `<span class="schedule-rail">${nodes.join('<span class="rail-connector"></span>')}</span>`;
 }
 
 function initBlockSearch(selectedNames) {

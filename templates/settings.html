@@ -25,7 +25,7 @@
         <h2>Команды</h2>
         <div class="add-form">
             <div class="form-row">
-                <button class="btn btn-success" onclick="openTeamModal()">Добавить команду</button>
+                <button class="btn btn-primary" onclick="openTeamModal()">Добавить команду</button>
             </div>
         </div>
         <div id="teamsList">
@@ -71,7 +71,7 @@
                 </div>
 
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-success" id="saveTeamBtn">Создать</button>
+                    <button type="submit" class="btn btn-primary" id="saveTeamBtn">Создать</button>
                     <button type="submit" class="btn btn-primary" id="updateTeamBtn" style="display:none;">Обновить</button>
                     <button type="button" class="btn btn-secondary" onclick="closeModal('teamModal')">Закрыть</button>
                 </div>
@@ -86,7 +86,7 @@
         {% if current_role == 'admin' %}
         <div class="add-form">
             <div class="form-row">
-                <button class="btn btn-success" onclick="openEmployeeModal()">Добавить сотрудника</button>
+                <button class="btn btn-primary" onclick="openEmployeeModal()">Добавить сотрудника</button>
             </div>
         </div>
         {% endif %}
@@ -142,7 +142,7 @@
                 </div>
 
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-success" id="saveEmployeeBtn">Создать</button>
+                    <button type="submit" class="btn btn-primary" id="saveEmployeeBtn">Создать</button>
                     <button type="submit" class="btn btn-primary" id="updateEmployeeBtn" style="display:none;">Обновить</button>
                     <button type="button" class="btn btn-secondary" onclick="closeModal('employeeModal')">Закрыть</button>
                 </div>
@@ -158,7 +158,7 @@
         <div class="add-form">
             <div class="form-row" id="addBlockRow">
                 <input type="text" id="newBlockName" placeholder="Название блока (например: ГФ, Б1)" style="flex:1;">
-                <button class="btn btn-success" onclick="createBlock()">Добавить</button>
+                <button class="btn btn-primary" onclick="createBlock()">Добавить</button>
             </div>
         </div>
         <ul class="executors-list" id="blocksList">
@@ -176,7 +176,7 @@
         <h2>Шаблоны блоков</h2>
         <div class="add-form">
             <div class="form-row">
-                <button class="btn btn-success" onclick="openTemplateModal()">Добавить шаблон</button>
+                <button class="btn btn-primary" onclick="openTemplateModal()">Добавить шаблон</button>
             </div>
         </div>
         <div id="templatesList">
@@ -228,7 +228,7 @@
                 </div>
 
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-success" id="saveTemplateBtn">Создать</button>
+                    <button type="submit" class="btn btn-primary" id="saveTemplateBtn">Создать</button>
                     <button type="submit" class="btn btn-primary" id="updateTemplateBtn" style="display:none;">Обновить</button>
                     <button type="button" class="btn btn-secondary" onclick="closeModal('templateModal')">Закрыть</button>
                 </div>
@@ -242,7 +242,7 @@
         <h2>Дни фриза</h2>
         <div class="add-form">
             <div class="form-row">
-                <button class="btn btn-success" onclick="openFreezeMonthModal(null)">Добавить месяц</button>
+                <button class="btn btn-primary" onclick="openFreezeMonthModal(null)">Добавить месяц</button>
             </div>
         </div>
         <div id="freezeMonthsGrid" class="freeze-months-grid"></div>
@@ -260,7 +260,7 @@
                 <div id="freezeMonthSelector" class="form-group"></div>
                 <div id="freezeModalCalendar"></div>
                 <div class="modal-footer">
-                    <button class="btn btn-success" onclick="saveFreezeMonth()">Сохранить</button>
+                    <button class="btn btn-primary" onclick="saveFreezeMonth()">Сохранить</button>
                     <button class="btn btn-secondary" onclick="closeModal('freezeMonthModal')">Отмена</button>
                 </div>
             </div>
