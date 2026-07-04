@@ -275,6 +275,14 @@ def get_all_employees(conn):
 
 
 @with_db_connection(commit_on_success=False)
+def get_employee(conn, employee_id):
+    """Получить одного сотрудника по id (используется, например, GET /api/me)"""
+    row = conn.execute(
+        'SELECT id, last_name, first_name, middle_name, role FROM employees WHERE id = ?', (employee_id,)).fetchone()
+    return dict(row) if row else None
+
+
+@with_db_connection(commit_on_success=False)
 def create_employee(conn, last_name, first_name, middle_name=None, password_hash=None, role='user'):
     """Создать сотрудника"""
     cursor = conn.execute(

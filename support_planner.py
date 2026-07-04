@@ -17,13 +17,27 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
+# React (Vite/antd) migration, page by page — see plan doc. `frontend/dist` only exists after
+# `npm run build`; the mount is skipped in dev if it hasn't been built yet, matching the current
+# no-build-step-required philosophy for anyone just running the Python app without touching the
+# frontend at all.
+_REACT_DIST = os.path.join(os.path.dirname(__file__), 'frontend', 'dist')
+if os.path.isdir(os.path.join(_REACT_DIST, 'assets')):
+    app.mount("/react-assets/assets", StaticFiles(directory=os.path.join(_REACT_DIST, 'assets')), name="react-assets")
+
+
+def _serve_react_index() -> str:
+    """Отдать собранный React SPA (frontend/dist/index.html) для уже перенесённых страниц."""
+    with open(os.path.join(_REACT_DIST, 'index.html'), encoding='utf-8') as f:
+        return f.read()
+
 _SESSION_SECRET_KEY = os.environ.get('SESSION_SECRET_KEY')
 if not _SESSION_SECRET_KEY:
     _SESSION_SECRET_KEY = 'dev-insecure-secret-change-me'
     print('WARNING: SESSION_SECRET_KEY не задан, используется небезопасный ключ по умолчанию '
           '(сессии не переживут смену ключа; задайте переменную окружения для продакшена)')
 
-_PUBLIC_PATHS = {'/login', '/logout'}
+_PUBLIC_PATHS = {'/login', '/logout', '/api/login-employees'}
 
 # Ранги ролей: user < editor < admin — каждая следующая роль включает права предыдущей.
 _ROLE_RANK = {'user': 0, 'editor': 1, 'admin': 2}
@@ -58,7 +72,7 @@ def _required_rank(method: str, path: str) -> int:
 @app.middleware('http')
 async def require_login(request: Request, call_next):
     path = request.url.path
-    if path in _PUBLIC_PATHS or path.startswith('/static/'):
+    if path in _PUBLIC_PATHS or path.startswith('/static/') or path.startswith('/react-assets/'):
         return await call_next(request)
     employee_id = request.session.get('employee_id')
     emp = db.employee_exists(employee_id) if employee_id else None
@@ -174,16 +188,23 @@ def root():
 
 
 @app.get('/login', response_class=HTMLResponse)
-def login_page(request: Request):
-    """Страница входа"""
+def login_page():
+    """Страница входа (React)"""
+    return _serve_react_index()
+
+
+@app.get('/api/login-employees')
+def login_employees():
+    """Публичный (без авторизации) список сотрудников для выпадающего списка на странице входа —
+    те же поля, что показывались в незалогиненном login.html и раньше."""
     employees = db.get_all_employees()
-    return templates.TemplateResponse(request, 'login.html', {'employees': employees, 'error_message': None})
+    return [{'id': e['id'], 'last_name': e['last_name'], 'first_name': e['first_name'],
+              'middle_name': e['middle_name']} for e in employees]
 
 
-@app.post('/login', response_class=HTMLResponse)
+@app.post('/login')
 def login_submit(request: Request, employee_id: str = Form(...), password: str = Form(...)):
     """Обработка входа по сотруднику и паролю"""
-    employees = db.get_all_employees()
     try:
         emp_id = int(employee_id)
     except (TypeError, ValueError):
@@ -191,14 +212,11 @@ def login_submit(request: Request, employee_id: str = Form(...), password: str =
 
     auth_row = db.get_employee_auth(emp_id) if emp_id else None
     if not auth_row or not auth.verify_password(password, auth_row['password_hash']):
-        return templates.TemplateResponse(
-            request, 'login.html',
-            {'employees': employees, 'error_message': 'Неверный сотрудник или пароль'},
-            status_code=401)
+        return JSONResponse({'error': 'Неверный сотрудник или пароль'}, status_code=401)
 
     request.session['employee_id'] = emp_id
     request.session['role'] = auth_row['role']
-    return RedirectResponse(url='/planning', status_code=302)
+    return {'success': True}
 
 
 @app.post('/logout')
@@ -206,6 +224,21 @@ def logout(request: Request):
     """Выход из системы"""
     request.session.clear()
     return RedirectResponse(url='/login', status_code=302)
+
+
+@app.get('/api/me')
+def get_me(request: Request):
+    """Личность и роль текущего пользователя — то же самое, что require_login уже вычисляет
+    в request.state.role, но в виде JSON для клиентских (React) страниц, у которых нет доступа
+    к current_role из Jinja-контекста."""
+    emp = db.get_employee(request.session['employee_id'])
+    return {
+        'employee_id': emp['id'],
+        'role': emp['role'],
+        'last_name': emp['last_name'],
+        'first_name': emp['first_name'],
+        'middle_name': emp['middle_name'],
+    }
 
 
 @app.get('/planning', response_class=HTMLResponse)
@@ -273,38 +306,21 @@ def settings_page(request: Request):
 
 
 @app.get('/statistics', response_class=HTMLResponse)
-def statistics_page(request: Request):
-    """Страница статистики"""
-    teams = db.get_all_teams()
-    return templates.TemplateResponse(request, 'statistics.html', {
-        'teams': teams,
-        'current_role': request.state.role,
-    })
+def statistics_page():
+    """Страница статистики (React)"""
+    return _serve_react_index()
 
 
 @app.get('/journal', response_class=HTMLResponse)
-def journal_select(request: Request):
-    """Страница журнала изменений — выбор команды"""
-    teams = db.get_all_teams()
-    return templates.TemplateResponse(request, 'history.html', {
-        'teams': teams,
-        'team': None,
-        'current_role': request.state.role,
-    })
+def journal_select():
+    """Страница журнала изменений — выбор команды (React)"""
+    return _serve_react_index()
 
 
 @app.get('/journal/{team_id}', response_class=HTMLResponse)
-def journal_page(request: Request, team_id: int):
-    """Журнал изменений команды"""
-    teams = db.get_all_teams()
-    team = db.get_team_by_id(team_id)
-    if not team:
-        return RedirectResponse(url='/journal?invalid_team=1', status_code=302)
-    return templates.TemplateResponse(request, 'history.html', {
-        'teams': teams,
-        'team': team,
-        'current_role': request.state.role,
-    })
+def journal_page(team_id: int):
+    """Журнал изменений команды (React) — валидность team_id проверяется на клиенте"""
+    return _serve_react_index()
 
 
 # === API для назначений ===

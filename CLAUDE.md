@@ -17,6 +17,31 @@ python support_planner.py         # Run dev server on http://localhost:5093
 python -m pytest tests/ -v        # Run tests (currently only db/postgres.py unit tests + a live-PG integration test, auto-skipped if no PG server)
 ```
 
+**Frontend (React/antd migration, in progress — see `frontend/`):** pages are being migrated one at a time
+from the Jinja2/vanilla-JS frontend to React + Ant Design; FastAPI keeps serving Jinja2 for any page not yet
+migrated. Done so far: Stage 1 (`/login`), Stage 2 (`/statistics`, `/journal`, `/journal/{team_id}`). Remaining:
+Settings, then Planning (highest complexity — the drag-and-drop grid). `/statistics` and `/journal` share one
+React Router layout (`AuthenticatedLayout` + `AppShell`, fetches `GET /api/me` for role-gated nav) so navigating
+between them is a client-side route change, not a full page reload; navigating to a still-Jinja2 page (e.g.
+Планирование/Настройки in the sidebar) is a normal full navigation. **`frontend/dist/` (built via Vite) is now
+required, not optional** — `/login` was the first page cut over, so `GET /login` serves the built React
+`index.html` unconditionally; without a build, nobody can log in at all. Run `npm run build` after
+cloning/pulling before starting `support_planner.py`.
+
+```bash
+cd frontend && npm install   # Install frontend dependencies (first time only)
+npm run dev                  # Vite dev server (proxies /api, /login, /logout to :5093 — run support_planner.py too)
+npm run build                # Production build -> frontend/dist/, served by FastAPI at /react-assets/*
+```
+
+`GET /api/login-employees` is a deliberately public (unauthenticated) endpoint — `require_login`'s
+`_PUBLIC_PATHS` includes it — feeding the login page's employee picker; it exposes the same non-sensitive
+fields (`id`/`last_name`/`first_name`/`middle_name`) the old `login.html` already rendered to anyone
+unauthenticated, so this isn't a new information disclosure. `POST /login` and `/api/me` are unchanged in
+spirit but `POST /login` now returns JSON (`{success: true}` / `{"error": "..."}`) instead of a redirect or a
+re-rendered Jinja page, matching the rest of the app's `/api/*` convention — the React login page does the
+`window.location.href = '/planning'` navigation itself on success.
+
 `requirements.txt` currently lists `fastapi`, `uvicorn[standard]`, `jinja2`, `pydantic`, `starlette`, plus
 `psycopg2-binary` (only needed for `PostgresBackend`). **Known gap:** the login feature also needs `itsdangerous` (used
 internally by `starlette.middleware.sessions.SessionMiddleware` to sign the session cookie) and `python-multipart` (
@@ -37,7 +62,8 @@ set for any real deployment.
 FastAPI app split across a handful of modules:
 
 - **`support_planner.py`** — all FastAPI routes and API endpoints (this is the app entrypoint — there is no `app.py`).
-  `/` redirects to `/planning`. Pages: `/planning`, `/planning/{team_id}`, `/settings`, `/statistics`, `/login`. API
+  `/` redirects to `/planning`. Pages: `/planning`, `/planning/{team_id}`, `/settings` (still Jinja2), `/login`,
+  `/statistics`, `/journal`, `/journal/{team_id}` (React — see the frontend migration note above). API
   under `/api/`. Request bodies use Pydantic models (`AssignmentIn`, `TaskIn`, `TeamIn`, `BlockIn`, `BlockTemplateIn`,
   `EmployeeIn`, `FreezeDayIn`, `FreezeDayMonthIn`, `TaskStatusIn`). API errors return
   `JSONResponse({"error": "..."}, status_code=...)`. Route handlers use sync `def` (not `async def`) since DB calls are
@@ -164,8 +190,10 @@ Two separate status machines coexist — do not confuse them:
 - **Active assignments**: assignment statuses `new` or `planned` on tasks not in terminal states, served by
   `/api/active-assignments/{team_id}` (team_id=0 for all teams)
 - **Authentication**: per-employee login (no roles) via `GET/POST /login` and `POST /logout`. The whole app (pages and
-  `/api/*`) sits behind the `require_login` middleware in `support_planner.py` except `/login`, `/logout`, and
-  `/static/*`. There's no self-service signup, but there is a bootstrap account: `SQLiteBackend.init_schema()` /
+  `/api/*`) sits behind the `require_login` middleware in `support_planner.py` except `/login`, `/logout`,
+  `/api/login-employees`, `/static/*`, and `/react-assets/*` (the built React bundle itself must be loadable
+  before the user is authenticated — see the React migration note above). There's no self-service signup, but
+  there is a bootstrap account: `SQLiteBackend.init_schema()` /
   `PostgresBackend.init_schema()` both seed an `employees` row named `Администратор` (empty first/middle name) with
   password `q123456789` via `INSERT OR IGNORE`, on every startup. This relies on `middle_name` being `''` rather than
   `NULL` in that seed row — `UNIQUE(last_name, first_name, middle_name)` never treats two `NULL`s as equal, so a `NULL`

@@ -18,7 +18,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+#lib/
 lib64/
 parts/
 sdist/
@@ -88,3 +88,6 @@ error.log
 *.spec
 
 .claude/
+
+# Frontend (React/Vite, see frontend/) — dist/ already covered above, node_modules/ needs its own entry
+node_modules/
