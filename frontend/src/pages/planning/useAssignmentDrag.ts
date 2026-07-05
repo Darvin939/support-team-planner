@@ -115,6 +115,7 @@ export function useAssignmentDrag(options: {
         ghost.classList.add('assignment-drag-ghost');
         ghost.style.width = `${state.sourceChip.getBoundingClientRect().width}px`;
         ghost.style.fontFamily = getComputedStyle(state.sourceChip).fontFamily;
+        ghost.style.color = getComputedStyle(state.sourceChip).color;
         document.body.appendChild(ghost);
         state.ghostOffsetX = ghost.offsetWidth / 2;
         state.ghostOffsetY = ghost.offsetHeight / 2;
