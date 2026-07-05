@@ -42,3 +42,42 @@ export function getCellTint(token: GlobalToken, { isToday, isFreeze, isWeekend }
   }
   return {};
 }
+
+/**
+ * Port of the original `.date-col` header-cell state precedence — distinct from
+ * `.schedule-cell`/`getCellTint` above (own tint percentages, and a solid+stripe
+ * combo for freeze rather than a pure gradient). Today's column additionally
+ * gets an `inset 0 -3px 0 <color>` box-shadow — a colored bar along the bottom
+ * edge of the header cell — which the original had only on the header, not the
+ * body. Same today+freeze-ignores-weekend precedence as getCellTint.
+ */
+export function getHeaderTint(token: GlobalToken, { isToday, isFreeze, isWeekend }: CellTintFlags): { background?: string; backgroundImage?: string; boxShadow?: string } {
+  if (isToday && isFreeze) {
+    return {
+      background: `color-mix(in srgb, ${token.colorError} 7%, transparent)`,
+      boxShadow: `inset 0 -3px 0 ${token.colorError}`,
+    };
+  }
+  if (isToday && isWeekend) {
+    return {
+      background: `color-mix(in srgb, ${token.colorWarning} 9%, transparent)`,
+      boxShadow: `inset 0 -3px 0 ${token.colorWarning}`,
+    };
+  }
+  if (isToday) {
+    return {
+      background: `color-mix(in srgb, ${token.colorPrimary} 7%, transparent)`,
+      boxShadow: `inset 0 -3px 0 ${token.colorPrimary}`,
+    };
+  }
+  if (isFreeze) {
+    return {
+      background: `color-mix(in srgb, ${token.colorError} 5%, transparent)`,
+      backgroundImage: stripe('transparent', `color-mix(in srgb, ${token.colorError} 12%, transparent)`),
+    };
+  }
+  if (isWeekend) {
+    return { background: `color-mix(in srgb, ${token.colorWarning} 7%, transparent)` };
+  }
+  return {};
+}

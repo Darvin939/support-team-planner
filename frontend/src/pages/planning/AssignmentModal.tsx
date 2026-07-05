@@ -1,18 +1,18 @@
 import {useEffect, useState} from 'react';
 import {
-  Alert,
-  Button,
-  DatePicker,
-  Form,
-  Input,
-  message,
-  Modal,
-  Popconfirm,
-  Select,
-  Space,
-  Switch,
-  theme,
-  TimePicker
+    Alert,
+    Button,
+    DatePicker,
+    Form,
+    Input,
+    message,
+    Modal,
+    Popconfirm,
+    Select,
+    Space,
+    Switch,
+    theme,
+    TimePicker
 } from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import dayjs from 'dayjs';
@@ -24,7 +24,7 @@ import {computeAutoAssignDates, getAutoScheduleDateRange} from '../../lib/autoSc
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT, TIME_FORMAT} from '../../lib/dateFormats';
 import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';
 import {useAutoScheduleDragScroll} from './useAutoScheduleDragScroll';
-import {getCellTint} from './cellTint';
+import {getCellTint, getHeaderTint} from './cellTint';
 
 interface AssignmentFormValues {
   date: dayjs.Dayjs;
@@ -93,6 +93,7 @@ function AutoScheduleGrid({
               const isWeekend = d.day() === 0 || d.day() === 6;
               const isFreeze = freezeDays.has(dateStr);
               const isToday = dateStr === today;
+              const headerTint = getHeaderTint(token, { isToday, isFreeze, isWeekend });
               return (
                 <th
                   key={dateStr}
@@ -100,13 +101,7 @@ function AutoScheduleGrid({
                     padding: '4px 6px',
                     minWidth: 56,
                     fontFamily: "'JetBrains Mono Variable', monospace",
-                    background: isToday
-                      ? `color-mix(in srgb, ${token.colorPrimary} 10%, transparent)`
-                      : isFreeze
-                        ? `color-mix(in srgb, ${token.colorError} 6%, transparent)`
-                        : isWeekend
-                          ? `color-mix(in srgb, ${token.colorWarning} 7%, transparent)`
-                          : undefined,
+                    ...headerTint,
                   }}
                 >
                   {d.format(DISPLAY_DATE_SHORT_FORMAT)}
@@ -339,7 +334,7 @@ export function AssignmentModal({
 
   return (
     <Modal
-      title="Работа"
+      title={task ? `Работа: ${task.name}` : 'Работа'}
       open={open}
       onCancel={onClose}
       width={(autoAssignEnabled ? 640 : 520) + (historyOpen ? 320 : 0)}

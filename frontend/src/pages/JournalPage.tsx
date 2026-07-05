@@ -38,7 +38,7 @@ function useTaskHistory(taskId: number | null, offset: number) {
   });
 }
 
-function TaskHistoryModal({ taskId, onClose }: { taskId: number | null; onClose: () => void }) {
+function TaskHistoryModal({ taskId, taskName, onClose }: { taskId: number | null; taskName: string | null; onClose: () => void }) {
   const [offset, setOffset] = useState(0);
   const { data, isLoading } = useTaskHistory(taskId, offset);
   const getEmployeeName = useEmployeeNames();
@@ -48,7 +48,7 @@ function TaskHistoryModal({ taskId, onClose }: { taskId: number | null; onClose:
   }, [taskId]);
 
   return (
-    <Modal title="История задачи" open={taskId !== null} onCancel={onClose} footer={null} width={700}>
+    <Modal title={taskName ? `История задачи: ${taskName}` : 'История задачи'} open={taskId !== null} onCancel={onClose} footer={null} width={700}>
       {isLoading && <Spin />}
       {data && data.history.length === 0 && <Empty description="Изменений пока нет" />}
       {data && data.history.length > 0 && (
@@ -67,6 +67,7 @@ function TaskHistoryModal({ taskId, onClose }: { taskId: number | null; onClose:
         <Pagination
           style={{ marginTop: 12, textAlign: 'center' }}
           simple
+          showSizeChanger={false}
           current={Math.floor(offset / HISTORY_PAGE_SIZE) + 1}
           pageSize={HISTORY_PAGE_SIZE}
           total={data.total}
@@ -82,7 +83,7 @@ export function JournalPage() {
   const navigate = useNavigate();
   const { data: teams } = useTeams();
   const [offset, setOffset] = useState(0);
-  const [modalTaskId, setModalTaskId] = useState<number | null>(null);
+  const [modalTask, setModalTask] = useState<{ id: number; name: string } | null>(null);
   const getEmployeeName = useEmployeeNames();
 
   const teamId = teamIdParam ? Number(teamIdParam) : undefined;
@@ -130,7 +131,7 @@ export function JournalPage() {
                 key={item.id}
                 size="small"
                 hoverable
-                onClick={() => setModalTaskId(item.task_id)}
+                onClick={() => setModalTask({ id: item.task_id, name: item.task_name ?? '' })}
                 styles={{ body: { fontSize: '0.9rem' } }}
               >
                 <div style={{ opacity: 0.6, fontSize: '0.8rem' }}>
@@ -156,7 +157,7 @@ export function JournalPage() {
         </>
       )}
 
-      <TaskHistoryModal taskId={modalTaskId} onClose={() => setModalTaskId(null)} />
+      <TaskHistoryModal taskId={modalTask?.id ?? null} taskName={modalTask?.name ?? null} onClose={() => setModalTask(null)} />
     </>
   );
 }

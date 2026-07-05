@@ -63,6 +63,7 @@ export function HistoryPanel({ kind, entityId, open }: { kind: 'task' | 'assignm
         <Pagination
           style={{ marginTop: 12, textAlign: 'center' }}
           simple
+          showSizeChanger={false}
           current={Math.floor(offset / HISTORY_PAGE_SIZE) + 1}
           pageSize={HISTORY_PAGE_SIZE}
           total={data.total}

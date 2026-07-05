@@ -3,31 +3,31 @@ import {useNavigate, useParams} from 'react-router-dom';
 import {DeleteOutlined, EditOutlined, InfoCircleOutlined} from '@ant-design/icons';
 import type {TableColumnsType} from 'antd';
 import {
-  Button,
-  Card,
-  Checkbox,
-  DatePicker,
-  Empty,
-  Input,
-  message,
-  Pagination,
-  Popconfirm,
-  Select,
-  Space,
-  Table,
-  theme,
-  Typography
+    Button,
+    Card,
+    Checkbox,
+    DatePicker,
+    Empty,
+    Input,
+    message,
+    Pagination,
+    Popconfirm,
+    Select,
+    Space,
+    Table,
+    theme,
+    Typography
 } from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import dayjs, {type Dayjs} from 'dayjs';
 import {useTeams} from '../hooks/useTeams';
 import {
-  type Assignment,
-  type Task,
-  useAssignments,
-  useTaskDeps,
-  useTasks,
-  useTodayActive
+    type Assignment,
+    type Task,
+    useAssignments,
+    useTaskDeps,
+    useTasks,
+    useTodayActive
 } from '../hooks/usePlanningData';
 import {useFreezeDays} from '../hooks/useSettingsData';
 import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
@@ -37,7 +37,7 @@ import {TaskModal} from './planning/TaskModal';
 import {AssignmentModal} from './planning/AssignmentModal';
 import {useAssignmentDrag} from './planning/useAssignmentDrag';
 import {useTableDragScroll} from './planning/useTableDragScroll';
-import {getCellTint} from './planning/cellTint';
+import {getCellTint, getHeaderTint} from './planning/cellTint';
 import {apiMutate} from '../lib/apiMutate';
 import {linkify} from '../lib/linkify';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT} from '../lib/dateFormats';
@@ -289,20 +289,14 @@ export function PlanningPage() {
       const isWeekend = d.day() === 0 || d.day() === 6;
       const isToday = dateStr === today;
       const isFreeze = freezeDays.has(dateStr);
-      const headerBg = isToday
-        ? `color-mix(in srgb, ${token.colorPrimary} 10%, transparent)`
-        : isFreeze
-          ? `color-mix(in srgb, ${token.colorError} 6%, transparent)`
-          : isWeekend
-            ? `color-mix(in srgb, ${token.colorWarning} 7%, transparent)`
-            : undefined;
+      const headerTint = getHeaderTint(token, { isToday, isFreeze, isWeekend });
       const cellTint = getCellTint(token, { isToday, isFreeze, isWeekend });
       return {
         title: d.format(DISPLAY_DATE_SHORT_FORMAT),
         key: dateStr,
         width: 96,
         onHeaderCell: () => ({
-          style: { background: headerBg, fontFamily: "'JetBrains Mono Variable', monospace" },
+          style: { ...headerTint, fontFamily: "'JetBrains Mono Variable', monospace" },
         }),
         onCell: (task) => ({
           'data-schedule-cell': true,
