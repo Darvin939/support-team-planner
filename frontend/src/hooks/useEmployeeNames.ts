@@ -1,6 +1,6 @@
 import {useQuery} from '@tanstack/react-query';
 
-interface Employee {
+export interface Employee {
   id: number;
   last_name: string;
   first_name: string;
@@ -13,9 +13,8 @@ function formatDisplayName(e: Employee): string {
   return `${e.last_name} ${initials}`;
 }
 
-/** Кэш имён сотрудников по id — для отображения "Исполнитель" в истории изменений. */
-export function useEmployeeNames() {
-  const { data } = useQuery<Employee[]>({
+function useEmployeesQuery() {
+  return useQuery<Employee[]>({
     queryKey: ['employees'],
     queryFn: async () => {
       const r = await fetch('/api/employees', { credentials: 'same-origin' });
@@ -24,11 +23,21 @@ export function useEmployeeNames() {
     },
     staleTime: 5 * 60 * 1000,
   });
+}
 
+/** Кэш имён сотрудников по id — для отображения "Исполнитель" в истории изменений. */
+export function useEmployeeNames() {
+  const { data } = useEmployeesQuery();
   const byId = new Map(data?.map((e) => [String(e.id), formatDisplayName(e)]));
 
   return (employeeId: string | null): string => {
     if (!employeeId) return '—';
     return byId.get(employeeId) ?? `#${employeeId}`;
   };
+}
+
+/** Список сотрудников с отображаемым именем — для фильтров/пикеров (использует тот же кэш `['employees']`). */
+export function useEmployeeOptions(): { value: number; label: string }[] {
+  const { data } = useEmployeesQuery();
+  return data?.map((e) => ({ value: e.id, label: formatDisplayName(e) })) ?? [];
 }

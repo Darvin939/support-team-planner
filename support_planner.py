@@ -442,11 +442,21 @@ def get_task_history_api(task_id: int, offset: int = 0, limit: int = 20):
 
 
 @app.get('/api/journal/{team_id}')
-def get_team_history_api(team_id: int, offset: int = 0, limit: int = 50):
-    """Журнал изменений команды: все изменения задач и назначений (с пагинацией)"""
+def get_team_history_api(team_id: int, offset: int = 0, limit: int = 50, search: str = "",
+                          date_from: str = "", date_to: str = "",
+                          changed_by_employee_id: Optional[int] = None):
+    """Журнал изменений команды: все изменения задач и назначений (с пагинацией и фильтрами
+    по названию задачи, периоду изменения и автору изменения)"""
+    search_val = search.strip() or None
+    date_from_val = date_from.strip() or None
+    date_to_val = date_to.strip() or None
     return {
-        'items': db.get_team_history(team_id, offset=offset, limit=limit),
-        'total': db.get_team_history_count(team_id)
+        'items': db.get_team_history(team_id, offset=offset, limit=limit, search=search_val,
+                                      date_from=date_from_val, date_to=date_to_val,
+                                      changed_by_employee_id=changed_by_employee_id),
+        'total': db.get_team_history_count(team_id, search=search_val, date_from=date_from_val,
+                                            date_to=date_to_val,
+                                            changed_by_employee_id=changed_by_employee_id)
     }
 
 

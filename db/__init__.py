@@ -892,15 +892,7 @@ def get_task_full_history_count(conn, task_id):
     return row['count']
 
 
-@with_db_connection(commit_on_success=False)
-def get_team_history(conn, team_id, offset=0, limit=50):
-    """Журнал изменений команды: все изменения задач и назначений по всем задачам команды
-    (включая удалённые задачи/назначения — is_deleted теперь отдельный флаг, а не физическое
-    удаление, поэтому JOIN на tasks/assignments безопасен и не требует восстановления из JSON).
-    Новые записи сверху."""
-    # @formatter:off
-    rows = conn.execute(
-        '''SELECT * FROM (
+_TEAM_HISTORY_COMBINED_SQL = '''SELECT * FROM (
                SELECT th.id AS id, th.task_id AS task_id, NULL AS assignment_id, NULL AS date,
                       th.action AS action, th.field_name AS field_name, th.old_value AS old_value,
                       th.new_value AS new_value, th.changed_at AS changed_at,
@@ -924,24 +916,65 @@ def get_team_history(conn, team_id, offset=0, limit=50):
                    JOIN tasks t ON ah.task_id = t.id
                    LEFT JOIN employees e ON ah.changed_by_employee_id = e.id
                WHERE t.team_id = ?
-           ) combined
+           ) combined'''
+
+
+def _team_history_filter_clause(search, date_from, date_to, changed_by_employee_id):
+    """Собирает WHERE-условия и параметры для фильтрации журнала команды поверх
+    _TEAM_HISTORY_COMBINED_SQL. Используется и выборкой, и подсчётом total, чтобы фильтры
+    в обоих местах гарантированно совпадали."""
+    conditions = []
+    params = []
+    if search:
+        for word in search.split():
+            conditions.append('fuzzy_word_in(task_name, ?)')
+            params.append(word)
+    if date_from:
+        conditions.append('changed_at >= ?')
+        params.append(date_from)
+    if date_to:
+        conditions.append('changed_at <= ?')
+        params.append(f'{date_to} 23:59:59')
+    if changed_by_employee_id:
+        conditions.append('changed_by_employee_id = ?')
+        params.append(changed_by_employee_id)
+    clause = f"WHERE {' AND '.join(conditions)}" if conditions else ''
+    return clause, params
+
+
+@with_db_connection(commit_on_success=False)
+def get_team_history(conn, team_id, offset=0, limit=50, search=None, date_from=None, date_to=None,
+                      changed_by_employee_id=None):
+    """Журнал изменений команды: все изменения задач и назначений по всем задачам команды
+    (включая удалённые задачи/назначения — is_deleted теперь отдельный флаг, а не физическое
+    удаление, поэтому JOIN на tasks/assignments безопасен и не требует восстановления из JSON).
+    Новые записи сверху. Поддерживает фильтры по названию задачи (fuzzy-поиск, как в поиске задач),
+    периоду изменения и автору изменения."""
+    filter_clause, filter_params = _team_history_filter_clause(search, date_from, date_to, changed_by_employee_id)
+    # @formatter:off
+    rows = conn.execute(
+        f'''{_TEAM_HISTORY_COMBINED_SQL}
+           {filter_clause}
            ORDER BY changed_at DESC, id DESC
            LIMIT ? OFFSET ?''',
-        (team_id, team_id, limit, offset)
+        (team_id, team_id, *filter_params, limit, offset)
     ).fetchall()
     # @formatter:on
     return [dict(r) for r in rows]
 
 
 @with_db_connection(commit_on_success=False)
-def get_team_history_count(conn, team_id):
-    """Общее количество записей журнала изменений команды (для пагинации)"""
+def get_team_history_count(conn, team_id, search=None, date_from=None, date_to=None, changed_by_employee_id=None):
+    """Общее количество записей журнала изменений команды (для пагинации), с учётом тех же
+    фильтров, что и get_team_history."""
+    filter_clause, filter_params = _team_history_filter_clause(search, date_from, date_to, changed_by_employee_id)
+    # @formatter:off
     row = conn.execute(
-        '''SELECT (SELECT COUNT(*) FROM task_history th JOIN tasks t ON th.task_id = t.id WHERE t.team_id = ?) +
-                  (SELECT COUNT(*) FROM assignment_history ah JOIN tasks t ON ah.task_id = t.id
-                   WHERE t.team_id = ?) AS count''',
-        (team_id, team_id)
+        f'''SELECT COUNT(*) AS count FROM ({_TEAM_HISTORY_COMBINED_SQL}) history_combined
+           {filter_clause}''',
+        (team_id, team_id, *filter_params)
     ).fetchone()
+    # @formatter:on
     return row['count']
 
 
