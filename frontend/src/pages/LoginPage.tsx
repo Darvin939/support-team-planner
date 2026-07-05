@@ -1,7 +1,8 @@
 import {useState} from 'react';
-import {Alert, Button, Card, Form, Input, Typography} from 'antd';
+import {Alert, Button, Card, Form, Input, theme as antdTheme, Typography} from 'antd';
 
 export function LoginPage({ isDark, onToggleTheme }: { isDark: boolean; onToggleTheme: () => void }) {
+  const { token } = antdTheme.useToken();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -27,7 +28,17 @@ export function LoginPage({ isDark, onToggleTheme }: { isDark: boolean; onToggle
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: `radial-gradient(ellipse 1100px 700px at 50% -8%, `
+          + `color-mix(in srgb, ${token.colorPrimary} 26%, ${token.colorBgLayout}) 0%, `
+          + `${token.colorBgLayout} 55%)`,
+      }}
+    >
       <button
         onClick={onToggleTheme}
         style={{
@@ -40,14 +51,14 @@ export function LoginPage({ isDark, onToggleTheme }: { isDark: boolean; onToggle
         {isDark ? '☾' : '☀'}
       </button>
 
-      <Card style={{ width: '100%', maxWidth: 380 }}>
+      <Card style={{ width: '100%', maxWidth: 380, boxShadow: token.boxShadowSecondary }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, fontWeight: 700, fontSize: '1.05rem' }}>
-          <svg width="24" height="24" viewBox="0 0 20 20" fill="none" stroke="#1668dc" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+          <svg width="24" height="24" viewBox="0 0 20 20" fill="none" stroke={token.colorPrimary} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="3" width="14" height="14" rx="3" />
             <path d="M3 8.5h14M8.2 3v14" />
           </svg>
           <span>
-            Пульт<span style={{ color: '#1668dc' }}>.</span>Планировщик
+            Пульт<span style={{ color: token.colorPrimary }}>.</span>Планировщик
           </span>
         </div>
         <Typography.Title level={4} style={{ marginTop: 8 }}>
