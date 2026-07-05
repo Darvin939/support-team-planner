@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react';
-import {Button, Checkbox, Form, Input, message, Modal, Select, Space} from 'antd';
+import {Button, Checkbox, Form, Input, message, Modal, Popconfirm, Select, Space} from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import type {Task} from '../../hooks/usePlanningData';
 import {useActiveTasksList} from '../../hooks/usePlanningData';
@@ -98,9 +98,11 @@ export function TaskModal({
         <Space>
           {task && <HistoryToggleButton open={historyOpen} onClick={() => setHistoryOpen((v) => !v)} />}
           {task && !isTerminal && (
-            <Button danger onClick={() => deleteMutation.mutate()} loading={deleteMutation.isPending}>
-              Удалить
-            </Button>
+            <Popconfirm title="Удалить всю работу со всеми назначениями?" onConfirm={() => deleteMutation.mutate()} okText="Удалить" cancelText="Отмена">
+              <Button danger loading={deleteMutation.isPending}>
+                Удалить
+              </Button>
+            </Popconfirm>
           )}
           <Button onClick={onClose}>Закрыть</Button>
           {!isTerminal && (

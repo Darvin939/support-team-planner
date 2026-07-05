@@ -1,5 +1,5 @@
 import type {CSSProperties} from 'react';
-import {theme} from 'antd';
+import {theme, Tooltip} from 'antd';
 import {ASSIGNMENT_STATUS_LABELS, TASK_STATUS_LABELS} from '../lib/historyFormat';
 
 function tintedStyle(color: string): CSSProperties {
@@ -37,9 +37,20 @@ export function DepBadge({ kind, names }: { kind: 'deleted' | 'cancelled' | 'pen
   const icon = kind === 'deleted' ? '🗑' : kind === 'cancelled' ? '⛔' : '⏳';
   const label = kind === 'deleted' ? 'зависимость удалена' : kind === 'cancelled' ? 'зависимость отменена' : 'ожидает';
   return (
-    <span title={names.join(', ')} style={{ ...tintedStyle(color), borderRadius: 10, marginLeft: 4 }}>
-      {icon} {label}: {names.length}
-    </span>
+    <Tooltip
+      title={names.map((name, i) => (
+        <div
+          key={i}
+          style={i < names.length - 1 ? { borderBottom: '1px solid rgba(255, 255, 255, 0.25)', paddingBottom: 4, marginBottom: 4 } : undefined}
+        >
+          {name}
+        </div>
+      ))}
+    >
+      <span style={{ ...tintedStyle(color), borderRadius: 10, marginLeft: 4 }}>
+        {icon} {label}: {names.length}
+      </span>
+    </Tooltip>
   );
 }
 

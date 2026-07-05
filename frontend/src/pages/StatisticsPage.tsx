@@ -2,15 +2,14 @@ import {useState} from 'react';
 import type {TableColumnsType} from 'antd';
 import {Card, DatePicker, Empty, Select, Space, Table, Typography} from 'antd';
 import {useQuery} from '@tanstack/react-query';
-import dayjs, {type Dayjs} from 'dayjs';
+import dayjs from 'dayjs';
 import {useTeams} from '../hooks/useTeams';
+import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
+import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT} from '../lib/dateFormats';
 import {StatGroupLabel, StatTile} from '../components/StatTile';
 import {CriticalityBadge} from '../components/planningBadges';
 
-const STORAGE_DATE_FROM = 'filterDateFrom';
-const STORAGE_DATE_TO = 'filterDateTo';
 const STORAGE_STATS_TEAMS = 'statsSelectedTeams';
-const MAX_PERIOD_DAYS = 60;
 
 interface ActiveAssignment {
   id: number;
@@ -97,30 +96,16 @@ export function StatisticsPage() {
     }
   });
 
-  const [range, setRange] = useState<[Dayjs, Dayjs]>(() => {
-    const from = localStorage.getItem(STORAGE_DATE_FROM);
-    const to = localStorage.getItem(STORAGE_DATE_TO);
-    if (from && to) return [dayjs(from), dayjs(to)];
-    return [dayjs().subtract(7, 'day'), dayjs()];
-  });
+  const [range, handleRangeChange] = useDateRangeFilter(() => [dayjs().subtract(7, 'day'), dayjs()]);
 
   function handleTeamsChange(ids: number[]) {
     setSelectedTeamIds(ids);
     localStorage.setItem(STORAGE_STATS_TEAMS, JSON.stringify(ids));
   }
 
-  function handleRangeChange(dates: [Dayjs | null, Dayjs | null] | null) {
-    if (!dates || !dates[0] || !dates[1]) return;
-    let [from, to] = dates;
-    if (to.diff(from, 'day') > MAX_PERIOD_DAYS) to = from.add(MAX_PERIOD_DAYS, 'day');
-    setRange([from, to]);
-    localStorage.setItem(STORAGE_DATE_FROM, from.format('YYYY-MM-DD'));
-    localStorage.setItem(STORAGE_DATE_TO, to.format('YYYY-MM-DD'));
-  }
-
-  const today = dayjs().format('YYYY-MM-DD');
+  const today = dayjs().format(API_DATE_FORMAT);
   const { data: todayData } = useActiveAssignments(today, today, selectedTeamIds);
-  const { data: periodData } = useActiveAssignments(range[0].format('YYYY-MM-DD'), range[1].format('YYYY-MM-DD'), selectedTeamIds);
+  const { data: periodData } = useActiveAssignments(range[0].format(API_DATE_FORMAT), range[1].format(API_DATE_FORMAT), selectedTeamIds);
 
   return (
     <>
@@ -149,6 +134,7 @@ export function StatisticsPage() {
           <DatePicker.RangePicker
             value={range}
             onChange={handleRangeChange}
+            format={DISPLAY_DATE_FORMAT}
             minDate={dayjs('2000-01-01')}
             maxDate={dayjs('2099-12-31')}
             allowClear={false}

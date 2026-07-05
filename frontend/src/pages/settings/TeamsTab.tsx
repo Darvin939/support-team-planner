@@ -1,4 +1,5 @@
 import {useState} from 'react';
+import {DeleteOutlined, EditOutlined} from '@ant-design/icons';
 import {Button, Card, Checkbox, Form, Input, message, Modal, Popconfirm, Space, Tag} from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import {type Team, useTeams} from '../../hooks/useTeams';
@@ -64,7 +65,7 @@ export function TeamsTab() {
               <b>{team.name}</b>
               <Space>
                 <Button size="small" onClick={() => openModal(team)}>
-                  ✏️
+                  <EditOutlined />
                 </Button>
                 <Popconfirm
                   title="Удалить команду?"
@@ -74,7 +75,7 @@ export function TeamsTab() {
                   cancelText="Отмена"
                 >
                   <Button size="small" danger>
-                    🗑️
+                    <DeleteOutlined />
                   </Button>
                 </Popconfirm>
               </Space>

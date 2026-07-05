@@ -1,4 +1,5 @@
 import {useEffect, useRef} from 'react';
+import {findScrollableAncestor} from './scrollUtils';
 
 const SCROLL_ZONE = 60;
 const MAX_SPEED = 10;
@@ -25,15 +26,6 @@ interface DragState {
   sourceChip: HTMLElement;
 }
 
-function findScrollableAncestor(el: HTMLElement): HTMLElement {
-  let node: HTMLElement | null = el;
-  while (node) {
-    if (node.scrollWidth > node.clientWidth) return node;
-    node = node.parentElement;
-  }
-  return el;
-}
-
 /**
  * Faithful port of the original planning.js setupAssignmentDrag: a raw
  * mousedown/mousemove/mouseup drag (not HTML5 DnD), with a cloned floating
@@ -45,6 +37,7 @@ export function useAssignmentDrag(options: {
   isTaskLocked: (taskId: number) => boolean;
   isOccupied: (taskId: number, date: string) => boolean;
   onDrop: (assignmentId: number, taskId: number, newDate: string) => void;
+  colors: { success: string; error: string };
 }) {
   const optionsRef = useRef(options);
   optionsRef.current = options;
@@ -165,11 +158,14 @@ export function useAssignmentDrag(options: {
 
       document.querySelectorAll('.assignment-drag-over, .assignment-drag-invalid').forEach((c) => {
         c.classList.remove('assignment-drag-over', 'assignment-drag-invalid');
+        (c as HTMLElement).style.boxShadow = '';
       });
 
       if (targetDate && targetDate !== state.sourceDate && targetTaskId === state.taskId) {
         const occupied = optionsRef.current.isOccupied(state.taskId, targetDate);
+        const { success, error } = optionsRef.current.colors;
         targetCell!.classList.add(occupied ? 'assignment-drag-invalid' : 'assignment-drag-over');
+        targetCell!.style.boxShadow = `inset 0 0 0 2px ${occupied ? error : success}`;
         state.targetDate = targetDate;
         state.targetOccupied = occupied;
       } else {
@@ -187,6 +183,7 @@ export function useAssignmentDrag(options: {
       if (state.ghost) state.ghost.remove();
       document.querySelectorAll('.assignment-drag-over, .assignment-drag-invalid, .assignment-drag-source').forEach((c) => {
         c.classList.remove('assignment-drag-over', 'assignment-drag-invalid', 'assignment-drag-source');
+        (c as HTMLElement).style.boxShadow = '';
       });
 
       if (!state.dragStarted) return;

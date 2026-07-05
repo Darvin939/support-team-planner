@@ -1,4 +1,5 @@
 import {useState} from 'react';
+import {DeleteOutlined, EditOutlined} from '@ant-design/icons';
 import {Button, Card, Form, Input, InputNumber, List, message, Modal, Popconfirm, Select, Space} from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import {type BlockTemplate, useBlocks, useBlockTemplates} from '../../hooks/useSettingsData';
@@ -55,7 +56,7 @@ function BlocksList() {
             actions={[
               <Popconfirm key="delete" title="Удалить блок?" description="Он будет удалён из всех шаблонов." onConfirm={() => deleteMutation.mutate(block.id)} okText="Удалить" cancelText="Отмена">
                 <Button size="small" danger>
-                  🗑️
+                  <DeleteOutlined />
                 </Button>
               </Popconfirm>,
             ]}
@@ -122,11 +123,11 @@ function TemplatesList() {
               <b>{tmpl.name}</b>
               <Space>
                 <Button size="small" onClick={() => openModal(tmpl)}>
-                  ✏️
+                  <EditOutlined />
                 </Button>
                 <Popconfirm title="Удалить шаблон?" onConfirm={() => deleteMutation.mutate(tmpl.id)} okText="Удалить" cancelText="Отмена">
                   <Button size="small" danger>
-                    🗑️
+                    <DeleteOutlined />
                   </Button>
                 </Popconfirm>
               </Space>
@@ -173,7 +174,7 @@ function TemplatesList() {
                         <InputNumber placeholder="Сдвиг, дни" />
                       </Form.Item>
                       <Button danger size="small" onClick={() => remove(field.name)}>
-                        🗑️
+                        <DeleteOutlined />
                       </Button>
                     </Space>
                   ))}

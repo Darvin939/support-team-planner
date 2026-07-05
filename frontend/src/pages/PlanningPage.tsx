@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useState} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
+import {DeleteOutlined, EditOutlined, InfoCircleOutlined} from '@ant-design/icons';
 import type {TableColumnsType} from 'antd';
 import {
   Button,
@@ -29,12 +30,17 @@ import {
   useTodayActive
 } from '../hooks/usePlanningData';
 import {useFreezeDays} from '../hooks/useSettingsData';
+import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
 import {StatGroupLabel, StatTile} from '../components/StatTile';
 import {CriticalityBadge, DepBadge, ScheduleChip, TaskStatusBadge} from '../components/planningBadges';
 import {TaskModal} from './planning/TaskModal';
 import {AssignmentModal} from './planning/AssignmentModal';
 import {useAssignmentDrag} from './planning/useAssignmentDrag';
+import {useTableDragScroll} from './planning/useTableDragScroll';
+import {getCellTint} from './planning/cellTint';
 import {apiMutate} from '../lib/apiMutate';
+import {linkify} from '../lib/linkify';
+import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT} from '../lib/dateFormats';
 import {TASK_STATUS_LABELS} from '../lib/historyFormat';
 
 const VALID_TASK_TRANSITIONS: Record<string, string[]> = {
@@ -44,9 +50,6 @@ const VALID_TASK_TRANSITIONS: Record<string, string[]> = {
 };
 
 const STORAGE_TEAM_ID = 'selectedTeamId';
-const STORAGE_DATE_FROM = 'filterDateFrom';
-const STORAGE_DATE_TO = 'filterDateTo';
-const MAX_PERIOD_DAYS = 60;
 const PAGE_SIZE = 10;
 
 const ASSIGNMENT_STATUS_OPTIONS = [
@@ -85,12 +88,7 @@ export function PlanningPage() {
   const { token } = theme.useToken();
   const teamId = teamIdParam ? Number(teamIdParam) : undefined;
 
-  const [range, setRange] = useState<[Dayjs, Dayjs]>(() => {
-    const from = localStorage.getItem(STORAGE_DATE_FROM);
-    const to = localStorage.getItem(STORAGE_DATE_TO);
-    if (from && to) return [dayjs(from), dayjs(to)];
-    return [dayjs().subtract(7, 'day'), dayjs().add(30, 'day')];
-  });
+  const [range, handleRangeChange] = useDateRangeFilter(() => [dayjs().subtract(7, 'day'), dayjs().add(30, 'day')]);
   const [search, setSearch] = useState('');
   const [showCompleted, setShowCompleted] = useState(false);
   const [page, setPage] = useState(1);
@@ -137,9 +135,9 @@ export function PlanningPage() {
 
   useEffect(() => setPage(1), [teamId, search, showCompleted]);
 
-  const dateFrom = range[0].format('YYYY-MM-DD');
-  const dateTo = range[1].format('YYYY-MM-DD');
-  const today = dayjs().format('YYYY-MM-DD');
+  const dateFrom = range[0].format(API_DATE_FORMAT);
+  const dateTo = range[1].format(API_DATE_FORMAT);
+  const today = dayjs().format(API_DATE_FORMAT);
 
   const { data: taskData } = useTasks(teamId ?? 0, (page - 1) * PAGE_SIZE, PAGE_SIZE, search, showCompleted);
   const taskIds = useMemo(() => taskData?.tasks.map((t) => t.id) ?? [], [taskData]);
@@ -195,14 +193,19 @@ export function PlanningPage() {
     onError: (e: Error) => message.error(e.message),
   });
 
-  const suppressClickRef = useAssignmentDrag({
-    isTaskLocked: (taskId) => {
-      const t = taskData?.tasks.find((x) => x.id === taskId);
-      return !t || t.task_status === 'done' || t.task_status === 'cancelled';
-    },
+  const isTaskLocked = (taskId: number) => {
+    const t = taskData?.tasks.find((x) => x.id === taskId);
+    return !t || t.task_status === 'done' || t.task_status === 'cancelled';
+  };
+
+  const chipDragSuppressRef = useAssignmentDrag({
+    isTaskLocked,
     isOccupied: (taskId, date) => assignmentByKey.has(`${taskId}-${date}`),
     onDrop: (assignmentId, _taskId, newDate) => rescheduleMutation.mutate({ assignmentId, newDate }),
+    colors: { success: token.colorSuccess, error: token.colorError },
   });
+
+  const panSuppressRef = useTableDragScroll({ isTaskLocked });
 
   const filteredTasks = useMemo(() => {
     return (taskData?.tasks ?? []).filter((t) => {
@@ -215,15 +218,6 @@ export function PlanningPage() {
       return true;
     });
   }, [taskData, critFilter, taskStatusFilter, statusFilter, assignmentsByTask]);
-
-  function handleRangeChange(dates: [Dayjs | null, Dayjs | null] | null) {
-    if (!dates || !dates[0] || !dates[1]) return;
-    let [from, to] = dates;
-    if (to.diff(from, 'day') > MAX_PERIOD_DAYS) to = from.add(MAX_PERIOD_DAYS, 'day');
-    setRange([from, to]);
-    localStorage.setItem(STORAGE_DATE_FROM, from.format('YYYY-MM-DD'));
-    localStorage.setItem(STORAGE_DATE_TO, to.format('YYYY-MM-DD'));
-  }
 
   function handleTeamSelect(value: number) {
     localStorage.setItem(STORAGE_TEAM_ID, String(value));
@@ -255,7 +249,7 @@ export function PlanningPage() {
                 onClick={() => setTaskModal({ open: true, task })}
                 title={isTerminal ? 'Просмотр' : 'Редактировать'}
               >
-                {isTerminal ? '👁️' : '✏️'}
+                {isTerminal ? <InfoCircleOutlined /> : <EditOutlined />}
               </Button>
               <CriticalityBadge value={task.criticality} />
               <span style={{ fontWeight: 500 }}>{task.name}</span>
@@ -264,7 +258,7 @@ export function PlanningPage() {
               {!isTerminal && (
                 <Popconfirm title="Удалить работу?" onConfirm={() => deleteTaskMutation.mutate(task.id)} okText="Удалить" cancelText="Отмена">
                   <Button type="text" size="small" danger>
-                    🗑️
+                    <DeleteOutlined />
                   </Button>
                 </Popconfirm>
               )}
@@ -282,7 +276,7 @@ export function PlanningPage() {
               <div
                 style={{ marginTop: 4, padding: '5px 8px', border: `1px solid ${token.colorBorder}`, borderRadius: 2, background: token.colorFillTertiary, fontSize: '0.85rem', color: token.colorTextSecondary, whiteSpace: 'pre-wrap' }}
               >
-                {task.description}
+                {linkify(task.description)}
               </div>
             )}
           </div>
@@ -291,7 +285,7 @@ export function PlanningPage() {
     };
 
     const dateColumns: TableColumnsType<Task> = dates.map((d) => {
-      const dateStr = d.format('YYYY-MM-DD');
+      const dateStr = d.format(API_DATE_FORMAT);
       const isWeekend = d.day() === 0 || d.day() === 6;
       const isToday = dateStr === today;
       const isFreeze = freezeDays.has(dateStr);
@@ -302,15 +296,9 @@ export function PlanningPage() {
           : isWeekend
             ? `color-mix(in srgb, ${token.colorWarning} 7%, transparent)`
             : undefined;
-      const cellBg = isToday
-        ? `color-mix(in srgb, ${token.colorPrimary} 6%, transparent)`
-        : isFreeze
-          ? `color-mix(in srgb, ${token.colorError} 4%, transparent)`
-          : isWeekend
-            ? `color-mix(in srgb, ${token.colorWarning} 5%, transparent)`
-            : undefined;
+      const cellTint = getCellTint(token, { isToday, isFreeze, isWeekend });
       return {
-        title: d.format('DD.MM'),
+        title: d.format(DISPLAY_DATE_SHORT_FORMAT),
         key: dateStr,
         width: 96,
         onHeaderCell: () => ({
@@ -321,12 +309,13 @@ export function PlanningPage() {
           'data-task-id': task.id,
           'data-date': dateStr,
           style: {
-            background: cellBg,
+            ...cellTint,
             padding: 3,
+            borderLeft: `1px solid ${token.colorBorder}`,
             cursor: task.task_status === 'done' || task.task_status === 'cancelled' ? 'not-allowed' : 'pointer',
           },
           onClick: () => {
-            if (suppressClickRef.current) return;
+            if (chipDragSuppressRef.current || panSuppressRef.current) return;
             if (task.task_status === 'done' || task.task_status === 'cancelled') return;
             const assignment = assignmentByKey.get(`${task.id}-${dateStr}`) ?? null;
             setAssignmentModal({ open: true, task, date: dateStr, assignment });
@@ -379,7 +368,7 @@ export function PlanningPage() {
         <Space wrap size={12} align="end">
           <div>
             <div style={{ fontSize: '0.8rem', color: token.colorTextTertiary, marginBottom: 4 }}>ПЕРИОД</div>
-            <DatePicker.RangePicker value={range} onChange={handleRangeChange} minDate={dayjs('2000-01-01')} maxDate={dayjs('2099-12-31')} allowClear={false} />
+            <DatePicker.RangePicker value={range} onChange={handleRangeChange} format={DISPLAY_DATE_FORMAT} minDate={dayjs('2000-01-01')} maxDate={dayjs('2099-12-31')} allowClear={false} />
           </div>
           <div>
             <div style={{ fontSize: '0.8rem', color: token.colorTextTertiary, marginBottom: 4 }}>ПОИСК ПО ОПИСАНИЮ</div>
@@ -427,14 +416,16 @@ export function PlanningPage() {
         {filteredTasks.length === 0 ? (
           <Empty description="Нет запланированных работ" />
         ) : (
-          <Table
-            rowKey="id"
-            columns={columns}
-            dataSource={filteredTasks}
-            pagination={false}
-            size="small"
-            scroll={{ x: 'max-content' }}
-          />
+          <div data-planning-grid style={{ cursor: 'grab' }}>
+            <Table
+              rowKey="id"
+              columns={columns}
+              dataSource={filteredTasks}
+              pagination={false}
+              size="small"
+              scroll={{ x: 'max-content' }}
+            />
+          </div>
         )}
 
         {taskData && taskData.total > PAGE_SIZE && (

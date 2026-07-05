@@ -1,5 +1,19 @@
 import {useEffect, useState} from 'react';
-import {Button, DatePicker, Form, Input, message, Modal, Select, Space, Switch, theme, TimePicker} from 'antd';
+import {
+  Alert,
+  Button,
+  DatePicker,
+  Form,
+  Input,
+  message,
+  Modal,
+  Popconfirm,
+  Select,
+  Space,
+  Switch,
+  theme,
+  TimePicker
+} from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import type {Assignment, Task} from '../../hooks/usePlanningData';
@@ -7,7 +21,10 @@ import {type BlockTemplateEntry, useTeamBlocks, useTeamTemplates} from '../../ho
 import {useEmployees} from '../../hooks/useSettingsData';
 import {apiMutate} from '../../lib/apiMutate';
 import {computeAutoAssignDates, getAutoScheduleDateRange} from '../../lib/autoSchedule';
+import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT, TIME_FORMAT} from '../../lib/dateFormats';
 import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';
+import {useAutoScheduleDragScroll} from './useAutoScheduleDragScroll';
+import {getCellTint} from './cellTint';
 
 interface AssignmentFormValues {
   date: dayjs.Dayjs;
@@ -62,10 +79,11 @@ function AutoScheduleGrid({
 }) {
   const { token } = theme.useToken();
   const dates = getAutoScheduleDateRange(baseDate, autoAssignDates);
-  const today = dayjs().format('YYYY-MM-DD');
+  const today = dayjs().format(API_DATE_FORMAT);
+  const dragRef = useAutoScheduleDragScroll<HTMLDivElement>();
 
   return (
-    <div style={{ overflowX: 'auto', border: `1px solid ${token.colorBorder}`, borderRadius: token.borderRadiusSM }}>
+    <div ref={dragRef} style={{ overflowX: 'auto', border: `1px solid ${token.colorBorder}`, borderRadius: token.borderRadiusSM }}>
       <table style={{ borderCollapse: 'collapse', width: 'max-content', fontSize: '0.82rem' }}>
         <thead>
           <tr>
@@ -91,7 +109,7 @@ function AutoScheduleGrid({
                           : undefined,
                   }}
                 >
-                  {d.format('DD.MM')}
+                  {d.format(DISPLAY_DATE_SHORT_FORMAT)}
                 </th>
               );
             })}
@@ -103,11 +121,18 @@ function AutoScheduleGrid({
             {dates.map((dateStr) => {
               const isOccupied = taskAssignments.some((a) => a.date === dateStr && a.id !== currentAssignmentId);
               const blocksHere = templateBlocks.filter((b) => autoAssignDates[b.id] === dateStr);
+              const d = dayjs(dateStr);
+              const cellTint = getCellTint(token, {
+                isToday: dateStr === today,
+                isFreeze: freezeDays.has(dateStr),
+                isWeekend: d.day() === 0 || d.day() === 6,
+              });
               return (
                 <td
                   key={dateStr}
                   onClick={() => onPlace(dateStr)}
                   style={{
+                    ...cellTint,
                     padding: 4,
                     verticalAlign: 'top',
                     cursor: 'pointer',
@@ -183,7 +208,7 @@ export function AssignmentModal({
     const blockIds = (teamBlocks ?? []).filter((b) => names.includes(b.name)).map((b) => b.id);
     form.setFieldsValue({
       date: dayjs(assignment?.date ?? date ?? undefined),
-      time_spent: assignment?.time_spent ? dayjs(assignment.time_spent, 'HH:mm') : null,
+      time_spent: assignment?.time_spent ? dayjs(assignment.time_spent, TIME_FORMAT) : null,
       is_psi: assignment?.is_psi ?? false,
       block_ids: blockIds,
       status: assignment?.status ?? 'new',
@@ -203,7 +228,7 @@ export function AssignmentModal({
 
   useEffect(() => {
     if (!autoAssignEnabled || !watchedDate) return;
-    recomputeSchedule(selectedTemplateId, watchedDate.format('YYYY-MM-DD'));
+    recomputeSchedule(selectedTemplateId, watchedDate.format(API_DATE_FORMAT));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchedDate, autoAssignEnabled, selectedTemplateId, templates]);
 
@@ -214,7 +239,7 @@ export function AssignmentModal({
       form.setFieldValue('status', 'new');
       const defaultTemplateId = templates?.length === 1 ? templates[0].id : null;
       setSelectedTemplateId(defaultTemplateId);
-      recomputeSchedule(defaultTemplateId, (watchedDate ?? dayjs()).format('YYYY-MM-DD'));
+      recomputeSchedule(defaultTemplateId, (watchedDate ?? dayjs()).format(API_DATE_FORMAT));
     }
   }
 
@@ -224,11 +249,11 @@ export function AssignmentModal({
         .map((id) => teamBlocks?.find((b) => b.id === id)?.name)
         .filter(Boolean)
         .join(', ');
-      const timeSpent = values.time_spent ? values.time_spent.format('HH:mm') : null;
+      const timeSpent = values.time_spent ? values.time_spent.format(TIME_FORMAT) : null;
       return apiMutate('/api/assignment', 'POST', {
         assignment_id: assignment?.id,
         task_id: task?.id,
-        date: values.date.format('YYYY-MM-DD'),
+        date: values.date.format(API_DATE_FORMAT),
         block: blockNames || null,
         status: values.status,
         employee_id: values.employee_id,
@@ -267,7 +292,7 @@ export function AssignmentModal({
         if (!proceed) return { cancelled: true };
       }
 
-      const timeSpent = values.time_spent ? values.time_spent.format('HH:mm') : null;
+      const timeSpent = values.time_spent ? values.time_spent.format(TIME_FORMAT) : null;
       await Promise.all(
         dates.map((d, i) => {
           const existing = taskAssignments.find((a) => a.date === d);
@@ -322,9 +347,11 @@ export function AssignmentModal({
         <Space>
           {assignment && <HistoryToggleButton open={historyOpen} onClick={() => setHistoryOpen((v) => !v)} />}
           {assignment && !isTerminal && (
-            <Button danger onClick={() => deleteMutation.mutate()} loading={deleteMutation.isPending}>
-              Удалить
-            </Button>
+            <Popconfirm title="Удалить эту запись?" onConfirm={() => deleteMutation.mutate()} okText="Удалить" cancelText="Отмена">
+              <Button danger loading={deleteMutation.isPending}>
+                Удалить
+              </Button>
+            </Popconfirm>
           )}
           <Button onClick={onClose}>Закрыть</Button>
           {!isTerminal && (
@@ -342,21 +369,28 @@ export function AssignmentModal({
         </Form.Item>
         <Space.Compact block>
           <Form.Item name="date" label="Дата" style={{ flex: 1 }} rules={[{ required: true }]}>
-            <DatePicker style={{ width: '100%' }} minDate={dayjs('2000-01-01')} maxDate={dayjs('2099-12-31')} allowClear={false} />
+            <DatePicker style={{ width: '100%' }} format={DISPLAY_DATE_FORMAT} minDate={dayjs('2000-01-01')} maxDate={dayjs('2099-12-31')} allowClear={false} />
           </Form.Item>
           <Form.Item name="time_spent" label="Затраченное время" style={{ flex: 1 }}>
-            <TimePicker style={{ width: '100%' }} format="HH:mm" allowClear />
+            <TimePicker style={{ width: '100%' }} format={TIME_FORMAT} allowClear />
           </Form.Item>
         </Space.Compact>
+
+        {watchedDate && freezeDays.has(watchedDate.format(API_DATE_FORMAT)) && (
+          <Alert type="error" showIcon message="Эта дата — день фриза, изменения в этот день не выкатываются" style={{ marginBottom: 16 }} />
+        )}
 
         <div style={{ display: 'flex', gap: 24, marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span>Автоназначение</span>
             <Switch checked={autoAssignEnabled} onChange={handleAutoAssignToggle} />
           </div>
-          <Form.Item name="is_psi" label="ПСИ" valuePropName="checked" style={{ marginBottom: 0 }}>
-            <Switch />
-          </Form.Item>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>ПСИ</span>
+            <Form.Item name="is_psi" valuePropName="checked" noStyle>
+              <Switch />
+            </Form.Item>
+          </div>
         </div>
 
         {!autoAssignEnabled && (
@@ -376,7 +410,7 @@ export function AssignmentModal({
                 onChange={(v) => {
                   setSelectedTemplateId(v);
                   setAutoAssignSelected(null);
-                  recomputeSchedule(v, (watchedDate ?? dayjs()).format('YYYY-MM-DD'));
+                  recomputeSchedule(v, (watchedDate ?? dayjs()).format(API_DATE_FORMAT));
                 }}
                 options={templates?.map((t) => ({ value: t.id, label: t.name }))}
               />
@@ -386,7 +420,7 @@ export function AssignmentModal({
                 <AutoScheduleGrid
                   templateBlocks={selectedTemplateBlocks}
                   autoAssignDates={autoAssignDates}
-                  baseDate={watchedDate.format('YYYY-MM-DD')}
+                  baseDate={watchedDate.format(API_DATE_FORMAT)}
                   freezeDays={freezeDays}
                   taskAssignments={taskAssignments}
                   currentAssignmentId={assignment?.id ?? null}

@@ -1,4 +1,5 @@
 import dayjs from 'dayjs';
+import {API_DATE_FORMAT} from './dateFormats';
 
 export interface TemplateBlock {
   id: number;
@@ -14,11 +15,11 @@ export function computeAutoAssignDates(baseDateStr: string, blocks: TemplateBloc
   const result: Record<number, string> = {};
   sorted.forEach((block) => {
     let d = dayjs(baseDateStr).add(block.shift_days + offset, 'day');
-    while (freezeDays.has(d.format('YYYY-MM-DD'))) {
+    while (freezeDays.has(d.format(API_DATE_FORMAT))) {
       d = d.add(1, 'day');
       offset += 1;
     }
-    result[block.id] = d.format('YYYY-MM-DD');
+    result[block.id] = d.format(API_DATE_FORMAT);
   });
   return result;
 }
@@ -36,7 +37,7 @@ export function getAutoScheduleDateRange(baseDateStr: string, autoAssignDates: R
   const dates: string[] = [];
   let cur = dayjs(baseDateStr);
   while (!cur.isAfter(maxDate)) {
-    dates.push(cur.format('YYYY-MM-DD'));
+    dates.push(cur.format(API_DATE_FORMAT));
     cur = cur.add(1, 'day');
   }
   return dates;

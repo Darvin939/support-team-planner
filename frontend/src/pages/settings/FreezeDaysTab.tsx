@@ -1,4 +1,5 @@
 import {useState} from 'react';
+import {DeleteOutlined, EditOutlined} from '@ant-design/icons';
 import {Button, Card, Empty, message, Modal, Popconfirm, Select, Space, theme} from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import {useFreezeDays} from '../../hooks/useSettingsData';
@@ -168,11 +169,11 @@ export function FreezeDaysTab() {
               extra={
                 <Space>
                   <Button size="small" onClick={() => openEditModal(m)}>
-                    ✏️
+                    <EditOutlined />
                   </Button>
                   <Popconfirm title={`Удалить все дни фриза за ${MONTH_NAMES[m - 1]}?`} onConfirm={() => deleteMutation.mutate(m)} okText="Удалить" cancelText="Отмена">
                     <Button size="small" danger>
-                      🗑️
+                      <DeleteOutlined />
                     </Button>
                   </Popconfirm>
                 </Space>

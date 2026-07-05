@@ -1,4 +1,5 @@
 import {useState} from 'react';
+import {DeleteOutlined, EditOutlined} from '@ant-design/icons';
 import {Button, Form, Input, List, message, Modal, Popconfirm, Select, Space, Tag} from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import {type Employee, useEmployees} from '../../hooks/useSettingsData';
@@ -78,11 +79,11 @@ export function EmployeesTab() {
               isAdmin
                 ? [
                     <Button key="edit" size="small" onClick={() => openModal(emp)}>
-                      ✏️
+                      <EditOutlined />
                     </Button>,
                     <Popconfirm key="delete" title="Удалить сотрудника?" onConfirm={() => deleteMutation.mutate(emp.id)} okText="Удалить" cancelText="Отмена">
                       <Button size="small" danger>
-                        🗑️
+                        <DeleteOutlined />
                       </Button>
                     </Popconfirm>,
                   ]
