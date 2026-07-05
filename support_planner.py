@@ -287,22 +287,9 @@ def planning(request: Request, team_id: int):
 
 
 @app.get('/settings', response_class=HTMLResponse)
-def settings_page(request: Request):
-    """Страница настроек"""
-    teams = db.get_all_teams_with_templates()
-    employees = db.get_all_employees()
-    freeze_days = db.get_all_freeze_days()
-    blocks = db.get_all_blocks()
-    block_templates = db.get_all_templates()
-
-    return templates.TemplateResponse(request, 'settings.html', {
-        'teams': teams,
-        'employees': employees,
-        'freeze_days': freeze_days,
-        'blocks': blocks,
-        'block_templates': block_templates,
-        'current_role': request.state.role,
-    })
+def settings_page():
+    """Страница настроек (React)"""
+    return _serve_react_index()
 
 
 @app.get('/statistics', response_class=HTMLResponse)

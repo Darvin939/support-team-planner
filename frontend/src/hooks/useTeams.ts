@@ -3,6 +3,7 @@ import {useQuery} from '@tanstack/react-query';
 export interface Team {
   id: number;
   name: string;
+  templates?: { id: number; name: string }[];
 }
 
 export function useTeams() {

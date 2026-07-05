@@ -19,11 +19,12 @@ python -m pytest tests/ -v        # Run tests (currently only db/postgres.py uni
 
 **Frontend (React/antd migration, in progress — see `frontend/`):** pages are being migrated one at a time
 from the Jinja2/vanilla-JS frontend to React + Ant Design; FastAPI keeps serving Jinja2 for any page not yet
-migrated. Done so far: Stage 1 (`/login`), Stage 2 (`/statistics`, `/journal`, `/journal/{team_id}`). Remaining:
-Settings, then Planning (highest complexity — the drag-and-drop grid). `/statistics` and `/journal` share one
-React Router layout (`AuthenticatedLayout` + `AppShell`, fetches `GET /api/me` for role-gated nav) so navigating
-between them is a client-side route change, not a full page reload; navigating to a still-Jinja2 page (e.g.
-Планирование/Настройки in the sidebar) is a normal full navigation. **`frontend/dist/` (built via Vite) is now
+migrated. Done so far: Stage 1 (`/login`), Stage 2 (`/statistics`, `/journal`, `/journal/{team_id}`), Stage 3
+(`/settings` — Teams/Blocks & Templates/Freeze Days/Employees tabs). Remaining: Planning (highest complexity —
+the drag-and-drop grid). All migrated pages share one React Router layout (`AuthenticatedLayout` + `AppShell`,
+fetches `GET /api/me` for role-gated nav) so navigating between them is a client-side route change, not a full
+page reload; navigating to the still-Jinja2 Planning page is a normal full navigation. **`frontend/dist/`
+(built via Vite) is now
 required, not optional** — `/login` was the first page cut over, so `GET /login` serves the built React
 `index.html` unconditionally; without a build, nobody can log in at all. Run `npm run build` after
 cloning/pulling before starting `support_planner.py`.
@@ -62,7 +63,7 @@ set for any real deployment.
 FastAPI app split across a handful of modules:
 
 - **`support_planner.py`** — all FastAPI routes and API endpoints (this is the app entrypoint — there is no `app.py`).
-  `/` redirects to `/planning`. Pages: `/planning`, `/planning/{team_id}`, `/settings` (still Jinja2), `/login`,
+  `/` redirects to `/planning`. Pages: `/planning`, `/planning/{team_id}` (still Jinja2), `/login`, `/settings`,
   `/statistics`, `/journal`, `/journal/{team_id}` (React — see the frontend migration note above). API
   under `/api/`. Request bodies use Pydantic models (`AssignmentIn`, `TaskIn`, `TeamIn`, `BlockIn`, `BlockTemplateIn`,
   `EmployeeIn`, `FreezeDayIn`, `FreezeDayMonthIn`, `TaskStatusIn`). API errors return
