@@ -4,10 +4,6 @@ import {Spin} from 'antd';
 import {AppShell} from './AppShell';
 import {useMe} from '../hooks/useMe';
 
-// Только эти пути уже перенесены на React в этом бандле — переход на остальные (ещё
-// Jinja2-страницы) должен быть полной навигацией браузера, а не client-side роутингом.
-const MIGRATED_BASE_PATHS = new Set(['/statistics', '/journal', '/settings', '/planning']);
-
 export function AuthenticatedLayout({ isDark, onToggleTheme }: { isDark: boolean; onToggleTheme: () => void }) {
   const { data: me, isLoading, isError } = useMe();
   const navigate = useNavigate();
@@ -29,11 +25,6 @@ export function AuthenticatedLayout({ isDark, onToggleTheme }: { isDark: boolean
 
   const basePath = '/' + location.pathname.split('/')[1];
 
-  function handleNavigate(path: string) {
-    if (MIGRATED_BASE_PATHS.has(path)) navigate(path);
-    else window.location.href = path;
-  }
-
   async function handleLogout() {
     await fetch('/logout', { method: 'POST', credentials: 'same-origin' });
     window.location.href = '/login';
@@ -45,7 +36,7 @@ export function AuthenticatedLayout({ isDark, onToggleTheme }: { isDark: boolean
       isDark={isDark}
       role={me.role}
       onToggleTheme={onToggleTheme}
-      onNavigate={handleNavigate}
+      onNavigate={navigate}
       onLogout={handleLogout}
     >
       <Outlet />

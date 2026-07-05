@@ -143,8 +143,9 @@ statically. `frontend/src/` layout:
       (dnd-kit was the original plan) — a raw port of the original vanilla-JS `setupAssignmentDrag` behavior was a
       better fit than rect-based collision detection against antd `Table`'s sticky-column DOM.
 - `components/` — shared UI: `AppShell`/`AuthenticatedLayout` (sidebar, role-gated nav via `GET /api/me`,
-  client-side route dispatch — see `MIGRATED_BASE_PATHS` in `AuthenticatedLayout.tsx`), `planningBadges.tsx`
-  (criticality/status/dependency/schedule badges shared across Planning and Journal), `StatTile.tsx`.
+  all nav clicks are plain client-side `navigate()` — every route is React now, so there's no split between
+  migrated/legacy paths), `planningBadges.tsx` (criticality/status/dependency/schedule badges shared across
+  Planning and Journal), `StatTile.tsx`.
 - `hooks/` — one thin TanStack Query wrapper per data domain: `usePlanningData.ts`, `useSettingsData.ts`,
   `useTeams.ts`, `useMe.ts`, `useEmployeeNames.ts`.
 - `lib/` — pure helpers: `apiMutate.ts` (shared POST/PUT/PATCH/DELETE fetch wrapper), `autoSchedule.ts`
