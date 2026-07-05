@@ -7,7 +7,7 @@ export interface Employee {
   middle_name: string | null;
 }
 
-function formatDisplayName(e: Employee): string {
+export function formatDisplayName(e: Pick<Employee, 'last_name' | 'first_name' | 'middle_name'>): string {
   if (!e.first_name) return e.last_name;
   const initials = `${e.first_name.charAt(0)}.${e.middle_name ? e.middle_name.charAt(0) + '.' : ''}`;
   return `${e.last_name} ${initials}`;

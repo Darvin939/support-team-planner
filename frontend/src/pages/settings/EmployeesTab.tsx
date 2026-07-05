@@ -10,6 +10,7 @@ interface EmployeeFormValues {
   last_name: string;
   first_name: string;
   middle_name: string | null;
+  login: string | null;
   password: string | null;
   role: string;
 }
@@ -56,9 +57,9 @@ export function EmployeesTab() {
   function openModal(emp: Employee | 'new') {
     setModalEmployee(emp);
     if (emp === 'new') {
-      form.setFieldsValue({ last_name: '', first_name: '', middle_name: '', password: '', role: 'user' });
+      form.setFieldsValue({ last_name: '', first_name: '', middle_name: '', login: '', password: '', role: 'user' });
     } else {
-      form.setFieldsValue({ last_name: emp.last_name, first_name: emp.first_name, middle_name: emp.middle_name ?? '', password: '', role: emp.role });
+      form.setFieldsValue({ last_name: emp.last_name, first_name: emp.first_name, middle_name: emp.middle_name ?? '', login: emp.login ?? '', password: '', role: emp.role });
     }
   }
 
@@ -101,6 +102,7 @@ export function EmployeesTab() {
             }
           >
             {emp.last_name} {emp.first_name} {emp.middle_name ?? ''} <Tag style={{ marginLeft: 8 }}>{emp.role}</Tag>
+            {emp.login && <Tag style={{ marginLeft: 4 }}>{emp.login}</Tag>}
             {emp.is_protected && (
               <Tooltip title="Учётную запись администратора по умолчанию нельзя удалить">
                 <Tag icon={<LockOutlined />} color="default" style={{ marginLeft: 4 }}>
@@ -123,7 +125,7 @@ export function EmployeesTab() {
         <Form form={form} layout="vertical" onFinish={(v) => saveMutation.mutate(v)}>
           {isEditingProtected && (
             <Tag icon={<LockOutlined />} color="default" style={{ marginBottom: 16 }}>
-              Для администратора по умолчанию можно изменить только пароль
+              Для администратора по умолчанию можно изменить только логин и пароль
             </Tag>
           )}
           {!isEditingProtected && (
@@ -139,6 +141,9 @@ export function EmployeesTab() {
               </Form.Item>
             </>
           )}
+          <Form.Item name="login" label="Логин (оставьте пустым, чтобы не менять)">
+            <Input placeholder="Логин для входа" />
+          </Form.Item>
           <Form.Item name="password" label="Пароль (оставьте пустым, чтобы не менять)">
             <Input.Password placeholder="Новый пароль" />
           </Form.Item>

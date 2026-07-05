@@ -6,6 +6,7 @@ export interface Employee {
   first_name: string;
   middle_name: string | null;
   role: string;
+  login: string | null;
   is_protected: boolean;
 }
 

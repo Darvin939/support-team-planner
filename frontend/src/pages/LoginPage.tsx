@@ -1,36 +1,16 @@
 import {useState} from 'react';
-import {Alert, Button, Card, Form, Input, Select, Typography} from 'antd';
-import {useQuery} from '@tanstack/react-query';
-
-interface EmployeeOption {
-  id: number;
-  last_name: string;
-  first_name: string;
-  middle_name: string | null;
-}
-
-function useLoginEmployees() {
-  return useQuery<EmployeeOption[]>({
-    queryKey: ['login-employees'],
-    queryFn: async () => {
-      const r = await fetch('/api/login-employees', { credentials: 'same-origin' });
-      if (!r.ok) throw new Error(`GET /api/login-employees -> ${r.status}`);
-      return r.json();
-    },
-  });
-}
+import {Alert, Button, Card, Form, Input, Typography} from 'antd';
 
 export function LoginPage({ isDark, onToggleTheme }: { isDark: boolean; onToggleTheme: () => void }) {
-  const { data: employees, isLoading } = useLoginEmployees();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  async function handleSubmit(values: { employee_id: number; password: string }) {
+  async function handleSubmit(values: { login: string; password: string }) {
     setError(null);
     setSubmitting(true);
     try {
       const body = new URLSearchParams();
-      body.set('employee_id', String(values.employee_id));
+      body.set('login', values.login);
       body.set('password', values.password);
       const r = await fetch('/login', { method: 'POST', body, credentials: 'same-origin' });
       const data = await r.json();
@@ -77,17 +57,8 @@ export function LoginPage({ isDark, onToggleTheme }: { isDark: boolean; onToggle
         {error && <Alert type="error" message={error} style={{ marginBottom: 16 }} />}
 
         <Form layout="vertical" onFinish={handleSubmit} disabled={submitting}>
-          <Form.Item name="employee_id" label="Сотрудник" rules={[{ required: true, message: 'Выберите сотрудника' }]}>
-            <Select
-              placeholder="— выберите —"
-              loading={isLoading}
-              showSearch
-              optionFilterProp="label"
-              options={employees?.map((e) => ({
-                value: e.id,
-                label: `${e.last_name} ${e.first_name}${e.middle_name ? ' ' + e.middle_name : ''}`,
-              }))}
-            />
+          <Form.Item name="login" label="Логин" rules={[{ required: true, message: 'Введите логин' }]}>
+            <Input autoFocus />
           </Form.Item>
           <Form.Item name="password" label="Пароль" rules={[{ required: true, message: 'Введите пароль' }]}>
             <Input.Password />

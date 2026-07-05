@@ -288,7 +288,7 @@ def is_bootstrap_admin_id(conn, employee_id):
 def get_all_employees(conn):
     """Получить всех сотрудников"""
     employees = conn.execute(
-        'SELECT id, last_name, first_name, middle_name, role FROM employees ORDER BY last_name, first_name, middle_name').fetchall()
+        'SELECT id, last_name, first_name, middle_name, role, login FROM employees ORDER BY last_name, first_name, middle_name').fetchall()
     result = []
     for emp in employees:
         emp_dict = dict(emp)
@@ -305,23 +305,42 @@ def get_employee(conn, employee_id):
     return dict(row) if row else None
 
 
-@with_db_connection(commit_on_success=False)
-def create_employee(conn, last_name, first_name, middle_name=None, password_hash=None, role='user'):
-    """Создать сотрудника"""
+@with_db_connection(default_return=None, raise_on_error=False, commit_on_success=False)
+def create_employee(conn, last_name, first_name, middle_name=None, password_hash=None, role='user', login=None):
+    """Создать сотрудника. Возвращает None при нарушении UNIQUE (дубль ФИО или логина) —
+    raise_on_error=False нужен именно для этого: без него IntegrityError улетал бы наверх
+    необработанным, и вызывающий код никогда не увидел бы свою ветку "уже существует"."""
     cursor = conn.execute(
-        '''INSERT INTO employees (last_name, first_name, middle_name, password_hash, role)
-           VALUES (?, ?, ?, ?, ?)''',
-        (last_name, first_name, middle_name, password_hash, role))
+        '''INSERT INTO employees (last_name, first_name, middle_name, password_hash, role, login)
+           VALUES (?, ?, ?, ?, ?, ?)''',
+        (last_name, first_name, middle_name, password_hash, role, login))
     conn.commit()
     return _backend.last_insert_id(cursor)
 
 
+def _update_login_and_password(conn, employee_id, password_hash=None, login=None):
+    """Обновить только login/password_hash, не трогая ФИО/роль — общая часть между update_employee
+    (ветка бутстрап-админа) и update_own_credentials (сотрудник меняет свои учётные данные сам)."""
+    if password_hash is not None:
+        conn.execute('UPDATE employees SET password_hash = ? WHERE id = ?', (password_hash, employee_id))
+    if login is not None:
+        conn.execute('UPDATE employees SET login = ? WHERE id = ?', (login, employee_id))
+
+
 @with_db_connection(default_return=False, raise_on_error=False)
-def update_employee(conn, employee_id, last_name, first_name, middle_name=None, password_hash=None, role='user'):
-    """Обновить сотрудника. password_hash=None означает "не менять пароль".
+def update_own_credentials(conn, employee_id, password_hash=None, login=None):
+    """Сотрудник меняет логин и/или пароль своей же учётной записи (не через админский
+    update_employee) — ФИО и роль этой функцией в принципе не затрагиваются."""
+    _update_login_and_password(conn, employee_id, password_hash, login)
+    return True
+
+
+@with_db_connection(default_return=False, raise_on_error=False)
+def update_employee(conn, employee_id, last_name, first_name, middle_name=None, password_hash=None, role='user', login=None):
+    """Обновить сотрудника. password_hash=None означает "не менять пароль", login=None — "не менять логин".
     Для учётной записи администратора по умолчанию ФИО и роль никогда не перезаписываются этой
-    функцией (можно поменять только пароль) — независимо от того, что пришло в last_name/first_name/
-    middle_name/role, чтобы не зависеть от того, отправил ли клиент эти поля вообще."""
+    функцией (можно поменять только пароль и логин) — независимо от того, что пришло в
+    last_name/first_name/middle_name/role, чтобы не зависеть от того, отправил ли клиент эти поля вообще."""
     current = conn.execute(
         'SELECT last_name, first_name, middle_name, role FROM employees WHERE id = ?', (employee_id,)
     ).fetchone()
@@ -329,8 +348,7 @@ def update_employee(conn, employee_id, last_name, first_name, middle_name=None, 
         return False
 
     if _is_bootstrap_admin(current):
-        if password_hash is not None:
-            conn.execute('UPDATE employees SET password_hash = ? WHERE id = ?', (password_hash, employee_id))
+        _update_login_and_password(conn, employee_id, password_hash, login)
         return True
 
     if password_hash is not None:
@@ -340,23 +358,25 @@ def update_employee(conn, employee_id, last_name, first_name, middle_name=None, 
                    first_name    = ?,
                    middle_name   = ?,
                    password_hash = ?,
-                   role          = ?
-               WHERE id = ?''', (last_name, first_name, middle_name, password_hash, role, employee_id))
+                   role          = ?,
+                   login         = ?
+               WHERE id = ?''', (last_name, first_name, middle_name, password_hash, role, login, employee_id))
     else:
         conn.execute(
             '''UPDATE employees
                SET last_name   = ?,
                    first_name  = ?,
                    middle_name = ?,
-                   role        = ?
-               WHERE id = ?''', (last_name, first_name, middle_name, role, employee_id))
+                   role        = ?,
+                   login       = ?
+               WHERE id = ?''', (last_name, first_name, middle_name, role, login, employee_id))
     return True
 
 
 @with_db_connection(commit_on_success=False)
-def get_employee_auth(conn, employee_id):
-    """Получить хэш пароля и роль сотрудника для проверки при входе"""
-    row = conn.execute('SELECT id, password_hash, role FROM employees WHERE id = ?', (employee_id,)).fetchone()
+def get_employee_auth_by_login(conn, login):
+    """Получить id, хэш пароля и роль сотрудника по логину — для проверки при входе"""
+    row = conn.execute('SELECT id, password_hash, role FROM employees WHERE login = ?', (login,)).fetchone()
     return dict(row) if row else None
 
 

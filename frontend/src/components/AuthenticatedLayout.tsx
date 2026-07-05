@@ -1,13 +1,16 @@
-import {useEffect} from 'react';
+import {useEffect, useState} from 'react';
 import {Outlet, useLocation, useNavigate} from 'react-router-dom';
 import {Spin} from 'antd';
 import {AppShell} from './AppShell';
+import {MyAccountModal} from './MyAccountModal';
 import {useMe} from '../hooks/useMe';
+import {formatDisplayName} from '../hooks/useEmployeeNames';
 
 export function AuthenticatedLayout({ isDark, onToggleTheme }: { isDark: boolean; onToggleTheme: () => void }) {
   const { data: me, isLoading, isError } = useMe();
   const navigate = useNavigate();
   const location = useLocation();
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   useEffect(() => {
     // Сессия истекла/недействительна, пока SPA уже открыт — ведём себя как обычный
@@ -31,15 +34,20 @@ export function AuthenticatedLayout({ isDark, onToggleTheme }: { isDark: boolean
   }
 
   return (
-    <AppShell
-      activePath={basePath}
-      isDark={isDark}
-      role={me.role}
-      onToggleTheme={onToggleTheme}
-      onNavigate={navigate}
-      onLogout={handleLogout}
-    >
-      <Outlet />
-    </AppShell>
+    <>
+      <AppShell
+        activePath={basePath}
+        isDark={isDark}
+        role={me.role}
+        userName={formatDisplayName(me)}
+        onToggleTheme={onToggleTheme}
+        onNavigate={navigate}
+        onLogout={handleLogout}
+        onOpenProfile={() => setProfileModalOpen(true)}
+      >
+        <Outlet />
+      </AppShell>
+      <MyAccountModal open={profileModalOpen} onClose={() => setProfileModalOpen(false)} />
+    </>
   );
 }

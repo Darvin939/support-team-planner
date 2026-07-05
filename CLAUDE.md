@@ -38,12 +38,11 @@ npm run dev                  # Vite dev server (proxies /api, /login, /logout to
 npm run build                # Production build -> frontend/dist/, served by FastAPI at /react-assets/*
 ```
 
-`GET /api/login-employees` is a deliberately public (unauthenticated) endpoint — `require_login`'s
-`_PUBLIC_PATHS` includes it — feeding the login page's employee picker; it exposes the same non-sensitive
-fields (`id`/`last_name`/`first_name`/`middle_name`) the old `login.html` already rendered to anyone
-unauthenticated, so this isn't a new information disclosure. `POST /login` and `/api/me` are unchanged in
-spirit but `POST /login` now returns JSON (`{success: true}` / `{"error": "..."}`) instead of a redirect or a
-re-rendered Jinja page, matching the rest of the app's `/api/*` convention — the React login page does the
+The login page is a plain логин+пароль form (no employee picker, no public employee-listing
+endpoint) — `POST /login` takes `login`/`password` form fields, looks the employee up by
+`employees.login` (`db.get_employee_auth_by_login`), and verifies the password hash. `POST /login`
+returns JSON (`{success: true}` / `{"error": "..."}`) instead of a redirect or a re-rendered Jinja
+page, matching the rest of the app's `/api/*` convention — the React login page does the
 `window.location.href = '/planning'` navigation itself on success.
 
 `requirements.txt` currently lists `fastapi`, `uvicorn[standard]`, `pydantic`, `starlette`, plus
@@ -82,7 +81,7 @@ FastAPI app split across a handful of modules:
       `SessionMiddleware` has run — so `SessionMiddleware` must end up as the outer/first-executed layer, which means it
       must be the *last* one registered. Swapping this order reintroduces
       `AssertionError: SessionMiddleware must be installed to access request.session`. `_PUBLIC_PATHS` (`/login`,
-      `/logout`, `/api/login-employees`) plus anything under `/static/` or `/react-assets/` bypass the login check
+      `/logout`) plus anything under `/static/` or `/react-assets/` bypass the login check
       entirely; every other route (including `/docs`/`/openapi.json`) requires a session. Beyond the session check,
       `require_login` also enforces role: it reads `role` fresh from the DB on every request (not from the session,
       so a role change takes effect without re-login), stores it on `request.state.role`, and compares it against
@@ -115,10 +114,12 @@ FastAPI app split across a handful of modules:
       `last_insert_id`, `db_error`, `duplicate_error`, `init_schema`).
     - `db/sqlite.py` — `SQLiteBackend`, the default. Owns the canonical schema (`_SCHEMA`) and a custom
       `fuzzy_word_in(text, word)` SQLite function (sliding-window typo-tolerant substring match) registered via
-      `conn.create_function`, used by task search. `init_schema()` also runs defensive `ALTER TABLE ... ADD COLUMN`
-      statements (wrapped in try/except, since SQLite has no `IF NOT EXISTS` for that) to migrate pre-existing
-      `database.db` files forward — this is how `employees.password_hash` gets added to a DB that predates the login
-      feature.
+      `conn.create_function`, used by task search. `init_schema()` also runs a defensive
+      `ALTER TABLE employees ADD COLUMN login TEXT` (wrapped in try/except, since SQLite has no
+      `IF NOT EXISTS` for that) to migrate pre-existing `database.db` files forward — this is how
+      `employees.login` gets added to a DB that predates the логин/пароль login feature; uniqueness on
+      that column is then enforced by the separate `CREATE UNIQUE INDEX IF NOT EXISTS idx_employees_login`
+      in `_SCHEMA` (a column-level `UNIQUE` can't be added via `ALTER TABLE ADD COLUMN`).
     - `db/postgres.py` — `PostgresBackend`, opt-in alternative (switch by changing `_backend` in `db/__init__.py`).
       Wraps `psycopg2` connections/cursors to mimic the `sqlite3` interface (`conn.execute(...)` returning a
       fetchone/fetchall-capable cursor), translates `?` placeholders to `%s` and `INSERT OR IGNORE` to
@@ -144,7 +145,8 @@ statically. `frontend/src/` layout:
       better fit than rect-based collision detection against antd `Table`'s sticky-column DOM.
 - `components/` — shared UI: `AppShell`/`AuthenticatedLayout` (sidebar, role-gated nav via `GET /api/me`,
   all nav clicks are plain client-side `navigate()` — every route is React now, so there's no split between
-  migrated/legacy paths), `planningBadges.tsx` (criticality/status/dependency/schedule badges shared across
+  migrated/legacy paths), `MyAccountModal.tsx` (self-service login/password change, see Domain Concepts),
+  `planningBadges.tsx` (criticality/status/dependency/schedule badges shared across
   Planning and Journal), `StatTile.tsx`.
 - `hooks/` — one thin TanStack Query wrapper per data domain: `usePlanningData.ts`, `useSettingsData.ts`,
   `useTeams.ts`, `useMe.ts`, `useEmployeeNames.ts`.
@@ -168,9 +170,10 @@ Foreign keys are enforced (`PRAGMA foreign_keys = ON` for SQLite; on by default 
 - `tasks` 1→N `assignments` (cascade delete), unique on `(task_id, date)`
 - `tasks` N↔N `tasks` via `task_dependencies` (`task_id` depends on `depends_on_task_id`), cycle-checked before insert (
   `has_dependency_cycle`, BFS)
-- `employees` 1→N `assignments` (set NULL on employee delete, not cascade); also carries `password_hash` (nullable — an
-  employee without a hash set simply can't log in yet) and `role` (`NOT NULL DEFAULT 'user'`, one of `user`/
-  `editor`/`admin` — see Domain Concepts)
+- `employees` 1→N `assignments` (set NULL on employee delete, not cascade); also carries `login` (nullable, unique —
+  an employee without a login set simply can't log in yet, same as a missing `password_hash`), `password_hash`
+  (nullable, same reasoning), and `role` (`NOT NULL DEFAULT 'user'`, one of `user`/`editor`/`admin` — see Domain
+  Concepts)
 - `task_history` / `assignment_history` — append-only audit log of field-level changes (see Domain Concepts). *
   *Deliberately have no FOREIGN KEY** on `task_id`/`assignment_id`/`changed_by_employee_id`, breaking the repo's usual "
   FKs everywhere" convention on purpose: an audit row must outlive the row it describes (a cascading FK would erase a
@@ -210,25 +213,39 @@ Two separate status machines coexist — do not confuse them:
   PL/pgSQL in Postgres)
 - **Active assignments**: assignment statuses `new` or `planned` on tasks not in terminal states, served by
   `/api/active-assignments/{team_id}` (team_id=0 for all teams)
-- **Authentication & roles**: per-employee login via `GET/POST /login` and `POST /logout`, plus a three-tier role
+- **Authentication & roles**: per-employee login via `GET/POST /login` and `POST /logout`, authenticating by
+  `login`+password (`db.get_employee_auth_by_login`) rather than by picking an employee from a list — `login` is
+  a separate, nullable, unique column on `employees` (independent of `last_name`/`first_name`/`middle_name`), set
+  via the Settings employee modal same as the password is. Plus a three-tier role
   system — `employees.role` is `user` < `editor` < `admin` (each rank includes the ones below it), enforced by
   `require_login` (see above) via `_ROLE_RANK`/`_required_rank`/`_VALID_ROLES` in `support_planner.py`. In short:
   any logged-in employee can read everything and create/edit/delete tasks and assignments; `editor`+ additionally
   gets the whole `/settings` page and team/freeze-day/block/block-template mutations; only `admin` can create,
-  edit, or delete other employees (including resetting their password or changing their role) — `GET
+  edit, or delete other employees (including resetting their password/login or changing their role) — `GET
   /api/employees` itself stays open to every role since the planner's assignee dropdowns need it. `GET /api/me`
   exposes the current employee + role as JSON for the React nav (`AuthenticatedLayout`/`AppShell` role-gate the
-  Settings nav item on `role === 'admin' || role === 'editor'`). The whole app (pages and `/api/*`) sits behind
-  `require_login` in `support_planner.py` except `/login`, `/logout`, `/api/login-employees`, `/static/*`, and
-  `/react-assets/*` (the built React bundle itself must be loadable before the user is authenticated — see the
+  Settings nav item on `role === 'admin' || role === 'editor'`, and also format the current employee's "Фамилия
+  И.О." next to the sidebar's "Выйти" button via `formatDisplayName` from `useEmployeeNames.ts`). That name label
+  is itself a button (`frontend/src/components/MyAccountModal.tsx`, opened via `AppShell`'s `onOpenProfile` prop)
+  letting **any** logged-in employee change their own `login`/password via `PUT /api/me` — unlike `/api/employees`
+  (admin-only, can edit anyone), this endpoint isn't in `_ADMIN_ONLY_API_PREFIXES`/`_EDITOR_API_PREFIXES` so it
+  defaults to `user`+, and always acts on `request.session['employee_id']` rather than a path param, so it can
+  only ever touch the caller's own row; it never touches ФИО/role (`db.update_own_credentials`, the same
+  login/password-only update the bootstrap-admin branch of `db.update_employee` uses, factored into
+  `_update_login_and_password`). The whole app
+  (pages and `/api/*`) sits behind `require_login` in `support_planner.py` except `/login`, `/logout`, `/static/*`,
+  and `/react-assets/*` (the built React bundle itself must be loadable before the user is authenticated — see the
   React migration note above). There's no self-service signup, but there is a bootstrap account:
   `SQLiteBackend.init_schema()` / `PostgresBackend.init_schema()` both seed an `employees` row named
-  `Администратор` (empty first/middle name, role `admin`) with password `q12345678` via `INSERT OR IGNORE`, on
-  every startup. This relies on `middle_name` being `''` rather than `NULL` in that seed row — `UNIQUE(last_name,
+  `Администратор` (empty first/middle name, role `admin`) with login `admin` and password `q12345678` via
+  `INSERT OR IGNORE`, on every startup — `SQLiteBackend.init_schema()` additionally backfills `login = 'admin'`
+  on that row for pre-existing DBs where `INSERT OR IGNORE` is a no-op (ФИО already matches) but `login` is still
+  `NULL`, guarded by `login IS NULL` so a login already changed via Settings is never overwritten. This relies on
+  `middle_name` being `''` rather than `NULL` in that seed row — `UNIQUE(last_name,
   first_name, middle_name)` never treats two `NULL`s as equal, so a `NULL` `middle_name` would silently defeat the
   `OR IGNORE` dedup and create a fresh duplicate admin row on every restart. Any other brand-new `employees` row
-  still starts with `password_hash = NULL` and can't log in until a password is set for it via the Settings
-  employee modal (which itself requires being logged in as an `admin`).
+  still starts with `login = NULL`/`password_hash = NULL` and can't log in until both are set for it via the
+  Settings employee modal (which itself requires being logged in as an `admin`).
 - **Change history**: every create/update/delete on a task or assignment is logged (see `task_history`/
   `assignment_history` above), attributed to whichever employee is in the current session (`changed_by`, nullable —
   history rows from before the login feature existed, or written with no session, have `changed_by_employee_id = NULL`).

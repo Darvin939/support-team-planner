@@ -64,6 +64,7 @@ _PG_SCHEMA_STMTS = [
         middle_name   TEXT,
         password_hash TEXT,
         role          TEXT NOT NULL DEFAULT 'user',
+        login         TEXT UNIQUE,
         UNIQUE (last_name, first_name, middle_name)
     )""",
 
@@ -244,6 +245,6 @@ class PostgresBackend(DBBackend):
         # выполнять при каждом запуске, не создаёт дублей. middle_name='' (не NULL): NULL никогда
         # не считается равным другому NULL в UNIQUE-констрейнте, так что с NULL проверка бы не сработала.
         conn.execute(
-            "INSERT OR IGNORE INTO employees (last_name, first_name, middle_name, password_hash, role) VALUES (?, ?, ?, ?, ?)",
-            ('Администратор', '', '', auth.hash_password('q12345678'), 'admin')
+            "INSERT OR IGNORE INTO employees (last_name, first_name, middle_name, password_hash, role, login) VALUES (?, ?, ?, ?, ?, ?)",
+            ('Администратор', '', '', auth.hash_password('q12345678'), 'admin', 'admin')
         )

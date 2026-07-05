@@ -35,7 +35,7 @@ if not _SESSION_SECRET_KEY:
     print('WARNING: SESSION_SECRET_KEY не задан, используется небезопасный ключ по умолчанию '
           '(сессии не переживут смену ключа; задайте переменную окружения для продакшена)')
 
-_PUBLIC_PATHS = {'/login', '/logout', '/api/login-employees'}
+_PUBLIC_PATHS = {'/login', '/logout'}
 
 # Ранги ролей: user < editor < admin — каждая следующая роль включает права предыдущей.
 _ROLE_RANK = {'user': 0, 'editor': 1, 'admin': 2}
@@ -153,6 +153,12 @@ class EmployeeIn(BaseModel):
     middle_name: Optional[str] = None
     password: Optional[str] = None
     role: str = "user"
+    login: Optional[str] = None
+
+
+class MyCredentialsIn(BaseModel):
+    login: Optional[str] = None
+    password: Optional[str] = None
 
 
 class FreezeDayIn(BaseModel):
@@ -191,28 +197,14 @@ def login_page():
     return _serve_react_index()
 
 
-@app.get('/api/login-employees')
-def login_employees():
-    """Публичный (без авторизации) список сотрудников для выпадающего списка на странице входа —
-    те же поля, что показывались в незалогиненном login.html и раньше."""
-    employees = db.get_all_employees()
-    return [{'id': e['id'], 'last_name': e['last_name'], 'first_name': e['first_name'],
-              'middle_name': e['middle_name']} for e in employees]
-
-
 @app.post('/login')
-def login_submit(request: Request, employee_id: str = Form(...), password: str = Form(...)):
-    """Обработка входа по сотруднику и паролю"""
-    try:
-        emp_id = int(employee_id)
-    except (TypeError, ValueError):
-        emp_id = None
-
-    auth_row = db.get_employee_auth(emp_id) if emp_id else None
+def login_submit(request: Request, login: str = Form(...), password: str = Form(...)):
+    """Обработка входа по логину и паролю"""
+    auth_row = db.get_employee_auth_by_login(login.strip()) if login.strip() else None
     if not auth_row or not auth.verify_password(password, auth_row['password_hash']):
-        return JSONResponse({'error': 'Неверный сотрудник или пароль'}, status_code=401)
+        return JSONResponse({'error': 'Неверный логин или пароль'}, status_code=401)
 
-    request.session['employee_id'] = emp_id
+    request.session['employee_id'] = auth_row['id']
     request.session['role'] = auth_row['role']
     return {'success': True}
 
@@ -237,6 +229,22 @@ def get_me(request: Request):
         'first_name': emp['first_name'],
         'middle_name': emp['middle_name'],
     }
+
+
+@app.put('/api/me')
+def update_me_api(request: Request, data: MyCredentialsIn):
+    """Сотрудник меняет логин и/или пароль собственной учётной записи — доступно любой роли
+    (в отличие от /api/employees, который требует admin), не трогает ФИО/роль."""
+    login = (data.login or '').strip() or None
+    password_hash = auth.hash_password(data.password) if (data.password or '').strip() else None
+    if login is None and password_hash is None:
+        return JSONResponse({'error': 'Нечего обновлять'}, status_code=400)
+
+    success = db.update_own_credentials(request.session['employee_id'], password_hash, login)
+    if success:
+        return {'success': True}
+    else:
+        return JSONResponse({'error': 'Такой логин уже используется'}, status_code=400)
 
 
 @app.get('/planning', response_class=HTMLResponse)
@@ -545,17 +553,18 @@ def create_employee_api(data: EmployeeIn):
     first_name = data.first_name.strip()
     middle_name = (data.middle_name or '').strip() or None
     password_hash = auth.hash_password(data.password) if (data.password or '').strip() else None
+    login = (data.login or '').strip() or None
 
     if not last_name or not first_name:
         return JSONResponse({'error': 'Фамилия и имя обязательны'}, status_code=400)
     if data.role not in _VALID_ROLES:
         return JSONResponse({'error': 'Недопустимая роль'}, status_code=400)
 
-    employee_id = db.create_employee(last_name, first_name, middle_name, password_hash, data.role)
+    employee_id = db.create_employee(last_name, first_name, middle_name, password_hash, data.role, login)
     if employee_id:
         return {'id': employee_id, 'success': True}
     else:
-        return JSONResponse({'error': 'Сотрудник с таким ФИО уже существует'}, status_code=400)
+        return JSONResponse({'error': 'Сотрудник с таким ФИО или логином уже существует'}, status_code=400)
 
 
 @app.put('/api/employees/{employee_id}')
@@ -565,17 +574,18 @@ def update_employee_api(employee_id: int, data: EmployeeIn):
     first_name = data.first_name.strip()
     middle_name = (data.middle_name or '').strip() or None
     password_hash = auth.hash_password(data.password) if (data.password or '').strip() else None
+    login = (data.login or '').strip() or None
 
     if (not last_name or not first_name) and not db.is_bootstrap_admin_id(employee_id):
         return JSONResponse({'error': 'Фамилия и имя обязательны'}, status_code=400)
     if data.role not in _VALID_ROLES:
         return JSONResponse({'error': 'Недопустимая роль'}, status_code=400)
 
-    success = db.update_employee(employee_id, last_name, first_name, middle_name, password_hash, data.role)
+    success = db.update_employee(employee_id, last_name, first_name, middle_name, password_hash, data.role, login)
     if success:
         return {'success': True}
     else:
-        return JSONResponse({'error': 'Сотрудник с таким ФИО уже существует'}, status_code=400)
+        return JSONResponse({'error': 'Сотрудник с таким ФИО или логином уже существует'}, status_code=400)
 
 
 @app.delete('/api/employees/{employee_id}')

@@ -29,8 +29,14 @@ _SCHEMA = '''
         middle_name TEXT,
         password_hash TEXT,
         role TEXT NOT NULL DEFAULT 'user',
+        login TEXT,
         UNIQUE(last_name, first_name, middle_name)
     );
+
+    -- Отдельный UNIQUE-индекс (а не inline UNIQUE в CREATE TABLE) — ALTER TABLE ADD COLUMN в SQLite
+    -- не умеет добавлять UNIQUE-колонку к уже существующей таблице, поэтому уникальность login
+    -- для мигрируемых БД обеспечивается этим индексом, а не констрейнтом самой колонки.
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_employees_login ON employees (login);
 
     CREATE TABLE if NOT EXISTS freeze_days (
         id INTEGER PRIMARY key autoincrement,
@@ -182,13 +188,26 @@ class SQLiteBackend(DBBackend):
 
     def init_schema(self, conn) -> None:
         conn.execute('PRAGMA foreign_keys = ON;')
+        # Миграция для БД, созданных до появления колонки login (CREATE TABLE IF NOT EXISTS её не
+        # добавит к уже существующей таблице employees) — SQLite не поддерживает ADD COLUMN IF NOT
+        # EXISTS, поэтому глушим ошибку "duplicate column" на уже мигрированных БД.
+        try:
+            conn.execute('ALTER TABLE employees ADD COLUMN login TEXT')
+        except sqlite3.OperationalError:
+            pass
         conn.executescript(_SCHEMA)
         # Сотрудник по умолчанию для первого входа (пароль можно сменить в настройках).
         # INSERT OR IGNORE полагается на UNIQUE(last_name, first_name, middle_name) — безопасно
         # выполнять при каждом запуске, не создаёт дублей. middle_name='' (не NULL): NULL никогда
         # не считается равным другому NULL в UNIQUE-констрейнте, так что с NULL проверка бы не сработала.
         conn.execute(
-            "INSERT OR IGNORE INTO employees (last_name, first_name, middle_name, password_hash, role) VALUES (?, ?, ?, ?, ?)",
-            ('Администратор', '', '', auth.hash_password('q12345678'), 'admin')
+            "INSERT OR IGNORE INTO employees (last_name, first_name, middle_name, password_hash, role, login) VALUES (?, ?, ?, ?, ?, ?)",
+            ('Администратор', '', '', auth.hash_password('q12345678'), 'admin', 'admin')
+        )
+        # Бэкфилл для БД, созданных до появления login: сама INSERT OR IGNORE выше не тронет уже
+        # существующую строку админа (ФИО совпадает), поэтому login='admin' проставляется отдельно —
+        # но только если ещё не задан, чтобы не затирать логин, который уже сменили в настройках.
+        conn.execute(
+            "UPDATE employees SET login = 'admin' WHERE last_name = 'Администратор' AND first_name = '' AND middle_name = '' AND login IS NULL"
         )
         conn.commit()
