@@ -262,6 +262,7 @@ export function AssignmentModal({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['assignments'] });
       queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
       message.success('Сохранено');
       onClose();
     },
@@ -312,6 +313,7 @@ export function AssignmentModal({
       if (result.cancelled) return;
       queryClient.invalidateQueries({ queryKey: ['assignments'] });
       queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
       message.success('Сохранено');
       onClose();
     },

@@ -118,6 +118,7 @@ export function PlanningPage() {
     mutationFn: ({ taskId, status }: { taskId: number; status: string }) => apiMutate(`/api/tasks/${taskId}/status`, 'PATCH', { status }).then(() => ({ taskId, status })),
     onSuccess: ({ taskId, status }) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
       const task = taskData?.tasks.find((t) => t.id === taskId);
       if (status === 'done' || status === 'cancelled') {
         message.success(`«${task?.name ?? taskId}» — ${TASK_STATUS_LABELS[status] ?? status}`);
@@ -130,6 +131,7 @@ export function PlanningPage() {
     mutationFn: (taskId: number) => apiMutate(`/api/task/${taskId}`, 'DELETE'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
       message.success('Задача удалена');
     },
     onError: (e: Error) => message.error(e.message),
