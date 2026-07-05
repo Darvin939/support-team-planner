@@ -20,8 +20,8 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # no-build-step-required philosophy for anyone just running the Python app without touching the
 # frontend at all.
 _REACT_DIST = os.path.join(os.path.dirname(__file__), 'frontend', 'dist')
-if os.path.isdir(os.path.join(_REACT_DIST, 'assets')):
-    app.mount("/react-assets/assets", StaticFiles(directory=os.path.join(_REACT_DIST, 'assets')), name="react-assets")
+if os.path.isdir(_REACT_DIST):
+    app.mount("/react-assets", StaticFiles(directory=_REACT_DIST), name="react-assets")
 
 
 def _serve_react_index() -> str:
