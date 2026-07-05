@@ -356,10 +356,12 @@ def get_assignment_history_api(assignment_id: int, offset: int = 0, limit: int =
 # === API для задач ===
 
 @app.get('/api/tasks/{team_id}')
-def get_tasks_api(team_id: int, offset: int = 0, limit: int = 20, search: str = "", show_completed: bool = False):
+def get_tasks_api(team_id: int, offset: int = 0, limit: int = 20, search: str = "", show_completed: bool = False,
+                   task_id: Optional[int] = None):
     """API для получения задач команды с пагинацией"""
     search_val = search.strip() or None
-    tasks = db.get_tasks_by_team(team_id, offset=offset, limit=limit, search=search_val, show_completed=show_completed)
+    tasks = db.get_tasks_by_team(team_id, offset=offset, limit=limit, search=search_val, show_completed=show_completed,
+                                  task_id=task_id)
     total = db.get_tasks_count_by_team(team_id, search=search_val, show_completed=show_completed)
     return {
         'tasks': [{'id': t['id'], 'name': t['name'], 'description': t['description'], 'criticality': t['criticality'],
@@ -643,6 +645,7 @@ def get_active_assignments_api(team_id: int, start_date: Optional[str] = None, e
         )
         result.append({
             'id': a['id'],
+            'task_id': a['task_id'],
             'task_name': a['task_name'],
             'criticality': a['criticality'],
             'date': a['date'],
@@ -650,6 +653,7 @@ def get_active_assignments_api(team_id: int, start_date: Optional[str] = None, e
             'status': a['status'],
             'employee_name': employee_name,
             'comment': a['comment'],
+            'team_id': a['team_id'],
             'team_name': a['team_name'],
             'is_psi': bool(a['is_psi']),
         })

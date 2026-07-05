@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useState} from 'react';
-import {useNavigate, useParams} from 'react-router-dom';
+import {useLocation, useNavigate, useParams} from 'react-router-dom';
 import {DeleteOutlined, EditOutlined, InfoCircleOutlined} from '@ant-design/icons';
 import type {TableColumnsType} from 'antd';
 import {
@@ -25,6 +25,7 @@ import {
   type Assignment,
   type Task,
   useAssignments,
+  useTaskById,
   useTaskDeps,
   useTasks,
   useTodayActive
@@ -86,6 +87,8 @@ function dateRange(from: Dayjs, to: Dayjs): Dayjs[] {
 export function PlanningPage() {
   const { teamId: teamIdParam } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const jump = location.state as { jumpTaskId?: number; jumpDate?: string } | null;
   const { data: teams } = useTeams();
   const { token } = theme.useToken();
   const teamId = teamIdParam ? Number(teamIdParam) : undefined;
@@ -153,6 +156,21 @@ export function PlanningPage() {
     (assignments ?? []).forEach((a) => map.set(`${a.task_id}-${a.date}`, a));
     return map;
   }, [assignments]);
+
+  const { data: jumpTask } = useTaskById(teamId ?? 0, jump?.jumpTaskId ?? null);
+  const { data: jumpAssignments } = useAssignments(
+    teamId ?? 0,
+    jump?.jumpDate ? dayjs(jump.jumpDate).subtract(60, 'day').format(API_DATE_FORMAT) : '',
+    jump?.jumpDate ? dayjs(jump.jumpDate).add(60, 'day').format(API_DATE_FORMAT) : '',
+    jump?.jumpTaskId ? [jump.jumpTaskId] : []
+  );
+
+  useEffect(() => {
+    if (!jump?.jumpTaskId || !jump.jumpDate || !jumpTask) return;
+    const assignment = (jumpAssignments ?? []).find((a) => a.date === jump.jumpDate) ?? null;
+    setAssignmentModal({ open: true, task: jumpTask, date: jump.jumpDate, assignment });
+    navigate(location.pathname, { replace: true, state: null });
+  }, [jump, jumpTask, jumpAssignments, navigate, location.pathname]);
 
   const depsByTask = useMemo(() => {
     const map = new Map<number, typeof deps>();
@@ -452,7 +470,7 @@ export function PlanningPage() {
         task={assignmentModal.task}
         date={assignmentModal.date}
         assignment={assignmentModal.assignment}
-        taskAssignments={assignmentModal.task ? (assignmentsByTask.get(assignmentModal.task.id) ?? []) : []}
+        taskAssignments={assignmentModal.task ? (assignmentsByTask.get(assignmentModal.task.id) ?? jumpAssignments ?? []) : []}
         freezeDays={freezeDays}
         onClose={() => setAssignmentModal({ open: false, task: null, date: null, assignment: null })}
       />

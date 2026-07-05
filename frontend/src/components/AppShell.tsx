@@ -3,6 +3,7 @@ import type {MenuProps} from 'antd';
 import {Layout, Menu} from 'antd';
 import {chrome} from '../theme';
 import {useIsMobile} from '../hooks/useIsMobile';
+import {OverdueNotifications} from './OverdueNotifications';
 
 const TOP_BAR_HEIGHT = 56;
 
@@ -143,6 +144,9 @@ export function AppShell({
           <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>
             Пульт<span style={{ color: '#1668dc' }}>.</span>Планировщик
           </span>
+          <span style={{ marginLeft: 'auto', display: 'flex' }}>
+            <OverdueNotifications compact />
+          </span>
         </div>
       )}
       <Layout.Sider
@@ -170,6 +174,9 @@ export function AppShell({
           <span>
             Пульт<span style={{ color: '#1668dc' }}>.</span>Планировщик
           </span>
+        </div>
+        <div style={{ padding: '0 14px 10px', color: c.text }}>
+          <OverdueNotifications />
         </div>
         <Menu
           mode="inline"

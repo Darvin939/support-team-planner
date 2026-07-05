@@ -406,7 +406,7 @@ def set_freeze_days_for_month(conn, year, month, days):
 
 # === TASKS CRUD ===
 @with_db_connection(commit_on_success=False)
-def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, show_completed=False):
+def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, show_completed=False, task_id=None):
     """Получить задачи команды с пагинацией и поиском"""
     completed_clause = "" if show_completed else "AND task_status NOT IN ('done', 'cancelled')"
     params = [team_id]
@@ -420,6 +420,10 @@ def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, show_compl
             params += [word, word]
     else:
         search_clause = ""
+    id_clause = ""
+    if task_id:
+        id_clause = "AND id = ?"
+        params.append(task_id)
     params += [limit, offset]
     # @formatter:off
     return conn.execute(
@@ -429,6 +433,7 @@ def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, show_compl
               AND is_deleted = 0
             {completed_clause}
             {search_clause}
+            {id_clause}
             ORDER BY CASE criticality
                          WHEN 'high'   THEN 0
                          WHEN 'medium' THEN 1
@@ -763,12 +768,12 @@ def delete_assignment(conn, assignment_id, changed_by=None):
 def get_active_assignments_in_period(conn, team_id, start_date, end_date, team_ids=None):
     """Получить активные назначения (new/planned) за период с данными задач и сотрудников"""
     # @formatter:off
-    query = '''SELECT a.id, t.name AS task_name, t.criticality,
+    query = '''SELECT a.id, a.task_id, t.name AS task_name, t.criticality,
                       a.date, a.block, a.status, a.employee_id, a.comment, a.is_psi,
                       e.last_name  AS employee_last_name,
                       e.first_name AS employee_first_name,
                       e.middle_name AS employee_middle_name,
-                      tm.name AS team_name
+                      t.team_id, tm.name AS team_name
                FROM assignments a
                    JOIN tasks t ON a.task_id = t.id
                    JOIN teams tm ON t.team_id = tm.id

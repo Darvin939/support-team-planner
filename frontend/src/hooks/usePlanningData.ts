@@ -1,4 +1,7 @@
 import {useQuery} from '@tanstack/react-query';
+import dayjs from 'dayjs';
+import {API_DATE_FORMAT} from '../lib/dateFormats';
+import {MAX_PERIOD_DAYS} from './useDateRangeFilter';
 
 export interface Task {
   id: number;
@@ -70,6 +73,42 @@ export function useTodayActive(teamId: number, today: string) {
     queryKey: ['active-assignments', teamId, today, today],
     queryFn: () => getJson(`/api/active-assignments/${teamId}?start_date=${today}&end_date=${today}`),
     enabled: !!teamId,
+  });
+}
+
+export interface OverdueAssignment {
+  id: number;
+  task_id: number;
+  team_id: number;
+  task_name: string;
+  team_name: string;
+  criticality: 'high' | 'medium' | 'low';
+  date: string;
+  status: 'new' | 'planned';
+  employee_name: string | null;
+  comment: string | null;
+  is_psi: boolean;
+}
+
+export function useOverdueAssignments() {
+  const cutoff = dayjs().subtract(3, 'day');
+  const start = cutoff.subtract(MAX_PERIOD_DAYS, 'day').format(API_DATE_FORMAT);
+  const end = cutoff.format(API_DATE_FORMAT);
+  return useQuery<OverdueAssignment[]>({
+    queryKey: ['active-assignments', 0, start, end],
+    queryFn: () => getJson(`/api/active-assignments/0?start_date=${start}&end_date=${end}`),
+    refetchInterval: 5 * 60 * 1000,
+  });
+}
+
+export function useTaskById(teamId: number, taskId: number | null) {
+  return useQuery<Task | null>({
+    queryKey: ['tasks', teamId, 'byId', taskId],
+    queryFn: () =>
+      getJson<{ tasks: Task[] }>(`/api/tasks/${teamId}?task_id=${taskId}&show_completed=true&limit=1`).then(
+        (r) => r.tasks[0] ?? null
+      ),
+    enabled: !!teamId && !!taskId,
   });
 }
 
