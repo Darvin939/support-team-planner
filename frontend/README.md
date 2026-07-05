@@ -14,17 +14,21 @@ npm run preview   # локальный просмотр собранного dis
 npm run lint      # oxlint
 ```
 
-`dist/` не хранится в репозитории (gitignored) — без сборки бэкенд не сможет отдать ни одну страницу
-(`_serve_react_index()` в `support_planner.py` читает `dist/index.html`).
+Без актуальной сборки в `dist/` бэкенд не сможет отдать ни одну страницу (`_serve_react_index()` в
+`support_planner.py` читает `dist/index.html`) — пересобирайте после каждого изменения фронтенда, если не
+используете `npm run dev`.
 
-## Структура `src/`
+## Структура
 
-- `pages/` — по одному компоненту на маршрут: `LoginPage`, `PlanningPage`, `StatisticsPage`, `JournalPage`,
-  `SettingsPage`. `pages/planning/` — вынесенные части планирования (`TaskModal`, `AssignmentModal`,
-  `HistoryPanel`, `useAssignmentDrag` и т. д.).
-- `components/` — общие UI-компоненты: `AppShell`/`AuthenticatedLayout` (сайдбар, ролевая навигация через
-  `GET /api/me`), `planningBadges`, `StatTile`.
-- `hooks/` — тонкие обёртки над TanStack Query по доменам данных.
-- `lib/` — чистые хелперы: `apiMutate` (обёртка над `fetch` для POST/PUT/PATCH/DELETE), `autoSchedule`
+- `public/fonts/` — самостоятельно хостящиеся шрифты (Inter, JetBrains Mono); ссылки на них в `src/index.css`
+  Vite сам переписывает под `/react-assets/` при продакшен-сборке и копирует файлы в `dist/fonts/`.
+- `src/pages/` — по одному компоненту на маршрут: `LoginPage` (форма логин/пароль, без выбора сотрудника из
+  списка), `PlanningPage`, `StatisticsPage`, `JournalPage`, `SettingsPage`. `pages/planning/` — вынесенные части
+  планирования (`TaskModal`, `AssignmentModal`, `HistoryPanel`, `useAssignmentDrag` и т. д.).
+- `src/components/` — общие UI-компоненты: `AppShell`/`AuthenticatedLayout` (сайдбар, ролевая навигация через
+  `GET /api/me`), `MyAccountModal` (смена собственных логина/пароля через `PUT /api/me`), `planningBadges`,
+  `StatTile`.
+- `src/hooks/` — тонкие обёртки над TanStack Query по доменам данных.
+- `src/lib/` — чистые хелперы: `apiMutate` (обёртка над `fetch` для POST/PUT/PATCH/DELETE), `autoSchedule`
   (авторасписание с учётом дней фриза), `historyFormat` (форматирование истории изменений).
-- `theme.ts` — токены темы `ConfigProvider` (тёмная/светлая), на основе официальной палитры `@ant-design/colors`.
+- `src/theme.ts` — токены темы `ConfigProvider` (тёмная/светлая), на основе официальной палитры `@ant-design/colors`.
