@@ -17,17 +17,22 @@ python support_planner.py         # Run dev server on http://localhost:5093
 python -m pytest tests/ -v        # Run tests (currently only db/postgres.py unit tests + a live-PG integration test, auto-skipped if no PG server)
 ```
 
-**Frontend (React/antd migration, in progress — see `frontend/`):** pages are being migrated one at a time
-from the Jinja2/vanilla-JS frontend to React + Ant Design; FastAPI keeps serving Jinja2 for any page not yet
-migrated. Done so far: Stage 1 (`/login`), Stage 2 (`/statistics`, `/journal`, `/journal/{team_id}`), Stage 3
-(`/settings` — Teams/Blocks & Templates/Freeze Days/Employees tabs). Remaining: Planning (highest complexity —
-the drag-and-drop grid). All migrated pages share one React Router layout (`AuthenticatedLayout` + `AppShell`,
-fetches `GET /api/me` for role-gated nav) so navigating between them is a client-side route change, not a full
-page reload; navigating to the still-Jinja2 Planning page is a normal full navigation. **`frontend/dist/`
-(built via Vite) is now
-required, not optional** — `/login` was the first page cut over, so `GET /login` serves the built React
-`index.html` unconditionally; without a build, nobody can log in at all. Run `npm run build` after
-cloning/pulling before starting `support_planner.py`.
+**Frontend (React + Ant Design, `frontend/`):** the full Jinja2/vanilla-JS frontend migration is complete — every
+page (`/login`, `/planning`, `/planning/{team_id}`, `/statistics`, `/journal`, `/journal/{team_id}`, `/settings`)
+now serves the built React SPA; `templates/`, `static/js/`, and `static/css/` have all been deleted (`static/`
+now only holds `static/fonts/`). All pages share one React Router layout (`AuthenticatedLayout` + `AppShell`,
+fetches `GET /api/me` for role-gated nav), so navigating between them is a client-side route change, not a full
+page reload — a full browser navigation only happens crossing into/out of the unauthenticated `/login` page, or
+on a manual refresh. **`frontend/dist/` (built via Vite) is required, not optional** — every page route calls
+`_serve_react_index()`; without a build, nothing loads at all. Run `npm run build` after cloning/pulling before
+starting `support_planner.py`.
+
+**Known gap:** `frontend/src/theme.ts` sets `fontFamily` to `'InterVariable', 'Inter', ...` and
+`'JetBrains Mono Variable'` is used ad hoc in a few components, and the actual self-hosted font files exist at
+`static/fonts/InterVariable.woff2` / `static/fonts/JetBrainsMono-Variable.woff2` — but nothing in the React app
+declares an `@font-face` pointing at them (no such file was ever created during the migration), so these
+font-family names currently resolve to nothing and silently fall back to system fonts. Pre-existing from the
+CSS-only redesign phase, orthogonal to the frontend migration; not yet fixed.
 
 ```bash
 cd frontend && npm install   # Install frontend dependencies (first time only)
@@ -43,7 +48,7 @@ spirit but `POST /login` now returns JSON (`{success: true}` / `{"error": "..."}
 re-rendered Jinja page, matching the rest of the app's `/api/*` convention — the React login page does the
 `window.location.href = '/planning'` navigation itself on success.
 
-`requirements.txt` currently lists `fastapi`, `uvicorn[standard]`, `jinja2`, `pydantic`, `starlette`, plus
+`requirements.txt` currently lists `fastapi`, `uvicorn[standard]`, `pydantic`, `starlette`, plus
 `psycopg2-binary` (only needed for `PostgresBackend`). **Known gap:** the login feature also needs `itsdangerous` (used
 internally by `starlette.middleware.sessions.SessionMiddleware` to sign the session cookie) and `python-multipart` (
 needed by FastAPI to parse the `Form(...)` fields on `POST /login`) — neither is currently declared in
@@ -63,13 +68,15 @@ set for any real deployment.
 FastAPI app split across a handful of modules:
 
 - **`support_planner.py`** — all FastAPI routes and API endpoints (this is the app entrypoint — there is no `app.py`).
-  `/` redirects to `/planning`. Pages: `/planning`, `/planning/{team_id}` (still Jinja2), `/login`, `/settings`,
-  `/statistics`, `/journal`, `/journal/{team_id}` (React — see the frontend migration note above). API
-  under `/api/`. Request bodies use Pydantic models (`AssignmentIn`, `TaskIn`, `TeamIn`, `BlockIn`, `BlockTemplateIn`,
+  `/` redirects to `/planning`. All pages (`/login`, `/planning`, `/planning/{team_id}`, `/settings`, `/statistics`,
+  `/journal`, `/journal/{team_id}`) serve the built React SPA via `_serve_react_index()` — see the frontend note
+  above; `{team_id}` validity for `/planning/{team_id}` and `/journal/{team_id}` is checked client-side, not
+  server-side (an invalid id just means the React page fails its own data fetch). API under `/api/`. Request
+  bodies use Pydantic models (`AssignmentIn`, `TaskIn`, `TeamIn`, `BlockIn`, `BlockTemplateIn`,
   `EmployeeIn`, `FreezeDayIn`, `FreezeDayMonthIn`, `TaskStatusIn`). API errors return
   `JSONResponse({"error": "..."}, status_code=...)`. Route handlers use sync `def` (not `async def`) since DB calls are
   blocking — FastAPI runs them in a thread pool. `VALID_TASK_TRANSITIONS` here must stay in sync with the copy in
-  `planning.js`.
+  `frontend/src/pages/PlanningPage.tsx`.
     - **Auth middleware ordering gotcha:** `require_login` (an `@app.middleware('http')` function) is registered
       *before* `app.add_middleware(SessionMiddleware, ...)` in the file, and this order is load-bearing, not incidental.
       Starlette's `add_middleware()` prepends to the middleware stack, so whichever middleware is added *last* runs
@@ -118,23 +125,30 @@ FastAPI app split across a handful of modules:
       fresh-install-only.
 - **`utils.py`** — Single helper: `format_employee_name()` for "Фамилия И.О." formatting.
 
-Frontend is vanilla JS + Jinja2 templates inheriting from `base.html` (blocks: `title`, `content`, `scripts`). Static
-files mounted at `/static`. JS is split per page:
+Frontend is React + TypeScript + Vite (antd v6, TanStack Query, React Router), built to `frontend/dist/` and served
+statically. `frontend/src/` layout:
 
-- `static/js/script.js` — shared utilities: dropdown toggles, URL linkification, modal close handlers,
-  `lockBodyScroll()`/`unlockBodyScroll()` (called around every modal open/close across pages so the page behind a modal
-  can't be scrolled — `unlockBodyScroll` re-checks whether *any* `.modal` is still visible before actually releasing the
-  lock, guarding against overlapping modals), `clampDateRange(fromId, toId)` for 60-day max period enforcement,
-  localStorage helpers (`saveTeamId`, `getSavedTeamId`, `saveDateRange`, `getSavedDateRange`) for persisting selected
-  team and date filters across pages.
-- `static/js/planning.js` — planning grid with drag-scroll, auto-scheduling, assignment CRUD, today-scroll, today
-  counters; also holds the `VALID_TASK_TRANSITIONS` copy that must match `support_planner.py`. Also owns the
-  history-panel UI for the task/assignment modals (see Domain Concepts below) — `toggleHistoryPanel`, `loadHistoryPage`,
-  `renderHistoryEntries`, `historyPanelEl`/`resetHistoryPanel` state helpers.
-- `static/js/settings.js` — teams/employees/blocks/block-templates/freeze-days management via modals; the employee modal
-  has an optional password field (blank = leave unchanged, matching `update_employee`'s `password_hash=None`
-  convention).
-- `static/js/statistics.js` — active assignments tables (period + today) with counters.
+- `pages/` — one component per route: `LoginPage`, `PlanningPage`, `StatisticsPage`, `JournalPage`, `SettingsPage`.
+  `pages/planning/` holds Planning-specific pieces split out for size:
+    - `TaskModal.tsx` / `AssignmentModal.tsx` — CRUD modals, each embedding a `HistoryPanel` (see Domain Concepts
+      below) and a footer toggle button to show/hide it.
+    - `HistoryPanel.tsx` — collapsible paginated history list + `useHistoryToggle` (resets closed, or auto-opens,
+      every time the owning modal transitions to open) shared by both modals.
+    - `useAssignmentDrag.ts` — custom mouse-event-driven drag-and-drop for rescheduling an assignment to a
+      different date on the grid (cloned floating ghost clamped to the scrollable area, edge auto-scroll,
+      `elementFromPoint`-based occupied-cell detection). Deliberately not built on a drag-and-drop library
+      (dnd-kit was the original plan) — a raw port of the original vanilla-JS `setupAssignmentDrag` behavior was a
+      better fit than rect-based collision detection against antd `Table`'s sticky-column DOM.
+- `components/` — shared UI: `AppShell`/`AuthenticatedLayout` (sidebar, role-gated nav via `GET /api/me`,
+  client-side route dispatch — see `MIGRATED_BASE_PATHS` in `AuthenticatedLayout.tsx`), `planningBadges.tsx`
+  (criticality/status/dependency/schedule badges shared across Planning and Journal), `StatTile.tsx`.
+- `hooks/` — one thin TanStack Query wrapper per data domain: `usePlanningData.ts`, `useSettingsData.ts`,
+  `useTeams.ts`, `useMe.ts`, `useEmployeeNames.ts`.
+- `lib/` — pure helpers: `apiMutate.ts` (shared POST/PUT/PATCH/DELETE fetch wrapper), `autoSchedule.ts`
+  (freeze-day-aware auto-scheduling date math, ported from the original block-template scheduling logic),
+  `historyFormat.ts` (change-history field labels/formatting, shared by the Journal page and `HistoryPanel`).
+- `theme.ts` — antd `ConfigProvider` tokens (dark/light `ThemeConfig`s), seeded from `@ant-design/colors`'
+  official palette rather than hand-picked values, plus the sidebar "chrome" colors.
 
 ## Database Schema
 
@@ -174,7 +188,7 @@ Two separate status machines coexist — do not confuse them:
   status `planned` auto-advances the parent task to `in_progress` via `maybe_advance_task_to_in_progress()`. Assignments
   also carry an `is_psi` boolean marker (ПСИ).
 - **Task statuses** (`tasks.task_status`): `new` → `ready` → `in_progress` → `done` | `cancelled`. Valid transitions are
-  enforced in both `support_planner.py:VALID_TASK_TRANSITIONS` and `planning.js:VALID_TASK_TRANSITIONS` — keep them in
+  enforced in both `support_planner.py:VALID_TASK_TRANSITIONS` and `frontend/src/pages/PlanningPage.tsx:VALID_TASK_TRANSITIONS` — keep them in
   sync. Tasks in terminal states (`done`, `cancelled`) block all assignment/task edits.
 - **Criticality**: `high`, `medium`, `low` (sorted in that order in queries; tasks list is sorted criticality-first,
   then task_status)
@@ -204,18 +218,23 @@ Two separate status machines coexist — do not confuse them:
 - **Change history**: every create/update/delete on a task or assignment is logged (see `task_history`/
   `assignment_history` above), attributed to whichever employee is in the current session (`changed_by`, nullable —
   history rows from before the login feature existed, or written with no session, have `changed_by_employee_id = NULL`).
-  Surfaced in the UI as a collapsible right-hand panel inside the existing task/assignment edit modals (
-  `GET /api/task/{id}/history` for the combined task+assignments view, `GET /api/assignment/{id}/history` for a single
-  assignment), paginated (`?offset=&limit=`, default page size 20 server-side / 10 in the `planning.js` UI).
+  Surfaced in the UI as a collapsible right-hand panel inside the task/assignment edit modals
+  (`frontend/src/pages/planning/HistoryPanel.tsx` — `GET /api/task/{id}/history` for the combined task+assignments
+  view, `GET /api/assignment/{id}/history` for a single assignment), paginated (`?offset=&limit=`, default page
+  size 20 server-side / 10 in the React UI). A terminal (`done`/`cancelled`) task's read-only view auto-opens the
+  panel on load, since viewing why a finished task looks the way it does is the point of opening it read-only.
 
 ## Conventions
 
 - Commit messages are in Russian
 - API errors return `{"error": "..."}` with HTTP 400/404/401
 - `@formatter:off` / `@formatter:on` markers are used for IDEA formatting control in SQL blocks (`db/__init__.py`, `db/sqlite.py`)
-- Date inputs are clamped to 2000–2099 range (`min`/`max` attributes) and max period of 60 days (`clampDateRange` in script.js)
+- Date inputs are clamped to 2000–2099 range (`minDate`/`maxDate` on antd `DatePicker`s) and a max period of 60 days
+  (`MAX_PERIOD_DAYS` in `PlanningPage.tsx`)
 - Selected team and date filters persist in localStorage across planning and statistics pages
-- Use `localDateStr(new Date())` (not `toISOString()`) for today's date in JS to avoid UTC timezone shift
 - `GET /api/tasks/{team_id}` supports `offset`, `limit`, `search`, and `show_completed` query params; default page size is 20
-- `static/css/style.css` is organized into numbered sections (`/* --- N. Name --- */` comments); the responsive `@media (max-width: 768px)` block is always the *last* section on purpose — later source position lets its overrides win at equal CSS specificity without needing extra specificity hacks. Add new component styles as their own numbered section before it, not appended after.
+- Frontend styling is antd `ConfigProvider` theme tokens (`frontend/src/theme.ts`) plus inline `style={}` per
+  component — there is no separate app stylesheet beyond `frontend/src/index.css` (a minimal reset plus the
+  drag-and-drop ghost/highlight classes used by `useAssignmentDrag.ts`, since that ghost element is a raw DOM
+  clone outside React's render tree and needs real CSS classes, not inline styles)
 - When adding/changing a query, mirror the dialect difference in both `db/sqlite.py` and `db/postgres.py` if PostgresBackend support matters (placeholder style, `INSERT OR IGNORE`, etc. — see `_adapt_sql` in `db/postgres.py`)

@@ -6,7 +6,7 @@ export interface ApiResult {
 
 /** POST/PUT/DELETE helper — returns the parsed JSON body and throws with the server's
  * `error` message (matching this app's `{"error": "..."}` convention) on a non-2xx response. */
-export async function apiMutate(url: string, method: 'POST' | 'PUT' | 'DELETE', body?: unknown): Promise<ApiResult> {
+export async function apiMutate(url: string, method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', body?: unknown): Promise<ApiResult> {
   const r = await fetch(url, {
     method,
     credentials: 'same-origin',

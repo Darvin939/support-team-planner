@@ -6,7 +6,7 @@ import {useMe} from '../hooks/useMe';
 
 // Только эти пути уже перенесены на React в этом бандле — переход на остальные (ещё
 // Jinja2-страницы) должен быть полной навигацией браузера, а не client-side роутингом.
-const MIGRATED_BASE_PATHS = new Set(['/statistics', '/journal', '/settings']);
+const MIGRATED_BASE_PATHS = new Set(['/statistics', '/journal', '/settings', '/planning']);
 
 export function AuthenticatedLayout({ isDark, onToggleTheme }: { isDark: boolean; onToggleTheme: () => void }) {
   const { data: me, isLoading, isError } = useMe();

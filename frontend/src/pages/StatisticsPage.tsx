@@ -5,6 +5,7 @@ import {useQuery} from '@tanstack/react-query';
 import dayjs, {type Dayjs} from 'dayjs';
 import {useTeams} from '../hooks/useTeams';
 import {StatGroupLabel, StatTile} from '../components/StatTile';
+import {CriticalityBadge} from '../components/planningBadges';
 
 const STORAGE_DATE_FROM = 'filterDateFrom';
 const STORAGE_DATE_TO = 'filterDateTo';
@@ -23,8 +24,6 @@ interface ActiveAssignment {
   comment: string | null;
 }
 
-const CRIT_LABEL: Record<string, string> = { high: 'В', medium: 'С', low: 'Н' };
-const CRIT_COLOR: Record<string, string> = { high: '#d32029', medium: '#d89614', low: '#49aa19' };
 const STATUS_LABEL: Record<string, string> = { new: 'Новый', planned: 'Запланировано', rollback: 'Откат', success: 'Успешно' };
 
 function useActiveAssignments(from: string, to: string, teamIds: number[]) {
@@ -37,21 +36,6 @@ function useActiveAssignments(from: string, to: string, teamIds: number[]) {
       return r.json();
     },
   });
-}
-
-function CriticalityBadge({ value }: { value: string }) {
-  const color = CRIT_COLOR[value] ?? '#8791A1';
-  return (
-    <span
-      style={{
-        display: 'inline-block', padding: '2px 8px', borderRadius: 12, fontWeight: 700, fontSize: '0.75rem',
-        color, background: `color-mix(in srgb, ${color} 12%, transparent)`,
-        border: `1px solid color-mix(in srgb, ${color} 35%, transparent)`,
-      }}
-    >
-      {CRIT_LABEL[value] ?? value}
-    </span>
-  );
 }
 
 function buildColumns(showDate: boolean): TableColumnsType<ActiveAssignment> {

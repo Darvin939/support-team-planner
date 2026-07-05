@@ -8,6 +8,7 @@ import {LoginPage} from './pages/LoginPage';
 import {StatisticsPage} from './pages/StatisticsPage';
 import {JournalPage} from './pages/JournalPage';
 import {SettingsPage} from './pages/SettingsPage';
+import {PlanningPage} from './pages/PlanningPage';
 import {AuthenticatedLayout} from './components/AuthenticatedLayout';
 import {darkTheme, lightTheme} from './theme';
 
@@ -30,6 +31,8 @@ function Shell() {
             <Route path="/journal" element={<JournalPage />} />
             <Route path="/journal/:teamId" element={<JournalPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/planning" element={<PlanningPage />} />
+            <Route path="/planning/:teamId" element={<PlanningPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>

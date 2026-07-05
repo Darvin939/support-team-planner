@@ -1,0 +1,466 @@
+import {useEffect, useMemo, useState} from 'react';
+import {useNavigate, useParams} from 'react-router-dom';
+import type {TableColumnsType} from 'antd';
+import {
+  Button,
+  Card,
+  Checkbox,
+  DatePicker,
+  Empty,
+  Input,
+  message,
+  Pagination,
+  Popconfirm,
+  Select,
+  Space,
+  Table,
+  theme,
+  Typography
+} from 'antd';
+import {useMutation, useQueryClient} from '@tanstack/react-query';
+import dayjs, {type Dayjs} from 'dayjs';
+import {useTeams} from '../hooks/useTeams';
+import {
+  type Assignment,
+  type Task,
+  useAssignments,
+  useTaskDeps,
+  useTasks,
+  useTodayActive
+} from '../hooks/usePlanningData';
+import {useFreezeDays} from '../hooks/useSettingsData';
+import {StatGroupLabel, StatTile} from '../components/StatTile';
+import {CriticalityBadge, DepBadge, ScheduleChip, TaskStatusBadge} from '../components/planningBadges';
+import {TaskModal} from './planning/TaskModal';
+import {AssignmentModal} from './planning/AssignmentModal';
+import {useAssignmentDrag} from './planning/useAssignmentDrag';
+import {apiMutate} from '../lib/apiMutate';
+import {TASK_STATUS_LABELS} from '../lib/historyFormat';
+
+const VALID_TASK_TRANSITIONS: Record<string, string[]> = {
+  new: ['ready', 'in_progress', 'cancelled'],
+  ready: ['in_progress', 'cancelled'],
+  in_progress: ['done', 'cancelled'],
+};
+
+const STORAGE_TEAM_ID = 'selectedTeamId';
+const STORAGE_DATE_FROM = 'filterDateFrom';
+const STORAGE_DATE_TO = 'filterDateTo';
+const MAX_PERIOD_DAYS = 60;
+const PAGE_SIZE = 10;
+
+const ASSIGNMENT_STATUS_OPTIONS = [
+  { value: 'new', label: 'Новый' },
+  { value: 'planned', label: 'Запланировано' },
+  { value: 'rollback', label: 'Откат' },
+  { value: 'success', label: 'Успешно' },
+];
+const CRITICALITY_OPTIONS = [
+  { value: 'low', label: 'Низкая' },
+  { value: 'medium', label: 'Средняя' },
+  { value: 'high', label: 'Высокая' },
+];
+const TASK_STATUS_OPTIONS = [
+  { value: 'new', label: 'Новый' },
+  { value: 'ready', label: 'К планированию' },
+  { value: 'in_progress', label: 'В работе' },
+  { value: 'done', label: 'Выполнено' },
+  { value: 'cancelled', label: 'Отменено' },
+];
+
+function dateRange(from: Dayjs, to: Dayjs): Dayjs[] {
+  const dates: Dayjs[] = [];
+  let cur = from;
+  while (!cur.isAfter(to)) {
+    dates.push(cur);
+    cur = cur.add(1, 'day');
+  }
+  return dates;
+}
+
+export function PlanningPage() {
+  const { teamId: teamIdParam } = useParams();
+  const navigate = useNavigate();
+  const { data: teams } = useTeams();
+  const { token } = theme.useToken();
+  const teamId = teamIdParam ? Number(teamIdParam) : undefined;
+
+  const [range, setRange] = useState<[Dayjs, Dayjs]>(() => {
+    const from = localStorage.getItem(STORAGE_DATE_FROM);
+    const to = localStorage.getItem(STORAGE_DATE_TO);
+    if (from && to) return [dayjs(from), dayjs(to)];
+    return [dayjs().subtract(7, 'day'), dayjs().add(30, 'day')];
+  });
+  const [search, setSearch] = useState('');
+  const [showCompleted, setShowCompleted] = useState(false);
+  const [page, setPage] = useState(1);
+  const [critFilter, setCritFilter] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [taskStatusFilter, setTaskStatusFilter] = useState<string[]>([]);
+  const [taskModal, setTaskModal] = useState<{ open: boolean; task: Task | null }>({ open: false, task: null });
+  const [assignmentModal, setAssignmentModal] = useState<{ open: boolean; task: Task | null; date: string | null; assignment: Assignment | null }>({
+    open: false,
+    task: null,
+    date: null,
+    assignment: null,
+  });
+  const queryClient = useQueryClient();
+  const { data: freezeDaysList } = useFreezeDays();
+  const freezeDays = useMemo(() => new Set(freezeDaysList ?? []), [freezeDaysList]);
+
+  const statusMutation = useMutation({
+    mutationFn: ({ taskId, status }: { taskId: number; status: string }) => apiMutate(`/api/tasks/${taskId}/status`, 'PATCH', { status }).then(() => ({ taskId, status })),
+    onSuccess: ({ taskId, status }) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      const task = taskData?.tasks.find((t) => t.id === taskId);
+      if (status === 'done' || status === 'cancelled') {
+        message.success(`«${task?.name ?? taskId}» — ${TASK_STATUS_LABELS[status] ?? status}`);
+      }
+    },
+    onError: (e: Error) => message.error(e.message),
+  });
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: (taskId: number) => apiMutate(`/api/task/${taskId}`, 'DELETE'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      message.success('Задача удалена');
+    },
+    onError: (e: Error) => message.error(e.message),
+  });
+
+  useEffect(() => {
+    if (teamId !== undefined) return;
+    const saved = localStorage.getItem(STORAGE_TEAM_ID);
+    if (saved && saved !== '0') navigate(`/planning/${saved}`, { replace: true });
+  }, [teamId, navigate]);
+
+  useEffect(() => setPage(1), [teamId, search, showCompleted]);
+
+  const dateFrom = range[0].format('YYYY-MM-DD');
+  const dateTo = range[1].format('YYYY-MM-DD');
+  const today = dayjs().format('YYYY-MM-DD');
+
+  const { data: taskData } = useTasks(teamId ?? 0, (page - 1) * PAGE_SIZE, PAGE_SIZE, search, showCompleted);
+  const taskIds = useMemo(() => taskData?.tasks.map((t) => t.id) ?? [], [taskData]);
+  const { data: assignments } = useAssignments(teamId ?? 0, dateFrom, dateTo, taskIds);
+  const { data: deps } = useTaskDeps(teamId ?? 0, taskIds);
+  const { data: todayActive } = useTodayActive(teamId ?? 0, today);
+
+  const assignmentByKey = useMemo(() => {
+    const map = new Map<string, Assignment>();
+    (assignments ?? []).forEach((a) => map.set(`${a.task_id}-${a.date}`, a));
+    return map;
+  }, [assignments]);
+
+  const depsByTask = useMemo(() => {
+    const map = new Map<number, typeof deps>();
+    (deps ?? []).forEach((d) => {
+      if (!map.has(d.task_id)) map.set(d.task_id, []);
+      map.get(d.task_id)!.push(d);
+    });
+    return map;
+  }, [deps]);
+
+  const assignmentsByTask = useMemo(() => {
+    const map = new Map<number, Assignment[]>();
+    (assignments ?? []).forEach((a) => {
+      if (!map.has(a.task_id)) map.set(a.task_id, []);
+      map.get(a.task_id)!.push(a);
+    });
+    return map;
+  }, [assignments]);
+
+  const rescheduleMutation = useMutation({
+    mutationFn: ({ assignmentId, newDate }: { assignmentId: number; newDate: string }) => {
+      const existing = (assignments ?? []).find((a) => a.id === assignmentId);
+      if (!existing) throw new Error('Назначение не найдено');
+      return apiMutate('/api/assignment', 'POST', {
+        assignment_id: existing.id,
+        task_id: existing.task_id,
+        date: newDate,
+        block: existing.block,
+        status: existing.status,
+        employee_id: existing.employee_id,
+        comment: existing.comment,
+        is_psi: existing.is_psi,
+        time_spent: existing.time_spent,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
+      message.success('Назначение перенесено');
+    },
+    onError: (e: Error) => message.error(e.message),
+  });
+
+  const suppressClickRef = useAssignmentDrag({
+    isTaskLocked: (taskId) => {
+      const t = taskData?.tasks.find((x) => x.id === taskId);
+      return !t || t.task_status === 'done' || t.task_status === 'cancelled';
+    },
+    isOccupied: (taskId, date) => assignmentByKey.has(`${taskId}-${date}`),
+    onDrop: (assignmentId, _taskId, newDate) => rescheduleMutation.mutate({ assignmentId, newDate }),
+  });
+
+  const filteredTasks = useMemo(() => {
+    return (taskData?.tasks ?? []).filter((t) => {
+      if (critFilter.length && !critFilter.includes(t.criticality)) return false;
+      if (taskStatusFilter.length && !taskStatusFilter.includes(t.task_status)) return false;
+      if (statusFilter.length) {
+        const taskAssignments = assignmentsByTask.get(t.id) ?? [];
+        if (!taskAssignments.some((a) => statusFilter.includes(a.status))) return false;
+      }
+      return true;
+    });
+  }, [taskData, critFilter, taskStatusFilter, statusFilter, assignmentsByTask]);
+
+  function handleRangeChange(dates: [Dayjs | null, Dayjs | null] | null) {
+    if (!dates || !dates[0] || !dates[1]) return;
+    let [from, to] = dates;
+    if (to.diff(from, 'day') > MAX_PERIOD_DAYS) to = from.add(MAX_PERIOD_DAYS, 'day');
+    setRange([from, to]);
+    localStorage.setItem(STORAGE_DATE_FROM, from.format('YYYY-MM-DD'));
+    localStorage.setItem(STORAGE_DATE_TO, to.format('YYYY-MM-DD'));
+  }
+
+  function handleTeamSelect(value: number) {
+    localStorage.setItem(STORAGE_TEAM_ID, String(value));
+    navigate(`/planning/${value}`);
+  }
+
+  const dates = useMemo(() => dateRange(range[0], range[1]), [range]);
+
+  const columns: TableColumnsType<Task> = useMemo(() => {
+    const infoColumn: TableColumnsType<Task>[number] = {
+      title: 'Работа',
+      dataIndex: 'name',
+      key: 'name',
+      fixed: 'left',
+      width: 300,
+      render: (_, task) => {
+        const taskDeps = depsByTask.get(task.id) ?? [];
+        const deleted = taskDeps.filter((d) => d.dep_is_deleted);
+        const cancelled = taskDeps.filter((d) => !d.dep_is_deleted && d.dep_status === 'cancelled');
+        const pending = taskDeps.filter((d) => !d.dep_is_deleted && d.dep_status !== 'done' && d.dep_status !== 'cancelled');
+        const isTerminal = task.task_status === 'done' || task.task_status === 'cancelled';
+        const transitions = VALID_TASK_TRANSITIONS[task.task_status] ?? [];
+        return (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Button
+                type="text"
+                size="small"
+                onClick={() => setTaskModal({ open: true, task })}
+                title={isTerminal ? 'Просмотр' : 'Редактировать'}
+              >
+                {isTerminal ? '👁️' : '✏️'}
+              </Button>
+              <CriticalityBadge value={task.criticality} />
+              <span style={{ fontWeight: 500 }}>{task.name}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4, flexWrap: 'wrap' }}>
+              {!isTerminal && (
+                <Popconfirm title="Удалить работу?" onConfirm={() => deleteTaskMutation.mutate(task.id)} okText="Удалить" cancelText="Отмена">
+                  <Button type="text" size="small" danger>
+                    🗑️
+                  </Button>
+                </Popconfirm>
+              )}
+              <TaskStatusBadge value={task.task_status} />
+              {transitions.map((s) => (
+                <Button key={s} size="small" onClick={() => statusMutation.mutate({ taskId: task.id, status: s })}>
+                  {TASK_STATUS_LABELS[s]}
+                </Button>
+              ))}
+              {deleted.length > 0 && <DepBadge kind="deleted" names={deleted.map((d) => d.dep_name)} />}
+              {cancelled.length > 0 && <DepBadge kind="cancelled" names={cancelled.map((d) => d.dep_name)} />}
+              {pending.length > 0 && <DepBadge kind="pending" names={pending.map((d) => d.dep_name)} />}
+            </div>
+            {task.description && (
+              <div
+                style={{ marginTop: 4, padding: '5px 8px', border: `1px solid ${token.colorBorder}`, borderRadius: 2, background: token.colorFillTertiary, fontSize: '0.85rem', color: token.colorTextSecondary, whiteSpace: 'pre-wrap' }}
+              >
+                {task.description}
+              </div>
+            )}
+          </div>
+        );
+      },
+    };
+
+    const dateColumns: TableColumnsType<Task> = dates.map((d) => {
+      const dateStr = d.format('YYYY-MM-DD');
+      const isWeekend = d.day() === 0 || d.day() === 6;
+      const isToday = dateStr === today;
+      const isFreeze = freezeDays.has(dateStr);
+      const headerBg = isToday
+        ? `color-mix(in srgb, ${token.colorPrimary} 10%, transparent)`
+        : isFreeze
+          ? `color-mix(in srgb, ${token.colorError} 6%, transparent)`
+          : isWeekend
+            ? `color-mix(in srgb, ${token.colorWarning} 7%, transparent)`
+            : undefined;
+      const cellBg = isToday
+        ? `color-mix(in srgb, ${token.colorPrimary} 6%, transparent)`
+        : isFreeze
+          ? `color-mix(in srgb, ${token.colorError} 4%, transparent)`
+          : isWeekend
+            ? `color-mix(in srgb, ${token.colorWarning} 5%, transparent)`
+            : undefined;
+      return {
+        title: d.format('DD.MM'),
+        key: dateStr,
+        width: 96,
+        onHeaderCell: () => ({
+          style: { background: headerBg, fontFamily: "'JetBrains Mono Variable', monospace" },
+        }),
+        onCell: (task) => ({
+          'data-schedule-cell': true,
+          'data-task-id': task.id,
+          'data-date': dateStr,
+          style: {
+            background: cellBg,
+            padding: 3,
+            cursor: task.task_status === 'done' || task.task_status === 'cancelled' ? 'not-allowed' : 'pointer',
+          },
+          onClick: () => {
+            if (suppressClickRef.current) return;
+            if (task.task_status === 'done' || task.task_status === 'cancelled') return;
+            const assignment = assignmentByKey.get(`${task.id}-${dateStr}`) ?? null;
+            setAssignmentModal({ open: true, task, date: dateStr, assignment });
+          },
+        }),
+        render: (_, task) => {
+          const assignment = assignmentByKey.get(`${task.id}-${dateStr}`);
+          const isTerminal = task.task_status === 'done' || task.task_status === 'cancelled';
+          return assignment ? <ScheduleChip assignment={assignment} draggable={!isTerminal} /> : null;
+        },
+      };
+    });
+
+    return [infoColumn, ...dateColumns];
+  }, [dates, assignmentByKey, depsByTask, today, token, freezeDays]);
+
+  if (teamId === undefined) {
+    return (
+      <>
+        <Typography.Title level={2}>Планирование</Typography.Title>
+        <Card>
+          <Select style={{ minWidth: 260 }} placeholder="-- Выберите команду --" onChange={handleTeamSelect} options={teams?.map((t) => ({ value: t.id, label: t.name }))} />
+        </Card>
+        <div style={{ marginTop: 24 }}>
+          <Empty description="Выберите команду для начала планирования" />
+        </div>
+      </>
+    );
+  }
+
+  const statusCounts = { new: 0, planned: 0 };
+  const critCounts = { high: 0, medium: 0, low: 0 };
+  (todayActive ?? []).forEach((a) => {
+    if (a.status in statusCounts) statusCounts[a.status as keyof typeof statusCounts]++;
+    if (a.criticality in critCounts) critCounts[a.criticality as keyof typeof critCounts]++;
+  });
+
+  return (
+    <>
+      <Typography.Title level={2}>Планирование</Typography.Title>
+
+      <Card style={{ marginBottom: 16 }}>
+        <Select style={{ minWidth: 260 }} value={teamId} onChange={handleTeamSelect} options={teams?.map((t) => ({ value: t.id, label: t.name }))} />
+      </Card>
+
+      <Card style={{ marginBottom: 16 }}>
+        <Typography.Title level={5} style={{ marginTop: 0 }}>
+          Фильтры
+        </Typography.Title>
+        <Space wrap size={12} align="end">
+          <div>
+            <div style={{ fontSize: '0.8rem', color: token.colorTextTertiary, marginBottom: 4 }}>ПЕРИОД</div>
+            <DatePicker.RangePicker value={range} onChange={handleRangeChange} minDate={dayjs('2000-01-01')} maxDate={dayjs('2099-12-31')} allowClear={false} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.8rem', color: token.colorTextTertiary, marginBottom: 4 }}>ПОИСК ПО ОПИСАНИЮ</div>
+            <Input.Search style={{ width: 220 }} placeholder="Введите текст..." allowClear value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.8rem', color: token.colorTextTertiary, marginBottom: 4 }}>КРИТИЧНОСТЬ</div>
+            <Select mode="multiple" style={{ width: 180 }} placeholder="Все" value={critFilter} onChange={setCritFilter} options={CRITICALITY_OPTIONS} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.8rem', color: token.colorTextTertiary, marginBottom: 4 }}>СТАТУС</div>
+            <Select mode="multiple" style={{ width: 180 }} placeholder="Все" value={statusFilter} onChange={setStatusFilter} options={ASSIGNMENT_STATUS_OPTIONS} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.8rem', color: token.colorTextTertiary, marginBottom: 4 }}>СТАТУС РАБОТЫ</div>
+            <Select mode="multiple" style={{ width: 180 }} placeholder="Все" value={taskStatusFilter} onChange={setTaskStatusFilter} options={TASK_STATUS_OPTIONS} />
+          </div>
+          <Checkbox checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)}>
+            Показать завершённые
+          </Checkbox>
+        </Space>
+      </Card>
+
+      <Space size={8} wrap style={{ marginBottom: 14 }}>
+        <StatTile label="На сегодня" value={todayActive?.length ?? 0} primary />
+        <StatGroupLabel>Статус</StatGroupLabel>
+        <StatTile label="Новый" value={statusCounts.new} accent="#1668dc" />
+        <StatTile label="Запланировано" value={statusCounts.planned} accent="#d89614" />
+        <StatGroupLabel>Критичность</StatGroupLabel>
+        <StatTile label="Высокая" value={critCounts.high} accent="#d32029" />
+        <StatTile label="Средняя" value={critCounts.medium} accent="#d89614" />
+        <StatTile label="Низкая" value={critCounts.low} accent="#49aa19" />
+      </Space>
+
+      <Card>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <Button type="primary" onClick={() => setTaskModal({ open: true, task: null })}>
+            Добавить работу
+          </Button>
+          <span style={{ fontFamily: "'JetBrains Mono Variable', monospace", color: token.colorTextSecondary, fontSize: '0.9rem' }}>
+            Всего работ: {taskData?.total ?? 0} | Отображено: {filteredTasks.length}
+          </span>
+        </div>
+
+        {filteredTasks.length === 0 ? (
+          <Empty description="Нет запланированных работ" />
+        ) : (
+          <Table
+            rowKey="id"
+            columns={columns}
+            dataSource={filteredTasks}
+            pagination={false}
+            size="small"
+            scroll={{ x: 'max-content' }}
+          />
+        )}
+
+        {taskData && taskData.total > PAGE_SIZE && (
+          <div style={{ textAlign: 'center', marginTop: 16 }}>
+            <Pagination current={page} pageSize={PAGE_SIZE} total={taskData.total} onChange={setPage} showSizeChanger={false} />
+          </div>
+        )}
+      </Card>
+
+      <TaskModal
+        open={taskModal.open}
+        teamId={teamId}
+        task={taskModal.task}
+        existingDepIds={taskModal.task ? (depsByTask.get(taskModal.task.id) ?? []).map((d) => d.dep_id) : []}
+        onClose={() => setTaskModal({ open: false, task: null })}
+      />
+      <AssignmentModal
+        open={assignmentModal.open}
+        teamId={teamId}
+        task={assignmentModal.task}
+        date={assignmentModal.date}
+        assignment={assignmentModal.assignment}
+        taskAssignments={assignmentModal.task ? (assignmentsByTask.get(assignmentModal.task.id) ?? []) : []}
+        freezeDays={freezeDays}
+        onClose={() => setAssignmentModal({ open: false, task: null, date: null, assignment: null })}
+      />
+    </>
+  );
+}

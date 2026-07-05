@@ -5,7 +5,6 @@ from typing import Optional, List, Union
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -15,7 +14,6 @@ import utils
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
 
 # React (Vite/antd) migration, page by page — see plan doc. `frontend/dist` only exists after
 # `npm run build`; the mount is skipped in dev if it hasn't been built yet, matching the current
@@ -242,48 +240,15 @@ def get_me(request: Request):
 
 
 @app.get('/planning', response_class=HTMLResponse)
-def planning_select(request: Request):
-    """Страница планирования — выбор команды"""
-    teams = db.get_all_teams()
-    return templates.TemplateResponse(request, 'planning.html', {
-        'teams': teams,
-        'team': None,
-        'current_role': request.state.role,
-    })
+def planning_select():
+    """Страница планирования — выбор команды (React)"""
+    return _serve_react_index()
 
 
 @app.get('/planning/{team_id}', response_class=HTMLResponse)
-def planning(request: Request, team_id: int):
-    """Страница планирования команды"""
-    teams = db.get_all_teams()
-    team = db.get_team_by_id(team_id)
-    if not team:
-        return RedirectResponse(url='/planning?invalid_team=1', status_code=302)
-
-    employees = db.get_all_employees()
-    allowed_templates = db.get_team_allowed_templates(team_id)
-    team_blocks = db.get_blocks_for_team(team_id)
-
-    today = date.today()
-    start_date = today - timedelta(days=7)
-    end_date = today + timedelta(days=30)
-
-    freeze_days = db.get_freeze_days_in_period(
-        start_date.strftime('%Y-%m-%d'),
-        (end_date + timedelta(days=60)).strftime('%Y-%m-%d')
-    )
-
-    return templates.TemplateResponse(request, 'planning.html', {
-        'teams': teams,
-        'team': team,
-        'employees': employees,
-        'freeze_days': freeze_days,
-        'allowed_templates': allowed_templates,
-        'team_blocks': team_blocks,
-        'start_date': start_date.strftime('%Y-%m-%d'),
-        'end_date': end_date.strftime('%Y-%m-%d'),
-        'current_role': request.state.role,
-    })
+def planning(team_id: int):
+    """Страница планирования команды (React) — валидность team_id проверяется на клиенте"""
+    return _serve_react_index()
 
 
 @app.get('/settings', response_class=HTMLResponse)
@@ -506,6 +471,13 @@ def get_team_api(team_id: int):
         'templates': tmpls,
         'template_ids': [t['id'] for t in tmpls],
     }
+
+
+@app.get('/api/teams/{team_id}/blocks')
+def get_team_blocks_api(team_id: int):
+    """Уникальные блоки из разрешённых шаблонов команды — для ручного выбора блока
+    в модалке назначения (React); та же выборка, что раньше шла в Jinja-контекст /planning/{team_id}."""
+    return db.get_blocks_for_team(team_id)
 
 
 @app.post('/api/teams')

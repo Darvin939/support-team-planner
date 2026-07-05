@@ -9,3 +9,25 @@ body {
 #root {
   min-height: 100svh;
 }
+
+.assignment-drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2000;
+  pointer-events: none;
+  opacity: 0.85;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+
+.assignment-drag-source {
+  opacity: 0.35;
+}
+
+.assignment-drag-over {
+  box-shadow: inset 0 0 0 2px #52c41a;
+}
+
+.assignment-drag-invalid {
+  box-shadow: inset 0 0 0 2px #f5222d;
+}

@@ -1,0 +1,430 @@
+import {useEffect, useState} from 'react';
+import {Button, DatePicker, Form, Input, message, Modal, Select, Space, Switch, theme, TimePicker} from 'antd';
+import {useMutation, useQueryClient} from '@tanstack/react-query';
+import dayjs from 'dayjs';
+import type {Assignment, Task} from '../../hooks/usePlanningData';
+import {type BlockTemplateEntry, useTeamBlocks, useTeamTemplates} from '../../hooks/usePlanningData';
+import {useEmployees} from '../../hooks/useSettingsData';
+import {apiMutate} from '../../lib/apiMutate';
+import {computeAutoAssignDates, getAutoScheduleDateRange} from '../../lib/autoSchedule';
+import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';
+
+interface AssignmentFormValues {
+  date: dayjs.Dayjs;
+  time_spent: dayjs.Dayjs | null;
+  is_psi: boolean;
+  block_ids: number[];
+  status: string;
+  employee_id: number | null;
+  comment: string;
+}
+
+const STATUS_OPTIONS = [
+  { value: 'new', label: 'Новый' },
+  { value: 'planned', label: 'Запланировано' },
+  { value: 'rollback', label: 'Откат' },
+  { value: 'success', label: 'Успешно' },
+];
+
+function confirmOverwrite(dates: string[]): Promise<boolean> {
+  return new Promise((resolve) => {
+    Modal.confirm({
+      title: 'Даты уже заняты',
+      content: `На дату(ы) ${dates.join(', ')} уже есть назначение(я). Перезаписать их?`,
+      okText: 'Перезаписать',
+      cancelText: 'Отмена',
+      onOk: () => resolve(true),
+      onCancel: () => resolve(false),
+    });
+  });
+}
+
+function AutoScheduleGrid({
+  templateBlocks,
+  autoAssignDates,
+  baseDate,
+  freezeDays,
+  taskAssignments,
+  currentAssignmentId,
+  selected,
+  onPick,
+  onPlace,
+}: {
+  templateBlocks: BlockTemplateEntry[];
+  autoAssignDates: Record<number, string>;
+  baseDate: string;
+  freezeDays: Set<string>;
+  taskAssignments: Assignment[];
+  currentAssignmentId: number | null;
+  selected: number | null;
+  onPick: (blockId: number) => void;
+  onPlace: (dateStr: string) => void;
+}) {
+  const { token } = theme.useToken();
+  const dates = getAutoScheduleDateRange(baseDate, autoAssignDates);
+  const today = dayjs().format('YYYY-MM-DD');
+
+  return (
+    <div style={{ overflowX: 'auto', border: `1px solid ${token.colorBorder}`, borderRadius: token.borderRadiusSM }}>
+      <table style={{ borderCollapse: 'collapse', width: 'max-content', fontSize: '0.82rem' }}>
+        <thead>
+          <tr>
+            <th style={{ padding: '4px 8px', textAlign: 'left', color: token.colorTextSecondary }}>Дата</th>
+            {dates.map((dateStr) => {
+              const d = dayjs(dateStr);
+              const isWeekend = d.day() === 0 || d.day() === 6;
+              const isFreeze = freezeDays.has(dateStr);
+              const isToday = dateStr === today;
+              return (
+                <th
+                  key={dateStr}
+                  style={{
+                    padding: '4px 6px',
+                    minWidth: 56,
+                    fontFamily: "'JetBrains Mono Variable', monospace",
+                    background: isToday
+                      ? `color-mix(in srgb, ${token.colorPrimary} 10%, transparent)`
+                      : isFreeze
+                        ? `color-mix(in srgb, ${token.colorError} 6%, transparent)`
+                        : isWeekend
+                          ? `color-mix(in srgb, ${token.colorWarning} 7%, transparent)`
+                          : undefined,
+                  }}
+                >
+                  {d.format('DD.MM')}
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style={{ padding: '4px 8px', fontWeight: 600 }}>Блок</td>
+            {dates.map((dateStr) => {
+              const isOccupied = taskAssignments.some((a) => a.date === dateStr && a.id !== currentAssignmentId);
+              const blocksHere = templateBlocks.filter((b) => autoAssignDates[b.id] === dateStr);
+              return (
+                <td
+                  key={dateStr}
+                  onClick={() => onPlace(dateStr)}
+                  style={{
+                    padding: 4,
+                    verticalAlign: 'top',
+                    cursor: 'pointer',
+                    boxShadow: isOccupied ? `inset 0 0 0 2px ${token.colorWarning}` : undefined,
+                  }}
+                >
+                  {blocksHere.map((b) => (
+                    <span
+                      key={b.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onPick(b.id);
+                      }}
+                      style={{
+                        display: 'inline-block',
+                        background: selected === b.id ? token.colorWarning : token.colorPrimary,
+                        color: '#fff',
+                        borderRadius: 3,
+                        padding: '2px 6px',
+                        margin: 2,
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {b.name}
+                    </span>
+                  ))}
+                </td>
+              );
+            })}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export function AssignmentModal({
+  open,
+  teamId,
+  task,
+  date,
+  assignment,
+  taskAssignments,
+  freezeDays,
+  onClose,
+}: {
+  open: boolean;
+  teamId: number;
+  task: Task | null;
+  date: string | null;
+  assignment: Assignment | null;
+  taskAssignments: Assignment[];
+  freezeDays: Set<string>;
+  onClose: () => void;
+}) {
+  const [form] = Form.useForm<AssignmentFormValues>();
+  const queryClient = useQueryClient();
+  const { data: teamBlocks } = useTeamBlocks(teamId);
+  const { data: employees } = useEmployees();
+  const { data: templates } = useTeamTemplates(teamId);
+
+  const [autoAssignEnabled, setAutoAssignEnabled] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  const [autoAssignDates, setAutoAssignDates] = useState<Record<number, string>>({});
+  const [autoAssignSelected, setAutoAssignSelected] = useState<number | null>(null);
+
+  const watchedDate = Form.useWatch('date', form);
+
+  useEffect(() => {
+    if (!open) return;
+    const names = (assignment?.block ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+    const blockIds = (teamBlocks ?? []).filter((b) => names.includes(b.name)).map((b) => b.id);
+    form.setFieldsValue({
+      date: dayjs(assignment?.date ?? date ?? undefined),
+      time_spent: assignment?.time_spent ? dayjs(assignment.time_spent, 'HH:mm') : null,
+      is_psi: assignment?.is_psi ?? false,
+      block_ids: blockIds,
+      status: assignment?.status ?? 'new',
+      employee_id: assignment?.employee_id ?? null,
+      comment: assignment?.comment ?? '',
+    });
+    setAutoAssignEnabled(false);
+    setSelectedTemplateId(null);
+    setAutoAssignDates({});
+    setAutoAssignSelected(null);
+  }, [open, assignment, date, teamBlocks, form]);
+
+  function recomputeSchedule(templateId: number | null, baseDate: string) {
+    const blocks = templates?.find((t) => t.id === templateId)?.blocks ?? [];
+    setAutoAssignDates(templateId ? computeAutoAssignDates(baseDate, blocks, freezeDays) : {});
+  }
+
+  useEffect(() => {
+    if (!autoAssignEnabled || !watchedDate) return;
+    recomputeSchedule(selectedTemplateId, watchedDate.format('YYYY-MM-DD'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedDate, autoAssignEnabled, selectedTemplateId, templates]);
+
+  function handleAutoAssignToggle(checked: boolean) {
+    setAutoAssignEnabled(checked);
+    setAutoAssignSelected(null);
+    if (checked) {
+      form.setFieldValue('status', 'new');
+      const defaultTemplateId = templates?.length === 1 ? templates[0].id : null;
+      setSelectedTemplateId(defaultTemplateId);
+      recomputeSchedule(defaultTemplateId, (watchedDate ?? dayjs()).format('YYYY-MM-DD'));
+    }
+  }
+
+  const saveMutation = useMutation({
+    mutationFn: (values: AssignmentFormValues) => {
+      const blockNames = (values.block_ids ?? [])
+        .map((id) => teamBlocks?.find((b) => b.id === id)?.name)
+        .filter(Boolean)
+        .join(', ');
+      const timeSpent = values.time_spent ? values.time_spent.format('HH:mm') : null;
+      return apiMutate('/api/assignment', 'POST', {
+        assignment_id: assignment?.id,
+        task_id: task?.id,
+        date: values.date.format('YYYY-MM-DD'),
+        block: blockNames || null,
+        status: values.status,
+        employee_id: values.employee_id,
+        comment: values.comment || null,
+        is_psi: values.is_psi,
+        time_spent: timeSpent === '00:00' ? null : timeSpent,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
+      message.success('Сохранено');
+      onClose();
+    },
+    onError: (e: Error) => message.error(e.message),
+  });
+
+  const autoSaveMutation = useMutation({
+    mutationFn: async (values: AssignmentFormValues) => {
+      if (!selectedTemplateId) throw new Error('Выберите шаблон для автоназначения');
+      const blocks = templates?.find((t) => t.id === selectedTemplateId)?.blocks ?? [];
+      if (blocks.length === 0) throw new Error('В выбранном шаблоне нет блоков');
+
+      const groups: Record<string, string[]> = {};
+      blocks.forEach((b) => {
+        const d = autoAssignDates[b.id];
+        if (!d) return;
+        (groups[d] ??= []).push(b.name);
+      });
+      const dates = Object.keys(groups).sort();
+      if (dates.length === 0) throw new Error('Нет блоков для автоназначения');
+
+      const conflictDates = dates.filter((d) => taskAssignments.some((a) => a.date === d && a.id !== assignment?.id));
+      if (conflictDates.length > 0) {
+        const proceed = await confirmOverwrite(conflictDates);
+        if (!proceed) return { cancelled: true };
+      }
+
+      const timeSpent = values.time_spent ? values.time_spent.format('HH:mm') : null;
+      await Promise.all(
+        dates.map((d, i) => {
+          const existing = taskAssignments.find((a) => a.date === d);
+          return apiMutate('/api/assignment', 'POST', {
+            assignment_id: existing?.id ?? null,
+            task_id: task?.id,
+            date: d,
+            block: groups[d].join(', '),
+            status: 'new',
+            employee_id: null,
+            comment: null,
+            is_psi: i === 0 ? values.is_psi : false,
+            time_spent: timeSpent === '00:00' ? null : timeSpent,
+          });
+        }),
+      );
+      return { cancelled: false };
+    },
+    onSuccess: (result) => {
+      if (result.cancelled) return;
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
+      message.success('Сохранено');
+      onClose();
+    },
+    onError: (e: Error) => message.error(e.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => apiMutate(`/api/assignment/${assignment!.id}`, 'DELETE'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
+      message.success('Назначение удалено');
+      onClose();
+    },
+    onError: (e: Error) => message.error(e.message),
+  });
+
+  const isTerminal = task ? task.task_status === 'done' || task.task_status === 'cancelled' : false;
+  const [historyOpen, setHistoryOpen] = useHistoryToggle(open, false);
+  const isSaving = saveMutation.isPending || autoSaveMutation.isPending;
+  const selectedTemplateBlocks = templates?.find((t) => t.id === selectedTemplateId)?.blocks ?? [];
+
+  return (
+    <Modal
+      title="Работа"
+      open={open}
+      onCancel={onClose}
+      width={(autoAssignEnabled ? 640 : 520) + (historyOpen ? 320 : 0)}
+      footer={
+        <Space>
+          {assignment && <HistoryToggleButton open={historyOpen} onClick={() => setHistoryOpen((v) => !v)} />}
+          {assignment && !isTerminal && (
+            <Button danger onClick={() => deleteMutation.mutate()} loading={deleteMutation.isPending}>
+              Удалить
+            </Button>
+          )}
+          <Button onClick={onClose}>Закрыть</Button>
+          {!isTerminal && (
+            <Button type="primary" onClick={() => form.submit()} loading={isSaving}>
+              {assignment ? 'Обновить' : 'Создать'}
+            </Button>
+          )}
+        </Space>
+      }
+    >
+      <div style={{ display: 'flex' }}>
+      <Form form={form} layout="vertical" disabled={isTerminal} onFinish={(v) => (autoAssignEnabled ? autoSaveMutation.mutate(v) : saveMutation.mutate(v))} style={{ flex: 1, minWidth: 0 }}>
+        <Form.Item label="Критичность">
+          <Select disabled value={task?.criticality} options={[{ value: 'low', label: 'Низкая' }, { value: 'medium', label: 'Средняя' }, { value: 'high', label: 'Высокая' }]} />
+        </Form.Item>
+        <Space.Compact block>
+          <Form.Item name="date" label="Дата" style={{ flex: 1 }} rules={[{ required: true }]}>
+            <DatePicker style={{ width: '100%' }} minDate={dayjs('2000-01-01')} maxDate={dayjs('2099-12-31')} allowClear={false} />
+          </Form.Item>
+          <Form.Item name="time_spent" label="Затраченное время" style={{ flex: 1 }}>
+            <TimePicker style={{ width: '100%' }} format="HH:mm" allowClear />
+          </Form.Item>
+        </Space.Compact>
+
+        <div style={{ display: 'flex', gap: 24, marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>Автоназначение</span>
+            <Switch checked={autoAssignEnabled} onChange={handleAutoAssignToggle} />
+          </div>
+          <Form.Item name="is_psi" label="ПСИ" valuePropName="checked" style={{ marginBottom: 0 }}>
+            <Switch />
+          </Form.Item>
+        </div>
+
+        {!autoAssignEnabled && (
+          <Form.Item name="block_ids" label="Блок">
+            <Select mode="multiple" showSearch optionFilterProp="label" placeholder="Поиск блока..." options={teamBlocks?.map((b) => ({ value: b.id, label: b.name }))} />
+          </Form.Item>
+        )}
+
+        {autoAssignEnabled && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: '0.8rem', marginBottom: 4 }}>Автораспределение по графику</div>
+              <Select
+                style={{ width: '100%' }}
+                placeholder="— выберите шаблон —"
+                value={selectedTemplateId ?? undefined}
+                onChange={(v) => {
+                  setSelectedTemplateId(v);
+                  setAutoAssignSelected(null);
+                  recomputeSchedule(v, (watchedDate ?? dayjs()).format('YYYY-MM-DD'));
+                }}
+                options={templates?.map((t) => ({ value: t.id, label: t.name }))}
+              />
+            </div>
+            {selectedTemplateId && watchedDate && (
+              <>
+                <AutoScheduleGrid
+                  templateBlocks={selectedTemplateBlocks}
+                  autoAssignDates={autoAssignDates}
+                  baseDate={watchedDate.format('YYYY-MM-DD')}
+                  freezeDays={freezeDays}
+                  taskAssignments={taskAssignments}
+                  currentAssignmentId={assignment?.id ?? null}
+                  selected={autoAssignSelected}
+                  onPick={(id) => setAutoAssignSelected((prev) => (prev === id ? null : id))}
+                  onPlace={(d) => {
+                    if (autoAssignSelected === null) return;
+                    setAutoAssignDates((prev) => ({ ...prev, [autoAssignSelected]: d }));
+                    setAutoAssignSelected(null);
+                  }}
+                />
+                <div style={{ marginTop: 6, fontSize: '0.8rem', opacity: 0.7 }}>Нажмите на блок, затем на нужную дату — блок переместится туда.</div>
+              </>
+            )}
+          </div>
+        )}
+
+        <Form.Item name="status" label="Статус">
+          <Select disabled={autoAssignEnabled} options={STATUS_OPTIONS} />
+        </Form.Item>
+
+        {!autoAssignEnabled && (
+          <>
+            <Form.Item name="employee_id" label="Исполнитель">
+              <Select
+                allowClear
+                placeholder="Не выбран"
+                options={employees?.map((e) => ({ value: e.id, label: `${e.last_name} ${e.first_name}${e.middle_name ? ' ' + e.middle_name : ''}` }))}
+              />
+            </Form.Item>
+            <Form.Item name="comment" label="Комментарий">
+              <Input maxLength={45} placeholder="Комментарий..." />
+            </Form.Item>
+          </>
+        )}
+      </Form>
+      <HistoryPanel kind="assignment" entityId={assignment?.id ?? null} open={historyOpen} />
+      </div>
+    </Modal>
+  );
+}
