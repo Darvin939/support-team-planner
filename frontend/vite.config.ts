@@ -2,9 +2,11 @@ import {defineConfig} from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({command}) => ({
   plugins: [react()],
-  base: '/react-assets/',
+  // Production build is served by FastAPI under /react-assets/*, but the Vite
+  // dev server must serve from root so routes like /planning work directly.
+  base: command === 'build' ? '/react-assets/' : '/',
   server: {
     proxy: {
       // Keeps the dev server same-origin with FastAPI so the session cookie
@@ -14,4 +16,4 @@ export default defineConfig({
       '/logout': 'http://localhost:5093',
     },
   },
-})
+}))
