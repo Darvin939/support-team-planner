@@ -13,7 +13,6 @@ import db
 import utils
 
 app = FastAPI()
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # React (Vite/antd) migration, page by page — see plan doc. `frontend/dist` only exists after
 # `npm run build`; the mount is skipped in dev if it hasn't been built yet, matching the current
@@ -70,7 +69,7 @@ def _required_rank(method: str, path: str) -> int:
 @app.middleware('http')
 async def require_login(request: Request, call_next):
     path = request.url.path
-    if path in _PUBLIC_PATHS or path.startswith('/static/') or path.startswith('/react-assets/'):
+    if path in _PUBLIC_PATHS or path.startswith('/react-assets/'):
         return await call_next(request)
     employee_id = request.session.get('employee_id')
     emp = db.employee_exists(employee_id) if employee_id else None

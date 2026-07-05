@@ -120,9 +120,9 @@ cd frontend && npm run dev     # Vite dev-сервер (см. адрес в вы
 ├── check.sh / run.sh      # Скрипты запуска для продакшена
 ├── tests/
 │   └── test_pg.py         # Тесты PostgreSQL backend (unit + опциональный live-тест)
-├── static/
-│   └── fonts/              # Самостоятельно хостящиеся шрифты (Inter, JetBrains Mono)
 ├── frontend/                # React + TypeScript SPA (Vite)
+│   ├── public/
+│   │   └── fonts/           # Самостоятельно хостящиеся шрифты (Inter, JetBrains Mono)
 │   ├── src/
 │   │   ├── pages/           # LoginPage, PlanningPage, StatisticsPage, JournalPage, SettingsPage
 │   │   │   └── planning/    # TaskModal, AssignmentModal, HistoryPanel, useAssignmentDrag и т.д.
@@ -138,8 +138,8 @@ cd frontend && npm run dev     # Vite dev-сервер (см. адрес в вы
 
 ## Аутентификация и роли
 
-Всё приложение (страницы и `/api/*`) закрыто логином, кроме `/login`, `/logout`, `GET /api/login-employees`,
-`/static/*` и `/react-assets/*` (сам бандл React должен грузиться ещё до входа):
+Всё приложение (страницы и `/api/*`) закрыто логином, кроме `/login`, `/logout`, `GET /api/login-employees`
+и `/react-assets/*` (сам бандл React должен грузиться ещё до входа):
 
 | Метод | Путь                   | Описание                                                                                       |
 |-------|------------------------|------------------------------------------------------------------------------------------------|

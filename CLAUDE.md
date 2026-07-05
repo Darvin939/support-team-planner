@@ -19,8 +19,8 @@ python -m pytest tests/ -v        # Run tests (currently only db/postgres.py uni
 
 **Frontend (React + Ant Design, `frontend/`):** the full Jinja2/vanilla-JS frontend migration is complete — every
 page (`/login`, `/planning`, `/planning/{team_id}`, `/statistics`, `/journal`, `/journal/{team_id}`, `/settings`)
-now serves the built React SPA; `templates/`, `static/js/`, and `static/css/` have all been deleted (`static/`
-now only holds `static/fonts/`). All pages share one React Router layout (`AuthenticatedLayout` + `AppShell`,
+now serves the built React SPA; `templates/`, `static/`, and the old vanilla-JS/CSS assets have all been deleted
+— there is no top-level `static/` directory at all anymore. All pages share one React Router layout (`AuthenticatedLayout` + `AppShell`,
 fetches `GET /api/me` for role-gated nav), so navigating between them is a client-side route change, not a full
 page reload — a full browser navigation only happens crossing into/out of the unauthenticated `/login` page, or
 on a manual refresh. **`frontend/dist/` (built via Vite) is required, not optional** — every page route calls
@@ -29,8 +29,11 @@ starting `support_planner.py`.
 
 `frontend/src/theme.ts` sets `fontFamily` to `'InterVariable', 'Inter', ...` and `'JetBrains Mono Variable'` is
 used ad hoc in a few components; `frontend/src/index.css` declares the matching `@font-face` rules pointing at
-the self-hosted files at `static/fonts/InterVariable.woff2` / `static/fonts/JetBrainsMono-Variable.woff2` (fonts
-are self-hosted, never loaded from an external CDN at runtime).
+the self-hosted files in Vite's `frontend/public/fonts/` directory (fonts are self-hosted, never loaded from an
+external CDN at runtime). `index.css` references them by the absolute path `/fonts/InterVariable.woff2` /
+`/fonts/JetBrainsMono-Variable.woff2` — Vite serves `public/` at server root in dev, and at build time rewrites
+that root-relative `url()` to the `/react-assets/` base and copies the files to `frontend/dist/fonts/`, so no
+separate FastAPI static mount is needed for them.
 
 ```bash
 cd frontend && npm install   # Install frontend dependencies (first time only)
@@ -81,7 +84,7 @@ FastAPI app split across a handful of modules:
       `SessionMiddleware` has run — so `SessionMiddleware` must end up as the outer/first-executed layer, which means it
       must be the *last* one registered. Swapping this order reintroduces
       `AssertionError: SessionMiddleware must be installed to access request.session`. `_PUBLIC_PATHS` (`/login`,
-      `/logout`) plus anything under `/static/` or `/react-assets/` bypass the login check
+      `/logout`) plus anything under `/react-assets/` bypass the login check
       entirely; every other route (including `/docs`/`/openapi.json`) requires a session. Beyond the session check,
       `require_login` also enforces role: it reads `role` fresh from the DB on every request (not from the session,
       so a role change takes effect without re-login), stores it on `request.state.role`, and compares it against
@@ -233,7 +236,7 @@ Two separate status machines coexist — do not confuse them:
   only ever touch the caller's own row; it never touches ФИО/role (`db.update_own_credentials`, the same
   login/password-only update the bootstrap-admin branch of `db.update_employee` uses, factored into
   `_update_login_and_password`). The whole app
-  (pages and `/api/*`) sits behind `require_login` in `support_planner.py` except `/login`, `/logout`, `/static/*`,
+  (pages and `/api/*`) sits behind `require_login` in `support_planner.py` except `/login`, `/logout`,
   and `/react-assets/*` (the built React bundle itself must be loadable before the user is authenticated — see the
   React migration note above). There's no self-service signup, but there is a bootstrap account:
   `SQLiteBackend.init_schema()` / `PostgresBackend.init_schema()` both seed an `employees` row named
