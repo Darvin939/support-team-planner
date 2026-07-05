@@ -1,6 +1,6 @@
 import {useState} from 'react';
-import {DeleteOutlined, EditOutlined} from '@ant-design/icons';
-import {Button, Form, Input, List, message, Modal, Popconfirm, Select, Space, Tag} from 'antd';
+import {DeleteOutlined, EditOutlined, LockOutlined} from '@ant-design/icons';
+import {Button, Form, Input, List, message, Modal, Popconfirm, Select, Space, Tag, Tooltip} from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import {type Employee, useEmployees} from '../../hooks/useSettingsData';
 import {useMe} from '../../hooks/useMe';
@@ -51,6 +51,8 @@ export function EmployeesTab() {
     onError: (e: Error) => message.error(e.message),
   });
 
+  const isEditingProtected = modalEmployee !== 'new' && modalEmployee !== null && modalEmployee.is_protected;
+
   function openModal(emp: Employee | 'new') {
     setModalEmployee(emp);
     if (emp === 'new') {
@@ -81,16 +83,31 @@ export function EmployeesTab() {
                     <Button key="edit" size="small" onClick={() => openModal(emp)}>
                       <EditOutlined />
                     </Button>,
-                    <Popconfirm key="delete" title="Удалить сотрудника?" onConfirm={() => deleteMutation.mutate(emp.id)} okText="Удалить" cancelText="Отмена">
-                      <Button size="small" danger>
-                        <DeleteOutlined />
-                      </Button>
-                    </Popconfirm>,
+                    emp.is_protected ? (
+                      <Tooltip key="delete" title="Учётную запись администратора по умолчанию нельзя удалить">
+                        <Button size="small" danger disabled>
+                          <DeleteOutlined />
+                        </Button>
+                      </Tooltip>
+                    ) : (
+                      <Popconfirm key="delete" title="Удалить сотрудника?" onConfirm={() => deleteMutation.mutate(emp.id)} okText="Удалить" cancelText="Отмена">
+                        <Button size="small" danger>
+                          <DeleteOutlined />
+                        </Button>
+                      </Popconfirm>
+                    ),
                   ]
                 : []
             }
           >
             {emp.last_name} {emp.first_name} {emp.middle_name ?? ''} <Tag style={{ marginLeft: 8 }}>{emp.role}</Tag>
+            {emp.is_protected && (
+              <Tooltip title="Учётную запись администратора по умолчанию нельзя удалить">
+                <Tag icon={<LockOutlined />} color="default" style={{ marginLeft: 4 }}>
+                  По умолчанию
+                </Tag>
+              </Tooltip>
+            )}
           </List.Item>
         )}
       />
@@ -104,21 +121,32 @@ export function EmployeesTab() {
         confirmLoading={saveMutation.isPending}
       >
         <Form form={form} layout="vertical" onFinish={(v) => saveMutation.mutate(v)}>
-          <Form.Item name="last_name" label="Фамилия" rules={[{ required: true, message: 'Введите фамилию' }]}>
-            <Input placeholder="Фамилия" />
-          </Form.Item>
-          <Form.Item name="first_name" label="Имя" rules={[{ required: true, message: 'Введите имя' }]}>
-            <Input placeholder="Имя" />
-          </Form.Item>
-          <Form.Item name="middle_name" label="Отчество">
-            <Input placeholder="Отчество" />
-          </Form.Item>
+          {isEditingProtected && (
+            <Tag icon={<LockOutlined />} color="default" style={{ marginBottom: 16 }}>
+              Для администратора по умолчанию можно изменить только пароль
+            </Tag>
+          )}
+          {!isEditingProtected && (
+            <>
+              <Form.Item name="last_name" label="Фамилия" rules={[{ required: true, message: 'Введите фамилию' }]}>
+                <Input placeholder="Фамилия" />
+              </Form.Item>
+              <Form.Item name="first_name" label="Имя" rules={[{ required: true, message: 'Введите имя' }]}>
+                <Input placeholder="Имя" />
+              </Form.Item>
+              <Form.Item name="middle_name" label="Отчество">
+                <Input placeholder="Отчество" />
+              </Form.Item>
+            </>
+          )}
           <Form.Item name="password" label="Пароль (оставьте пустым, чтобы не менять)">
             <Input.Password placeholder="Новый пароль" />
           </Form.Item>
-          <Form.Item name="role" label="Роль">
-            <Select options={ROLE_OPTIONS} />
-          </Form.Item>
+          {!isEditingProtected && (
+            <Form.Item name="role" label="Роль">
+              <Select options={ROLE_OPTIONS} />
+            </Form.Item>
+          )}
         </Form>
       </Modal>
     </>

@@ -266,12 +266,35 @@ def employee_exists(conn, employee_id):
     return conn.execute('SELECT role FROM employees WHERE id = ?', (employee_id,)).fetchone()
 
 
+# Ф.И.О. учётной записи-бутстрапа, создаваемой init_schema() при первом запуске (см. CLAUDE.md) —
+# у неё всегда должен оставаться рабочий вход в систему, поэтому её нельзя удалить через UI/API.
+_BOOTSTRAP_ADMIN_NAME = ('Администратор', '', '')
+
+
+def _is_bootstrap_admin(row):
+    return (row['last_name'], row['first_name'], row['middle_name'] or '') == _BOOTSTRAP_ADMIN_NAME
+
+
+@with_db_connection(commit_on_success=False)
+def is_bootstrap_admin_id(conn, employee_id):
+    """Является ли employee_id учётной записью администратора по умолчанию (см. _is_bootstrap_admin)"""
+    row = conn.execute(
+        'SELECT last_name, first_name, middle_name FROM employees WHERE id = ?', (employee_id,)
+    ).fetchone()
+    return bool(row) and _is_bootstrap_admin(row)
+
+
 @with_db_connection(commit_on_success=False)
 def get_all_employees(conn):
     """Получить всех сотрудников"""
     employees = conn.execute(
         'SELECT id, last_name, first_name, middle_name, role FROM employees ORDER BY last_name, first_name, middle_name').fetchall()
-    return [dict(emp) for emp in employees]
+    result = []
+    for emp in employees:
+        emp_dict = dict(emp)
+        emp_dict['is_protected'] = _is_bootstrap_admin(emp)
+        result.append(emp_dict)
+    return result
 
 
 @with_db_connection(commit_on_success=False)
@@ -295,7 +318,21 @@ def create_employee(conn, last_name, first_name, middle_name=None, password_hash
 
 @with_db_connection(default_return=False, raise_on_error=False)
 def update_employee(conn, employee_id, last_name, first_name, middle_name=None, password_hash=None, role='user'):
-    """Обновить сотрудника. password_hash=None означает "не менять пароль"."""
+    """Обновить сотрудника. password_hash=None означает "не менять пароль".
+    Для учётной записи администратора по умолчанию ФИО и роль никогда не перезаписываются этой
+    функцией (можно поменять только пароль) — независимо от того, что пришло в last_name/first_name/
+    middle_name/role, чтобы не зависеть от того, отправил ли клиент эти поля вообще."""
+    current = conn.execute(
+        'SELECT last_name, first_name, middle_name, role FROM employees WHERE id = ?', (employee_id,)
+    ).fetchone()
+    if not current:
+        return False
+
+    if _is_bootstrap_admin(current):
+        if password_hash is not None:
+            conn.execute('UPDATE employees SET password_hash = ? WHERE id = ?', (password_hash, employee_id))
+        return True
+
     if password_hash is not None:
         conn.execute(
             '''UPDATE employees
@@ -326,6 +363,12 @@ def get_employee_auth(conn, employee_id):
 @with_db_connection()
 def delete_employee(conn, employee_id, changed_by=None):
     """Удалить сотрудника"""
+    employee = conn.execute(
+        'SELECT last_name, first_name, middle_name FROM employees WHERE id = ?', (employee_id,)
+    ).fetchone()
+    if employee and _is_bootstrap_admin(employee):
+        raise ValueError('Нельзя удалить учётную запись администратора по умолчанию')
+
     affected = conn.execute(
         'SELECT id, task_id, date, employee_id FROM assignments WHERE employee_id = ?', (employee_id,)
     ).fetchall()

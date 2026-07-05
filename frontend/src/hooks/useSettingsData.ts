@@ -6,6 +6,7 @@ export interface Employee {
   first_name: string;
   middle_name: string | null;
   role: string;
+  is_protected: boolean;
 }
 
 export interface Block {

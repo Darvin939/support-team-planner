@@ -566,7 +566,7 @@ def update_employee_api(employee_id: int, data: EmployeeIn):
     middle_name = (data.middle_name or '').strip() or None
     password_hash = auth.hash_password(data.password) if (data.password or '').strip() else None
 
-    if not last_name or not first_name:
+    if (not last_name or not first_name) and not db.is_bootstrap_admin_id(employee_id):
         return JSONResponse({'error': 'Фамилия и имя обязательны'}, status_code=400)
     if data.role not in _VALID_ROLES:
         return JSONResponse({'error': 'Недопустимая роль'}, status_code=400)
@@ -581,8 +581,11 @@ def update_employee_api(employee_id: int, data: EmployeeIn):
 @app.delete('/api/employees/{employee_id}')
 def delete_employee_api(request: Request, employee_id: int):
     """Удалить сотрудника"""
-    db.delete_employee(employee_id, changed_by=request.session.get('employee_id'))
-    return {'success': True}
+    try:
+        db.delete_employee(employee_id, changed_by=request.session.get('employee_id'))
+        return {'success': True}
+    except ValueError as e:
+        return JSONResponse({'error': str(e)}, status_code=400)
 
 
 # === API для дней фризов ===
