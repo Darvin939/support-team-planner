@@ -642,21 +642,23 @@ def delete_freeze_day_api(date_str: str):
 
 @app.get('/api/active-assignments/{team_id}')
 def get_active_assignments_api(team_id: int, start_date: Optional[str] = None, end_date: Optional[str] = None,
-                               team_ids: Optional[str] = None):
-    """Активные назначения (new/planned) за период"""
+                               team_ids: Optional[str] = None, offset: int = 0, limit: Optional[int] = None):
+    """Активные назначения (new/planned) за период, с опциональной пагинацией (limit не задан -> вся выборка)"""
     today_str = date.today().strftime('%Y-%m-%d')
     start_date = start_date or today_str
     end_date = end_date or today_str
 
     parsed_team_ids = [int(x) for x in team_ids.split(',') if x.strip()] if team_ids else None
-    assignments = db.get_active_assignments_in_period(team_id, start_date, end_date, team_ids=parsed_team_ids)
+    assignments = db.get_active_assignments_in_period(team_id, start_date, end_date, team_ids=parsed_team_ids,
+                                                       offset=offset, limit=limit)
+    stats = db.get_active_assignments_stats(team_id, start_date, end_date, team_ids=parsed_team_ids)
 
-    result = []
+    items = []
     for a in assignments:
         employee_name = utils.format_employee_name(
             a['employee_last_name'], a['employee_first_name'], a['employee_middle_name']
         )
-        result.append({
+        items.append({
             'id': a['id'],
             'task_id': a['task_id'],
             'task_name': a['task_name'],
@@ -670,7 +672,14 @@ def get_active_assignments_api(team_id: int, start_date: Optional[str] = None, e
             'team_name': a['team_name'],
             'is_psi': bool(a['is_psi']),
         })
-    return result
+    return {
+        'items': items,
+        'total': stats['total'],
+        'stats': {
+            'status': {'new': stats['status_new'], 'planned': stats['status_planned']},
+            'criticality': {'high': stats['crit_high'], 'medium': stats['crit_medium'], 'low': stats['crit_low']},
+        },
+    }
 
 
 # === API для блоков ===

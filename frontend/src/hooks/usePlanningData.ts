@@ -71,7 +71,10 @@ interface ActiveAssignmentLite {
 export function useTodayActive(teamId: number, today: string) {
   return useQuery<ActiveAssignmentLite[]>({
     queryKey: ['active-assignments', teamId, today, today],
-    queryFn: () => getJson(`/api/active-assignments/${teamId}?start_date=${today}&end_date=${today}`),
+    queryFn: () =>
+      getJson<{ items: ActiveAssignmentLite[] }>(`/api/active-assignments/${teamId}?start_date=${today}&end_date=${today}`).then(
+        (r) => r.items
+      ),
     enabled: !!teamId,
   });
 }
@@ -96,7 +99,8 @@ export function useOverdueAssignments() {
   const end = cutoff.format(API_DATE_FORMAT);
   return useQuery<OverdueAssignment[]>({
     queryKey: ['active-assignments', 0, start, end],
-    queryFn: () => getJson(`/api/active-assignments/0?start_date=${start}&end_date=${end}`),
+    queryFn: () =>
+      getJson<{ items: OverdueAssignment[] }>(`/api/active-assignments/0?start_date=${start}&end_date=${end}`).then((r) => r.items),
     refetchInterval: 5 * 60 * 1000,
   });
 }

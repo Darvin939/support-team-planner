@@ -1,6 +1,6 @@
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import type {TableColumnsType} from 'antd';
-import {Card, DatePicker, Empty, Select, Space, Table, Typography} from 'antd';
+import {Card, DatePicker, Empty, Pagination, Select, Space, Table, Typography} from 'antd';
 import {useQuery} from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import {useTeams} from '../hooks/useTeams';
@@ -12,6 +12,7 @@ import {FilterField, FilterGrid} from '../components/FilterGrid';
 import {CriticalityBadge} from '../components/planningBadges';
 
 const STORAGE_STATS_TEAMS = 'statsSelectedTeams';
+const STATS_PAGE_SIZE = 20;
 
 interface ActiveAssignment {
   id: number;
@@ -25,14 +26,26 @@ interface ActiveAssignment {
   comment: string | null;
 }
 
+interface ActiveAssignmentsResponse {
+  items: ActiveAssignment[];
+  total: number;
+  stats: {
+    status: { new: number; planned: number };
+    criticality: { high: number; medium: number; low: number };
+  };
+}
+
 const STATUS_LABEL: Record<string, string> = { new: 'Новый', planned: 'Запланировано', rollback: 'Откат', success: 'Успешно' };
 
-function useActiveAssignments(from: string, to: string, teamIds: number[]) {
-  return useQuery<ActiveAssignment[]>({
-    queryKey: ['active-assignments', from, to, teamIds],
+function useActiveAssignments(from: string, to: string, teamIds: number[], offset: number) {
+  return useQuery<ActiveAssignmentsResponse>({
+    queryKey: ['active-assignments', from, to, teamIds, offset],
     queryFn: async () => {
       const teamParam = teamIds.length ? `&team_ids=${teamIds.join(',')}` : '';
-      const r = await fetch(`/api/active-assignments/0?start_date=${from}&end_date=${to}${teamParam}`, { credentials: 'same-origin' });
+      const r = await fetch(
+        `/api/active-assignments/0?start_date=${from}&end_date=${to}${teamParam}&offset=${offset}&limit=${STATS_PAGE_SIZE}`,
+        { credentials: 'same-origin' }
+      );
       if (!r.ok) throw new Error(`GET /api/active-assignments -> ${r.status}`);
       return r.json();
     },
@@ -55,13 +68,23 @@ function buildColumns(showDate: boolean): TableColumnsType<ActiveAssignment> {
   return cols;
 }
 
-function StatsSection({ title, data, showDate }: { title: string; data: ActiveAssignment[] | undefined; showDate: boolean }) {
-  const statusCounts = { new: 0, planned: 0 };
-  const critCounts = { high: 0, medium: 0, low: 0 };
-  (data ?? []).forEach((a) => {
-    if (a.status in statusCounts) statusCounts[a.status as keyof typeof statusCounts]++;
-    if (a.criticality in critCounts) critCounts[a.criticality as keyof typeof critCounts]++;
-  });
+function StatsSection({
+  title,
+  response,
+  showDate,
+  offset,
+  onPageChange,
+}: {
+  title: string;
+  response: ActiveAssignmentsResponse | undefined;
+  showDate: boolean;
+  offset: number;
+  onPageChange: (offset: number) => void;
+}) {
+  const items = response?.items ?? [];
+  const total = response?.total ?? 0;
+  const statusCounts = response?.stats.status ?? { new: 0, planned: 0 };
+  const critCounts = response?.stats.criticality ?? { high: 0, medium: 0, low: 0 };
 
   return (
     <Card style={{ marginBottom: 16 }}>
@@ -69,7 +92,7 @@ function StatsSection({ title, data, showDate }: { title: string; data: ActiveAs
         {title}
       </Typography.Title>
       <Space size={8} wrap style={{ marginBottom: 14 }}>
-        <StatTile label="Всего" value={data?.length ?? 0} primary />
+        <StatTile label="Всего" value={total} primary />
         <StatGroupLabel>Статус</StatGroupLabel>
         <StatTile label="Новый" value={statusCounts.new} accent="#1668dc" />
         <StatTile label="Запланировано" value={statusCounts.planned} accent="#d89614" />
@@ -78,8 +101,21 @@ function StatsSection({ title, data, showDate }: { title: string; data: ActiveAs
         <StatTile label="Средняя" value={critCounts.medium} accent="#d89614" />
         <StatTile label="Низкая" value={critCounts.low} accent="#49aa19" />
       </Space>
-      {data && data.length > 0 ? (
-        <Table rowKey="id" columns={buildColumns(showDate)} dataSource={data} pagination={false} size="small" scroll={{ x: true }} />
+      {total > 0 ? (
+        <>
+          <Table rowKey="id" columns={buildColumns(showDate)} dataSource={items} pagination={false} size="small" scroll={{ x: true }} />
+          {total > STATS_PAGE_SIZE && (
+            <div style={{ textAlign: 'center', marginTop: 16 }}>
+              <Pagination
+                current={offset / STATS_PAGE_SIZE + 1}
+                pageSize={STATS_PAGE_SIZE}
+                total={total}
+                onChange={(page) => onPageChange((page - 1) * STATS_PAGE_SIZE)}
+                showSizeChanger={false}
+              />
+            </div>
+          )}
+        </>
       ) : (
         <Empty description="Нет активных работ" />
       )}
@@ -100,15 +136,26 @@ export function StatisticsPage() {
   });
 
   const [range, handleRangeChange] = useDateRangeFilter(() => [dayjs().subtract(7, 'day'), dayjs()]);
+  const [todayOffset, setTodayOffset] = useState(0);
+  const [periodOffset, setPeriodOffset] = useState(0);
 
   function handleTeamsChange(ids: number[]) {
     setSelectedTeamIds(ids);
     localStorage.setItem(STORAGE_STATS_TEAMS, JSON.stringify(ids));
+    setTodayOffset(0);
+    setPeriodOffset(0);
   }
 
+  const periodFrom = range[0].format(API_DATE_FORMAT);
+  const periodTo = range[1].format(API_DATE_FORMAT);
+
+  useEffect(() => {
+    setPeriodOffset(0);
+  }, [periodFrom, periodTo]);
+
   const today = dayjs().format(API_DATE_FORMAT);
-  const { data: todayData } = useActiveAssignments(today, today, selectedTeamIds);
-  const { data: periodData } = useActiveAssignments(range[0].format(API_DATE_FORMAT), range[1].format(API_DATE_FORMAT), selectedTeamIds);
+  const { data: todayData } = useActiveAssignments(today, today, selectedTeamIds, todayOffset);
+  const { data: periodData } = useActiveAssignments(periodFrom, periodTo, selectedTeamIds, periodOffset);
 
   return (
     <>
@@ -130,7 +177,13 @@ export function StatisticsPage() {
         </FilterGrid>
       </Card>
 
-      <StatsSection title="Активные работы на сегодня" data={todayData} showDate={false} />
+      <StatsSection
+        title="Активные работы на сегодня"
+        response={todayData}
+        showDate={false}
+        offset={todayOffset}
+        onPageChange={setTodayOffset}
+      />
 
       <Card style={{ marginBottom: 16 }}>
         <FilterGrid isMobile={isMobile}>
@@ -147,7 +200,13 @@ export function StatisticsPage() {
           </FilterField>
         </FilterGrid>
       </Card>
-      <StatsSection title="Активные работы за период" data={periodData} showDate />
+      <StatsSection
+        title="Активные работы за период"
+        response={periodData}
+        showDate
+        offset={periodOffset}
+        onPageChange={setPeriodOffset}
+      />
     </>
   );
 }
