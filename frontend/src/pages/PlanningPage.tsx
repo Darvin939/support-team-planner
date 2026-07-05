@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import {useLocation, useNavigate, useParams} from 'react-router-dom';
 import {DeleteOutlined, EditOutlined, InfoCircleOutlined} from '@ant-design/icons';
 import type {TableColumnsType} from 'antd';
@@ -86,6 +86,15 @@ function dateRange(from: Dayjs, to: Dayjs): Dayjs[] {
   return dates;
 }
 
+function scrollGridToToday(today: string): boolean {
+  const grid = document.querySelector<HTMLElement>('[data-planning-grid] .ant-table-body');
+  const todayCell = document.querySelector<HTMLElement>(`[data-planning-grid] td[data-date="${today}"]`);
+  const infoCell = grid?.querySelector<HTMLElement>('td:first-child') ?? null;
+  if (!grid || !todayCell || !infoCell) return false;
+  grid.scrollLeft = todayCell.offsetLeft - grid.offsetWidth / 2 + todayCell.offsetWidth / 2 - infoCell.offsetWidth / 2;
+  return true;
+}
+
 export function PlanningPage() {
   const { teamId: teamIdParam } = useParams();
   const navigate = useNavigate();
@@ -119,6 +128,7 @@ export function PlanningPage() {
     onSuccess: ({ taskId, status }) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
+      pendingCenterRef.current = true;
       const task = taskData?.tasks.find((t) => t.id === taskId);
       if (status === 'done' || status === 'cancelled') {
         message.success(`«${task?.name ?? taskId}» — ${TASK_STATUS_LABELS[status] ?? status}`);
@@ -132,6 +142,7 @@ export function PlanningPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
+      pendingCenterRef.current = true;
       message.success('Задача удалена');
     },
     onError: (e: Error) => message.error(e.message),
@@ -160,6 +171,16 @@ export function PlanningPage() {
     (assignments ?? []).forEach((a) => map.set(`${a.task_id}-${a.date}`, a));
     return map;
   }, [assignments]);
+
+  const pendingCenterRef = useRef(true);
+  const triggerCenterOnNextLoad = () => {
+    pendingCenterRef.current = true;
+  };
+
+  useEffect(() => {
+    if (!pendingCenterRef.current) return;
+    if (scrollGridToToday(today)) pendingCenterRef.current = false;
+  }, [taskData, assignments, today]);
 
   const { data: jumpTask } = useTaskById(teamId ?? 0, jump?.jumpTaskId ?? null);
   const { data: jumpAssignments } = useAssignments(
@@ -246,6 +267,7 @@ export function PlanningPage() {
 
   function handleTeamSelect(value: number) {
     localStorage.setItem(STORAGE_TEAM_ID, String(value));
+    pendingCenterRef.current = true;
     navigate(`/planning/${value}`);
   }
 
@@ -388,7 +410,10 @@ export function PlanningPage() {
           <FilterField label="ПЕРИОД" isMobile={isMobile} mobileSpan={2}>
             <DatePicker.RangePicker
               value={range}
-              onChange={handleRangeChange}
+              onChange={(dates) => {
+                pendingCenterRef.current = true;
+                handleRangeChange(dates);
+              }}
               format={DISPLAY_DATE_FORMAT}
               minDate={dayjs('2000-01-01')}
               maxDate={dayjs('2099-12-31')}
@@ -397,7 +422,16 @@ export function PlanningPage() {
             />
           </FilterField>
           <FilterField label="ПОИСК ПО ОПИСАНИЮ" isMobile={isMobile}>
-            <Input.Search style={{ width: isMobile ? '100%' : 220 }} placeholder="Введите текст..." allowClear value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input.Search
+              style={{ width: isMobile ? '100%' : 220 }}
+              placeholder="Введите текст..."
+              allowClear
+              value={search}
+              onChange={(e) => {
+                pendingCenterRef.current = true;
+                setSearch(e.target.value);
+              }}
+            />
           </FilterField>
           <FilterField label="КРИТИЧНОСТЬ" isMobile={isMobile}>
             <Select mode="multiple" style={{ width: isMobile ? '100%' : 180 }} placeholder="Все" value={critFilter} onChange={setCritFilter} options={CRITICALITY_OPTIONS} />
@@ -410,7 +444,13 @@ export function PlanningPage() {
           </FilterField>
           <FilterField isMobile={isMobile} mobileSpan="full">
             <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
-              <Checkbox checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)}>
+              <Checkbox
+                checked={showCompleted}
+                onChange={(e) => {
+                  pendingCenterRef.current = true;
+                  setShowCompleted(e.target.checked);
+                }}
+              >
                 Показать завершённые
               </Checkbox>
             </div>
@@ -457,7 +497,16 @@ export function PlanningPage() {
 
         {taskData && taskData.total > PAGE_SIZE && (
           <div style={{ textAlign: 'center', marginTop: 16 }}>
-            <Pagination current={page} pageSize={PAGE_SIZE} total={taskData.total} onChange={setPage} showSizeChanger={false} />
+            <Pagination
+              current={page}
+              pageSize={PAGE_SIZE}
+              total={taskData.total}
+              onChange={(p) => {
+                pendingCenterRef.current = true;
+                setPage(p);
+              }}
+              showSizeChanger={false}
+            />
           </div>
         )}
       </Card>
@@ -468,6 +517,7 @@ export function PlanningPage() {
         task={taskModal.task}
         existingDepIds={taskModal.task ? (depsByTask.get(taskModal.task.id) ?? []).map((d) => d.dep_id) : []}
         onClose={() => setTaskModal({ open: false, task: null })}
+        onDeleted={triggerCenterOnNextLoad}
       />
       <AssignmentModal
         open={assignmentModal.open}
@@ -477,6 +527,7 @@ export function PlanningPage() {
         assignment={assignmentModal.assignment}
         taskAssignments={assignmentModal.task ? (assignmentsByTask.get(assignmentModal.task.id) ?? jumpAssignments ?? []) : []}
         freezeDays={freezeDays}
+        onDeleted={triggerCenterOnNextLoad}
         onClose={() => setAssignmentModal({ open: false, task: null, date: null, assignment: null })}
       />
     </>
