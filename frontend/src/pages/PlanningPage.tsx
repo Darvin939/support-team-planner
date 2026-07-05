@@ -54,6 +54,8 @@ const VALID_TASK_TRANSITIONS: Record<string, string[]> = {
 
 const STORAGE_TEAM_ID = 'selectedTeamId';
 const PAGE_SIZE = 10;
+// Must match TOP_BAR_HEIGHT in components/AppShell.tsx (mobile fixed top bar height).
+const TOP_BAR_HEIGHT = 56;
 
 const ASSIGNMENT_STATUS_OPTIONS = [
   { value: 'new', label: 'Новый' },
@@ -446,6 +448,7 @@ export function PlanningPage() {
               pagination={false}
               size="small"
               scroll={{ x: 'max-content' }}
+              sticky={{ offsetHeader: isMobile ? TOP_BAR_HEIGHT : 0 }}
             />
           </div>
         )}
