@@ -54,20 +54,12 @@ export function DepBadge({ kind, names }: { kind: 'deleted' | 'cancelled' | 'pen
   );
 }
 
-export function BlockRail({ block, dotColor }: { block: string | null; dotColor: string }) {
+export function BlockRail({ block}: { block: string | null }) {
   const names = (block ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   if (names.length === 0) return null;
   return (
-    <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', rowGap: 2, lineHeight: 1.2 }}>
-      {names.map((name, i) => (
-        <span key={i} style={{ display: 'flex', alignItems: 'center' }}>
-          {i > 0 && <span style={{ width: 9, height: 1, background: 'currentColor', opacity: 0.35, margin: '0 4px' }} />}
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
-            <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>{name}</span>
-          </span>
-        </span>
-      ))}
+    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>{names.join(', ')}</span>
     </span>
   );
 }
@@ -105,7 +97,7 @@ export function ScheduleChip({ assignment, onClick, draggable }: { assignment: A
         textAlign: 'left',
       }}
     >
-      <BlockRail block={assignment.block} dotColor={statusColor} />
+      <BlockRail block={assignment.block} />
       <span style={{ fontSize: '0.68rem', color: statusColor }}>{ASSIGNMENT_STATUS_LABELS[assignment.status] ?? assignment.status}</span>
       {assignment.comment && <span style={{ fontSize: '0.63rem', fontStyle: 'italic', color: token.colorTextTertiary }}>{assignment.comment}</span>}
       <span style={{ fontSize: '0.68rem', color: token.colorTextSecondary }}>{assignment.employee_name}</span>
