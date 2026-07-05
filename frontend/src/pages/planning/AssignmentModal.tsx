@@ -1,18 +1,18 @@
 import {useEffect, useState} from 'react';
 import {
-    Alert,
-    Button,
-    DatePicker,
-    Form,
-    Input,
-    message,
-    Modal,
-    Popconfirm,
-    Select,
-    Space,
-    Switch,
-    theme,
-    TimePicker
+  Alert,
+  Button,
+  DatePicker,
+  Form,
+  Input,
+  message,
+  Modal,
+  Popconfirm,
+  Select,
+  Space,
+  Switch,
+  theme,
+  TimePicker
 } from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import dayjs from 'dayjs';
@@ -23,6 +23,7 @@ import {apiMutate} from '../../lib/apiMutate';
 import {computeAutoAssignDates, getAutoScheduleDateRange} from '../../lib/autoSchedule';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT, TIME_FORMAT} from '../../lib/dateFormats';
 import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';
+import {useIsMobile} from '../../hooks/useIsMobile';
 import {useAutoScheduleDragScroll} from './useAutoScheduleDragScroll';
 import {getCellTint, getHeaderTint} from './cellTint';
 
@@ -186,6 +187,7 @@ export function AssignmentModal({
 }) {
   const [form] = Form.useForm<AssignmentFormValues>();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   const { data: teamBlocks } = useTeamBlocks(teamId);
   const { data: employees } = useEmployees();
   const { data: templates } = useTeamTemplates(teamId);
@@ -337,7 +339,7 @@ export function AssignmentModal({
       title={task ? `Работа: ${task.name}` : 'Работа'}
       open={open}
       onCancel={onClose}
-      width={(autoAssignEnabled ? 640 : 520) + (historyOpen ? 320 : 0)}
+      width={isMobile ? '95%' : (autoAssignEnabled ? 640 : 520) + (historyOpen ? 320 : 0)}
       footer={
         <Space>
           {assignment && <HistoryToggleButton open={historyOpen} onClick={() => setHistoryOpen((v) => !v)} />}
@@ -357,7 +359,7 @@ export function AssignmentModal({
         </Space>
       }
     >
-      <div style={{ display: 'flex' }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
       <Form form={form} layout="vertical" disabled={isTerminal} onFinish={(v) => (autoAssignEnabled ? autoSaveMutation.mutate(v) : saveMutation.mutate(v))} style={{ flex: 1, minWidth: 0 }}>
         <Form.Item label="Критичность">
           <Select disabled value={task?.criticality} options={[{ value: 'low', label: 'Низкая' }, { value: 'medium', label: 'Средняя' }, { value: 'high', label: 'Высокая' }]} />
@@ -372,7 +374,7 @@ export function AssignmentModal({
         </Space.Compact>
 
         {watchedDate && freezeDays.has(watchedDate.format(API_DATE_FORMAT)) && (
-          <Alert type="error" showIcon message="Эта дата — день фриза, изменения в этот день не выкатываются" style={{ marginBottom: 16 }} />
+          <Alert type="error" showIcon title="Эта дата — день фриза, изменения в этот день не выкатываются" style={{ marginBottom: 16 }} />
         )}
 
         <div style={{ display: 'flex', gap: 24, marginBottom: 16 }}>
@@ -390,7 +392,7 @@ export function AssignmentModal({
 
         {!autoAssignEnabled && (
           <Form.Item name="block_ids" label="Блок">
-            <Select mode="multiple" showSearch optionFilterProp="label" placeholder="Поиск блока..." options={teamBlocks?.map((b) => ({ value: b.id, label: b.name }))} />
+            <Select mode="multiple" showSearch={{optionFilterProp: "label"}} placeholder="Поиск блока..." options={teamBlocks?.map((b) => ({ value: b.id, label: b.name }))} />
           </Form.Item>
         )}
 

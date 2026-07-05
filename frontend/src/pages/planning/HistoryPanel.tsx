@@ -3,6 +3,7 @@ import {Button, Empty, Pagination, Spin, theme} from 'antd';
 import {useQuery} from '@tanstack/react-query';
 import {formatChangedBy, formatHistoryText, type HistoryEntry} from '../../lib/historyFormat';
 import {useEmployeeNames} from '../../hooks/useEmployeeNames';
+import {useIsMobile} from '../../hooks/useIsMobile';
 
 const HISTORY_PAGE_SIZE = 10;
 
@@ -24,6 +25,7 @@ export function HistoryPanel({ kind, entityId, open }: { kind: 'task' | 'assignm
   const { token } = theme.useToken();
   const [offset, setOffset] = useState(0);
   const getEmployeeName = useEmployeeNames();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     setOffset(0);
@@ -43,7 +45,13 @@ export function HistoryPanel({ kind, entityId, open }: { kind: 'task' | 'assignm
   if (!open) return null;
 
   return (
-    <div style={{ width: 300, flexShrink: 0, borderLeft: `1px solid ${token.colorBorder}`, paddingLeft: 16, marginLeft: 16, maxHeight: 520, overflowY: 'auto' }}>
+    <div
+      style={
+        isMobile
+          ? { width: '100%', borderTop: `1px solid ${token.colorBorder}`, paddingTop: 16, marginTop: 16, maxHeight: 320, overflowY: 'auto' }
+          : { width: 300, flexShrink: 0, borderLeft: `1px solid ${token.colorBorder}`, paddingLeft: 16, marginLeft: 16, maxHeight: 520, overflowY: 'auto' }
+      }
+    >
       <div style={{ fontWeight: 600, marginBottom: 8 }}>История изменений</div>
       {isLoading && <Spin />}
       {data && data.history.length === 0 && <Empty description="Изменений пока нет" image={Empty.PRESENTED_IMAGE_SIMPLE} />}

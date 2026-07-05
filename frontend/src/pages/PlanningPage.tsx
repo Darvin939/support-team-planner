@@ -3,35 +3,37 @@ import {useNavigate, useParams} from 'react-router-dom';
 import {DeleteOutlined, EditOutlined, InfoCircleOutlined} from '@ant-design/icons';
 import type {TableColumnsType} from 'antd';
 import {
-    Button,
-    Card,
-    Checkbox,
-    DatePicker,
-    Empty,
-    Input,
-    message,
-    Pagination,
-    Popconfirm,
-    Select,
-    Space,
-    Table,
-    theme,
-    Typography
+  Button,
+  Card,
+  Checkbox,
+  DatePicker,
+  Empty,
+  Input,
+  message,
+  Pagination,
+  Popconfirm,
+  Select,
+  Space,
+  Table,
+  theme,
+  Typography
 } from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import dayjs, {type Dayjs} from 'dayjs';
 import {useTeams} from '../hooks/useTeams';
 import {
-    type Assignment,
-    type Task,
-    useAssignments,
-    useTaskDeps,
-    useTasks,
-    useTodayActive
+  type Assignment,
+  type Task,
+  useAssignments,
+  useTaskDeps,
+  useTasks,
+  useTodayActive
 } from '../hooks/usePlanningData';
 import {useFreezeDays} from '../hooks/useSettingsData';
 import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
+import {useIsMobile} from '../hooks/useIsMobile';
 import {StatGroupLabel, StatTile} from '../components/StatTile';
+import {FilterField, FilterGrid} from '../components/FilterGrid';
 import {CriticalityBadge, DepBadge, ScheduleChip, TaskStatusBadge} from '../components/planningBadges';
 import {TaskModal} from './planning/TaskModal';
 import {AssignmentModal} from './planning/AssignmentModal';
@@ -87,6 +89,7 @@ export function PlanningPage() {
   const { data: teams } = useTeams();
   const { token } = theme.useToken();
   const teamId = teamIdParam ? Number(teamIdParam) : undefined;
+  const isMobile = useIsMobile();
 
   const [range, handleRangeChange] = useDateRangeFilter(() => [dayjs().subtract(7, 'day'), dayjs().add(30, 'day')]);
   const [search, setSearch] = useState('');
@@ -359,31 +362,38 @@ export function PlanningPage() {
         <Typography.Title level={5} style={{ marginTop: 0 }}>
           Фильтры
         </Typography.Title>
-        <Space wrap size={12} align="end">
-          <div>
-            <div style={{ fontSize: '0.8rem', color: token.colorTextTertiary, marginBottom: 4 }}>ПЕРИОД</div>
-            <DatePicker.RangePicker value={range} onChange={handleRangeChange} format={DISPLAY_DATE_FORMAT} minDate={dayjs('2000-01-01')} maxDate={dayjs('2099-12-31')} allowClear={false} />
-          </div>
-          <div>
-            <div style={{ fontSize: '0.8rem', color: token.colorTextTertiary, marginBottom: 4 }}>ПОИСК ПО ОПИСАНИЮ</div>
-            <Input.Search style={{ width: 220 }} placeholder="Введите текст..." allowClear value={search} onChange={(e) => setSearch(e.target.value)} />
-          </div>
-          <div>
-            <div style={{ fontSize: '0.8rem', color: token.colorTextTertiary, marginBottom: 4 }}>КРИТИЧНОСТЬ</div>
-            <Select mode="multiple" style={{ width: 180 }} placeholder="Все" value={critFilter} onChange={setCritFilter} options={CRITICALITY_OPTIONS} />
-          </div>
-          <div>
-            <div style={{ fontSize: '0.8rem', color: token.colorTextTertiary, marginBottom: 4 }}>СТАТУС</div>
-            <Select mode="multiple" style={{ width: 180 }} placeholder="Все" value={statusFilter} onChange={setStatusFilter} options={ASSIGNMENT_STATUS_OPTIONS} />
-          </div>
-          <div>
-            <div style={{ fontSize: '0.8rem', color: token.colorTextTertiary, marginBottom: 4 }}>СТАТУС РАБОТЫ</div>
-            <Select mode="multiple" style={{ width: 180 }} placeholder="Все" value={taskStatusFilter} onChange={setTaskStatusFilter} options={TASK_STATUS_OPTIONS} />
-          </div>
-          <Checkbox checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)}>
-            Показать завершённые
-          </Checkbox>
-        </Space>
+        <FilterGrid isMobile={isMobile}>
+          <FilterField label="ПЕРИОД" isMobile={isMobile} mobileSpan={2}>
+            <DatePicker.RangePicker
+              value={range}
+              onChange={handleRangeChange}
+              format={DISPLAY_DATE_FORMAT}
+              minDate={dayjs('2000-01-01')}
+              maxDate={dayjs('2099-12-31')}
+              allowClear={false}
+              style={isMobile ? { width: '100%' } : undefined}
+            />
+          </FilterField>
+          <FilterField label="ПОИСК ПО ОПИСАНИЮ" isMobile={isMobile}>
+            <Input.Search style={{ width: isMobile ? '100%' : 220 }} placeholder="Введите текст..." allowClear value={search} onChange={(e) => setSearch(e.target.value)} />
+          </FilterField>
+          <FilterField label="КРИТИЧНОСТЬ" isMobile={isMobile}>
+            <Select mode="multiple" style={{ width: isMobile ? '100%' : 180 }} placeholder="Все" value={critFilter} onChange={setCritFilter} options={CRITICALITY_OPTIONS} />
+          </FilterField>
+          <FilterField label="СТАТУС" isMobile={isMobile}>
+            <Select mode="multiple" style={{ width: isMobile ? '100%' : 180 }} placeholder="Все" value={statusFilter} onChange={setStatusFilter} options={ASSIGNMENT_STATUS_OPTIONS} />
+          </FilterField>
+          <FilterField label="СТАТУС РАБОТЫ" isMobile={isMobile}>
+            <Select mode="multiple" style={{ width: isMobile ? '100%' : 180 }} placeholder="Все" value={taskStatusFilter} onChange={setTaskStatusFilter} options={TASK_STATUS_OPTIONS} />
+          </FilterField>
+          <FilterField isMobile={isMobile} mobileSpan="full">
+            <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+              <Checkbox checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)}>
+                Показать завершённые
+              </Checkbox>
+            </div>
+          </FilterField>
+        </FilterGrid>
       </Card>
 
       <Space size={8} wrap style={{ marginBottom: 14 }}>

@@ -5,8 +5,10 @@ import {useQuery} from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import {useTeams} from '../hooks/useTeams';
 import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
+import {useIsMobile} from '../hooks/useIsMobile';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT} from '../lib/dateFormats';
 import {StatGroupLabel, StatTile} from '../components/StatTile';
+import {FilterField, FilterGrid} from '../components/FilterGrid';
 import {CriticalityBadge} from '../components/planningBadges';
 
 const STORAGE_STATS_TEAMS = 'statsSelectedTeams';
@@ -87,6 +89,7 @@ function StatsSection({ title, data, showDate }: { title: string; data: ActiveAs
 
 export function StatisticsPage() {
   const { data: teams } = useTeams();
+  const isMobile = useIsMobile();
 
   const [selectedTeamIds, setSelectedTeamIds] = useState<number[]>(() => {
     try {
@@ -112,34 +115,37 @@ export function StatisticsPage() {
       <Typography.Title level={2}>Статистика</Typography.Title>
 
       <Card style={{ marginBottom: 16 }}>
-        <Space align="center">
-          <span>Команда:</span>
-          <Select
-            mode="multiple"
-            allowClear
-            placeholder="Все команды"
-            style={{ minWidth: 280 }}
-            value={selectedTeamIds}
-            onChange={handleTeamsChange}
-            options={teams?.map((t) => ({ value: t.id, label: t.name }))}
-          />
-        </Space>
+        <FilterGrid isMobile={isMobile}>
+          <FilterField label="КОМАНДА" isMobile={isMobile} mobileSpan="full">
+            <Select
+              mode="multiple"
+              allowClear
+              placeholder="Все команды"
+              style={{ minWidth: isMobile ? '100%' : 280, width: isMobile ? '100%' : undefined }}
+              value={selectedTeamIds}
+              onChange={handleTeamsChange}
+              options={teams?.map((t) => ({ value: t.id, label: t.name }))}
+            />
+          </FilterField>
+        </FilterGrid>
       </Card>
 
       <StatsSection title="Активные работы на сегодня" data={todayData} showDate={false} />
 
       <Card style={{ marginBottom: 16 }}>
-        <Space>
-          <span>Период:</span>
-          <DatePicker.RangePicker
-            value={range}
-            onChange={handleRangeChange}
-            format={DISPLAY_DATE_FORMAT}
-            minDate={dayjs('2000-01-01')}
-            maxDate={dayjs('2099-12-31')}
-            allowClear={false}
-          />
-        </Space>
+        <FilterGrid isMobile={isMobile}>
+          <FilterField label="ПЕРИОД" isMobile={isMobile} mobileSpan="full">
+            <DatePicker.RangePicker
+              value={range}
+              onChange={handleRangeChange}
+              format={DISPLAY_DATE_FORMAT}
+              minDate={dayjs('2000-01-01')}
+              maxDate={dayjs('2099-12-31')}
+              allowClear={false}
+              style={isMobile ? { width: '100%' } : undefined}
+            />
+          </FilterField>
+        </FilterGrid>
       </Card>
       <StatsSection title="Активные работы за период" data={periodData} showDate />
     </>

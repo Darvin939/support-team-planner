@@ -6,6 +6,7 @@ import {useActiveTasksList} from '../../hooks/usePlanningData';
 import {CriticalityBadge, TaskStatusBadge} from '../../components/planningBadges';
 import {apiMutate} from '../../lib/apiMutate';
 import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';
+import {useIsMobile} from '../../hooks/useIsMobile';
 
 interface TaskFormValues {
   name: string;
@@ -33,6 +34,7 @@ export function TaskModal({
   const [depSearch, setDepSearch] = useState('');
   const isTerminal = task ? task.task_status === 'done' || task.task_status === 'cancelled' : false;
   const [historyOpen, setHistoryOpen] = useHistoryToggle(open, isTerminal);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (!open) return;
@@ -93,7 +95,7 @@ export function TaskModal({
       title={task ? 'Редактирование работы' : 'Добавить работу'}
       open={open}
       onCancel={onClose}
-      width={historyOpen ? 820 : 520}
+      width={isMobile ? '95%' : historyOpen ? 820 : 520}
       footer={
         <Space>
           {task && <HistoryToggleButton open={historyOpen} onClick={() => setHistoryOpen((v) => !v)} />}
@@ -113,7 +115,7 @@ export function TaskModal({
         </Space>
       }
     >
-      <div style={{ display: 'flex' }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
         <Form form={form} layout="vertical" disabled={isTerminal} onFinish={(v) => saveMutation.mutate(v)} style={{ flex: 1, minWidth: 0 }}>
           <Form.Item name="name" label="Имя" rules={[{ required: true, message: 'Введите имя' }]}>
             <Input />
