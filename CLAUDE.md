@@ -27,12 +27,10 @@ on a manual refresh. **`frontend/dist/` (built via Vite) is required, not option
 `_serve_react_index()`; without a build, nothing loads at all. Run `npm run build` after cloning/pulling before
 starting `support_planner.py`.
 
-**Known gap:** `frontend/src/theme.ts` sets `fontFamily` to `'InterVariable', 'Inter', ...` and
-`'JetBrains Mono Variable'` is used ad hoc in a few components, and the actual self-hosted font files exist at
-`static/fonts/InterVariable.woff2` / `static/fonts/JetBrainsMono-Variable.woff2` — but nothing in the React app
-declares an `@font-face` pointing at them (no such file was ever created during the migration), so these
-font-family names currently resolve to nothing and silently fall back to system fonts. Pre-existing from the
-CSS-only redesign phase, orthogonal to the frontend migration; not yet fixed.
+`frontend/src/theme.ts` sets `fontFamily` to `'InterVariable', 'Inter', ...` and `'JetBrains Mono Variable'` is
+used ad hoc in a few components; `frontend/src/index.css` declares the matching `@font-face` rules pointing at
+the self-hosted files at `static/fonts/InterVariable.woff2` / `static/fonts/JetBrainsMono-Variable.woff2` (fonts
+are self-hosted, never loaded from an external CDN at runtime).
 
 ```bash
 cd frontend && npm install   # Install frontend dependencies (first time only)
@@ -84,12 +82,17 @@ FastAPI app split across a handful of modules:
       `SessionMiddleware` has run — so `SessionMiddleware` must end up as the outer/first-executed layer, which means it
       must be the *last* one registered. Swapping this order reintroduces
       `AssertionError: SessionMiddleware must be installed to access request.session`. `_PUBLIC_PATHS` (`/login`,
-      `/logout`) plus anything under `/static/` bypass the login check entirely; every other route (including `/docs`/
-      `/openapi.json`) requires a session.
+      `/logout`, `/api/login-employees`) plus anything under `/static/` or `/react-assets/` bypass the login check
+      entirely; every other route (including `/docs`/`/openapi.json`) requires a session. Beyond the session check,
+      `require_login` also enforces role: it reads `role` fresh from the DB on every request (not from the session,
+      so a role change takes effect without re-login), stores it on `request.state.role`, and compares it against
+      `_required_rank(method, path)` — a 403 JSON error for `/api/*`, a redirect to `/planning` for pages. `GET`
+      requests are always allowed at any role; `/settings` requires `editor`+; `/api/employees` mutations require
+      `admin`; `/api/teams`, `/api/freeze-days`, `/api/blocks`, `/api/block-templates` mutations require `editor`+;
+      everything else (including task/assignment mutations) only requires being logged in (`user`+).
 - **`auth.py`** — password hashing only (`hash_password`/`verify_password`, stdlib `hashlib.pbkdf2_hmac` + `secrets`,
-  self-describing `pbkdf2_sha256$<iterations>$<salt>$<hash>` format, no external crypto dependency). No
-  JWT/roles/permissions — a session cookie just holds `employee_id`; any logged-in employee can act as any other (e.g.,
-  reset another employee's password via the Settings UI).
+  self-describing `pbkdf2_sha256$<iterations>$<salt>$<hash>` format, no external crypto dependency). No JWT — role
+  authorization itself lives in `support_planner.py`'s `require_login` middleware (see above), not here.
 - **`db/` package** — DAO layer, swappable between SQLite and PostgreSQL:
     - `db/__init__.py` — all DAO functions (teams, blocks, block templates, employees, freeze days, tasks, task
       dependencies, assignments, statistics, change history), each wrapped in `@with_db_connection`, which handles
@@ -165,7 +168,8 @@ Foreign keys are enforced (`PRAGMA foreign_keys = ON` for SQLite; on by default 
 - `tasks` N↔N `tasks` via `task_dependencies` (`task_id` depends on `depends_on_task_id`), cycle-checked before insert (
   `has_dependency_cycle`, BFS)
 - `employees` 1→N `assignments` (set NULL on employee delete, not cascade); also carries `password_hash` (nullable — an
-  employee without a hash set simply can't log in yet)
+  employee without a hash set simply can't log in yet) and `role` (`NOT NULL DEFAULT 'user'`, one of `user`/
+  `editor`/`admin` — see Domain Concepts)
 - `task_history` / `assignment_history` — append-only audit log of field-level changes (see Domain Concepts). *
   *Deliberately have no FOREIGN KEY** on `task_id`/`assignment_id`/`changed_by_employee_id`, breaking the repo's usual "
   FKs everywhere" convention on purpose: an audit row must outlive the row it describes (a cascading FK would erase a
@@ -188,7 +192,8 @@ Two separate status machines coexist — do not confuse them:
   status `planned` auto-advances the parent task to `in_progress` via `maybe_advance_task_to_in_progress()`. Assignments
   also carry an `is_psi` boolean marker (ПСИ).
 - **Task statuses** (`tasks.task_status`): `new` → `ready` → `in_progress` → `done` | `cancelled`. Valid transitions are
-  enforced in both `support_planner.py:VALID_TASK_TRANSITIONS` and `frontend/src/pages/PlanningPage.tsx:VALID_TASK_TRANSITIONS` — keep them in
+  enforced in both `support_planner.py:VALID_TASK_TRANSITIONS` and
+  `frontend/src/pages/PlanningPage.tsx:VALID_TASK_TRANSITIONS` — keep them in
   sync. Tasks in terminal states (`done`, `cancelled`) block all assignment/task edits.
 - **Criticality**: `high`, `medium`, `low` (sorted in that order in queries; tasks list is sorted criticality-first,
   then task_status)
@@ -204,17 +209,25 @@ Two separate status machines coexist — do not confuse them:
   PL/pgSQL in Postgres)
 - **Active assignments**: assignment statuses `new` or `planned` on tasks not in terminal states, served by
   `/api/active-assignments/{team_id}` (team_id=0 for all teams)
-- **Authentication**: per-employee login (no roles) via `GET/POST /login` and `POST /logout`. The whole app (pages and
-  `/api/*`) sits behind the `require_login` middleware in `support_planner.py` except `/login`, `/logout`,
-  `/api/login-employees`, `/static/*`, and `/react-assets/*` (the built React bundle itself must be loadable
-  before the user is authenticated — see the React migration note above). There's no self-service signup, but
-  there is a bootstrap account: `SQLiteBackend.init_schema()` /
-  `PostgresBackend.init_schema()` both seed an `employees` row named `Администратор` (empty first/middle name) with
-  password `q123456789` via `INSERT OR IGNORE`, on every startup. This relies on `middle_name` being `''` rather than
-  `NULL` in that seed row — `UNIQUE(last_name, first_name, middle_name)` never treats two `NULL`s as equal, so a `NULL`
-  `middle_name` would silently defeat the `OR IGNORE` dedup and create a fresh duplicate admin row on every restart.
-  Any other brand-new `employees` row still starts with `password_hash = NULL` and can't log in until a password is
-  set for it via the Settings employee modal (which itself requires being logged in as someone else first).
+- **Authentication & roles**: per-employee login via `GET/POST /login` and `POST /logout`, plus a three-tier role
+  system — `employees.role` is `user` < `editor` < `admin` (each rank includes the ones below it), enforced by
+  `require_login` (see above) via `_ROLE_RANK`/`_required_rank`/`_VALID_ROLES` in `support_planner.py`. In short:
+  any logged-in employee can read everything and create/edit/delete tasks and assignments; `editor`+ additionally
+  gets the whole `/settings` page and team/freeze-day/block/block-template mutations; only `admin` can create,
+  edit, or delete other employees (including resetting their password or changing their role) — `GET
+  /api/employees` itself stays open to every role since the planner's assignee dropdowns need it. `GET /api/me`
+  exposes the current employee + role as JSON for the React nav (`AuthenticatedLayout`/`AppShell` role-gate the
+  Settings nav item on `role === 'admin' || role === 'editor'`). The whole app (pages and `/api/*`) sits behind
+  `require_login` in `support_planner.py` except `/login`, `/logout`, `/api/login-employees`, `/static/*`, and
+  `/react-assets/*` (the built React bundle itself must be loadable before the user is authenticated — see the
+  React migration note above). There's no self-service signup, but there is a bootstrap account:
+  `SQLiteBackend.init_schema()` / `PostgresBackend.init_schema()` both seed an `employees` row named
+  `Администратор` (empty first/middle name, role `admin`) with password `q12345678` via `INSERT OR IGNORE`, on
+  every startup. This relies on `middle_name` being `''` rather than `NULL` in that seed row — `UNIQUE(last_name,
+  first_name, middle_name)` never treats two `NULL`s as equal, so a `NULL` `middle_name` would silently defeat the
+  `OR IGNORE` dedup and create a fresh duplicate admin row on every restart. Any other brand-new `employees` row
+  still starts with `password_hash = NULL` and can't log in until a password is set for it via the Settings
+  employee modal (which itself requires being logged in as an `admin`).
 - **Change history**: every create/update/delete on a task or assignment is logged (see `task_history`/
   `assignment_history` above), attributed to whichever employee is in the current session (`changed_by`, nullable —
   history rows from before the login feature existed, or written with no session, have `changed_by_employee_id = NULL`).
