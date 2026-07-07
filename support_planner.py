@@ -407,8 +407,10 @@ def get_team_deps(team_id: int, task_ids: Optional[str] = None):
 
 
 @app.get('/api/tasks/{team_id}/active-list')
-def get_active_tasks_list(team_id: int):
-    rows = db.get_active_tasks_flat(team_id)
+def get_active_tasks_list(team_id: int, search: str = "", limit: int = 50, include_ids: Optional[str] = None):
+    search_val = search.strip() or None
+    parsed_include_ids = [int(x) for x in include_ids.split(',') if x.strip()] if include_ids else None
+    rows = db.get_active_tasks_flat(team_id, search=search_val, limit=limit, include_ids=parsed_include_ids)
     return [{'id': r['id'], 'name': r['name'], 'task_status': r['task_status'],
              'criticality': r['criticality']} for r in rows]
 

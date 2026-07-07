@@ -709,12 +709,49 @@ def has_dependency_cycle(conn, task_id, new_dep_ids):
 
 
 @with_db_connection(commit_on_success=False)
-def get_active_tasks_flat(conn, team_id):
-    return conn.execute(
-        "SELECT id, name, task_status, criticality FROM tasks"
-        " WHERE team_id = ? AND is_deleted = 0 AND task_status NOT IN ('done', 'cancelled') ORDER BY name",
-        (team_id,)
-    ).fetchall()
+def get_active_tasks_flat(conn, team_id, search=None, limit=50, include_ids=None):
+    params = [team_id]
+    if search:
+        words = search.split()
+        word_clauses = " AND ".join(
+            "(fuzzy_word_in(name, ?) OR fuzzy_word_in(description, ?))" for _ in words
+        )
+        search_clause = f"AND ({word_clauses})"
+        for word in words:
+            params += [word, word]
+    else:
+        search_clause = ""
+    params.append(limit)
+
+    include_clause = ""
+    if include_ids:
+        placeholders = ','.join('?' * len(include_ids))
+        include_clause = f'''
+            UNION
+            SELECT id, name, task_status, criticality
+            FROM tasks
+            WHERE team_id = ? AND is_deleted = 0 AND id IN ({placeholders})
+        '''
+        params.append(team_id)
+        params += list(include_ids)
+
+    # @formatter:off
+    query = f'''
+        SELECT id, name, task_status, criticality FROM (
+            SELECT id, name, task_status, criticality
+            FROM tasks
+            WHERE team_id = ?
+              AND is_deleted = 0
+              AND task_status NOT IN ('done', 'cancelled')
+              {search_clause}
+            ORDER BY name
+            LIMIT ?
+        )
+        {include_clause}
+        ORDER BY name
+    '''
+    # @formatter:on
+    return conn.execute(query, params).fetchall()
 
 
 # === ASSIGNMENTS CRUD ===

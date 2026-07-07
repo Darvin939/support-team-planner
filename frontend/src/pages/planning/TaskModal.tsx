@@ -31,9 +31,9 @@ export function TaskModal({
 }) {
   const [form] = Form.useForm<TaskFormValues>();
   const queryClient = useQueryClient();
-  const { data: activeTasks } = useActiveTasksList(teamId);
   const [depIds, setDepIds] = useState<Set<number>>(new Set());
   const [depSearch, setDepSearch] = useState('');
+  const { data: activeTasks } = useActiveTasksList(teamId, depSearch, existingDepIds);
   const isTerminal = task ? task.task_status === 'done' || task.task_status === 'cancelled' : false;
   const [historyOpen, setHistoryOpen] = useHistoryToggle(open, isTerminal);
   const isMobile = useIsMobile();
@@ -81,7 +81,6 @@ export function TaskModal({
 
   const filteredDeps = (activeTasks ?? [])
     .filter((t) => t.id !== task?.id)
-    .filter((t) => t.name.toLowerCase().includes(depSearch.toLowerCase()))
     .sort((a, b) => Number(depIds.has(b.id)) - Number(depIds.has(a.id)));
 
   function toggleDep(id: number) {

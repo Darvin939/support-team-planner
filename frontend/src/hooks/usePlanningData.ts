@@ -156,10 +156,15 @@ export interface ActiveTaskListItem {
   criticality: string;
 }
 
-export function useActiveTasksList(teamId: number) {
+export function useActiveTasksList(teamId: number, search: string, includeIds: number[]) {
+  const includeIdsKey = [...includeIds].sort((a, b) => a - b).join(',');
   return useQuery<ActiveTaskListItem[]>({
-    queryKey: ['active-tasks-list', teamId],
-    queryFn: () => getJson(`/api/tasks/${teamId}/active-list`),
+    queryKey: ['active-tasks-list', teamId, search, includeIdsKey],
+    queryFn: () =>
+      getJson(
+        `/api/tasks/${teamId}/active-list?search=${encodeURIComponent(search)}` +
+          (includeIdsKey ? `&include_ids=${includeIdsKey}` : '')
+      ),
     enabled: !!teamId,
   });
 }
