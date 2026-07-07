@@ -3,32 +3,32 @@ import {useLocation, useNavigate, useParams} from 'react-router-dom';
 import {DeleteOutlined, EditOutlined, InfoCircleOutlined} from '@ant-design/icons';
 import type {TableColumnsType} from 'antd';
 import {
-    Button,
-    Card,
-    Checkbox,
-    DatePicker,
-    Empty,
-    Input,
-    message,
-    Pagination,
-    Popconfirm,
-    Select,
-    Space,
-    Table,
-    theme,
-    Typography
+  Button,
+  Card,
+  Checkbox,
+  DatePicker,
+  Empty,
+  Input,
+  message,
+  Pagination,
+  Popconfirm,
+  Select,
+  Space,
+  Table,
+  theme,
+  Typography
 } from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import dayjs, {type Dayjs} from 'dayjs';
 import {useTeams} from '../hooks/useTeams';
 import {
-    type Assignment,
-    type Task,
-    useAssignments,
-    useTaskById,
-    useTaskDeps,
-    useTasks,
-    useTodayActive
+  type Assignment,
+  type Task,
+  useAssignments,
+  useTaskById,
+  useTaskDeps,
+  useTasks,
+  useTodayActive
 } from '../hooks/usePlanningData';
 import {useFreezeDays} from '../hooks/useSettingsData';
 import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
@@ -310,11 +310,26 @@ export function PlanningPage() {
                 </Popconfirm>
               )}
               <TaskStatusBadge value={task.task_status} />
-              {transitions.map((s) => (
-                <Button key={s} size="small" onClick={() => statusMutation.mutate({ taskId: task.id, status: s })}>
-                  {TASK_STATUS_LABELS[s]}
-                </Button>
-              ))}
+              {transitions.map((s) => {
+                if (s === 'done' || s === 'cancelled') {
+                  return (
+                    <Popconfirm
+                      key={s}
+                      title={`Перевести работу в статус «${TASK_STATUS_LABELS[s]}»?`}
+                      onConfirm={() => statusMutation.mutate({ taskId: task.id, status: s })}
+                      okText="Перевести"
+                      cancelText="Отмена"
+                    >
+                      <Button size="small">{TASK_STATUS_LABELS[s]}</Button>
+                    </Popconfirm>
+                  );
+                }
+                return (
+                  <Button key={s} size="small" onClick={() => statusMutation.mutate({ taskId: task.id, status: s })}>
+                    {TASK_STATUS_LABELS[s]}
+                  </Button>
+                );
+              })}
               {deleted.length > 0 && <DepBadge kind="deleted" names={deleted.map((d) => d.dep_name)} />}
               {cancelled.length > 0 && <DepBadge kind="cancelled" names={cancelled.map((d) => d.dep_name)} />}
               {pending.length > 0 && <DepBadge kind="pending" names={pending.map((d) => d.dep_name)} />}
