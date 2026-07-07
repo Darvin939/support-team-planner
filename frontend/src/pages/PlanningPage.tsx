@@ -378,7 +378,7 @@ export function PlanningPage() {
       <>
         <Typography.Title level={2}>Планирование</Typography.Title>
         <Card>
-          <Select style={{ minWidth: 260 }} placeholder="-- Выберите команду --" onChange={handleTeamSelect} options={teams?.map((t) => ({ value: t.id, label: t.name }))} />
+          <Select style={{ minWidth: 260 }} placeholder="-- Выберите команду --" showSearch={{ optionFilterProp: 'label' }} onChange={handleTeamSelect} options={teams?.map((t) => ({ value: t.id, label: t.name }))} />
         </Card>
         <div style={{ marginTop: 24 }}>
           <Empty description="Выберите команду для начала планирования" />
@@ -399,7 +399,7 @@ export function PlanningPage() {
       <Typography.Title level={2}>Планирование</Typography.Title>
 
       <Card style={{ marginBottom: 16 }}>
-        <Select style={{ minWidth: 260 }} value={teamId} onChange={handleTeamSelect} options={teams?.map((t) => ({ value: t.id, label: t.name }))} />
+        <Select style={{ minWidth: 260 }} value={teamId} showSearch={{ optionFilterProp: 'label' }} onChange={handleTeamSelect} options={teams?.map((t) => ({ value: t.id, label: t.name }))} />
       </Card>
 
       <Card style={{ marginBottom: 16 }}>

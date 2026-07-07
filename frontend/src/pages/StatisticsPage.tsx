@@ -167,6 +167,7 @@ export function StatisticsPage() {
             <Select
               mode="multiple"
               allowClear
+              showSearch={{ optionFilterProp: 'label' }}
               placeholder="Все команды"
               style={{ minWidth: isMobile ? '100%' : 280, width: isMobile ? '100%' : undefined }}
               value={selectedTeamIds}

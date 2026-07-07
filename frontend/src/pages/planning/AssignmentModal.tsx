@@ -410,6 +410,7 @@ export function AssignmentModal({
               <Select
                 style={{ width: '100%' }}
                 status={autoAssignMissingTemplate ? 'error' : undefined}
+                showSearch={{ optionFilterProp: 'label' }}
                 placeholder="— выберите шаблон —"
                 value={selectedTemplateId ?? undefined}
                 onChange={(v) => {
@@ -455,6 +456,7 @@ export function AssignmentModal({
             <Form.Item name="employee_id" label="Исполнитель">
               <Select
                 allowClear
+                showSearch={{ optionFilterProp: 'label' }}
                 placeholder="Не выбран"
                 options={employees?.map((e) => ({ value: e.id, label: `${e.last_name} ${e.first_name}${e.middle_name ? ' ' + e.middle_name : ''}` }))}
               />

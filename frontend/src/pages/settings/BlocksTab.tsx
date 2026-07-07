@@ -168,7 +168,7 @@ function TemplatesList() {
                   {fields.map((field) => (
                     <Space key={field.key} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
                       <Form.Item name={[field.name, 'block_id']} noStyle rules={[{ required: true, message: 'Выберите блок' }]}>
-                        <Select style={{ width: 180 }} options={blocks?.map((b) => ({ value: b.id, label: b.name }))} />
+                        <Select style={{ width: 180 }} showSearch={{ optionFilterProp: 'label' }} options={blocks?.map((b) => ({ value: b.id, label: b.name }))} />
                       </Form.Item>
                       <Form.Item name={[field.name, 'shift_days']} noStyle>
                         <InputNumber placeholder="Сдвиг, дни" />

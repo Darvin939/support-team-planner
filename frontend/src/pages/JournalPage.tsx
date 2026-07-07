@@ -176,6 +176,7 @@ export function JournalPage() {
           value={teamId}
           onChange={handleTeamSelect}
           allowClear
+          showSearch={{ optionFilterProp: 'label' }}
           options={teams?.map((t) => ({ value: t.id, label: t.name }))}
         />
       </Card>
