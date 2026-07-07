@@ -2,7 +2,7 @@ import {useEffect, useState} from 'react';
 import {Button, Empty, Pagination, Spin, theme} from 'antd';
 import {useQuery} from '@tanstack/react-query';
 import {formatChangedBy, formatHistoryText, type HistoryEntry} from '../../lib/historyFormat';
-import {useEmployeeNames} from '../../hooks/useEmployeeNames';
+import {useUserNames} from '../../hooks/useUserNames';
 import {useIsMobile} from '../../hooks/useIsMobile';
 
 const HISTORY_PAGE_SIZE = 10;
@@ -24,7 +24,7 @@ export function HistoryToggleButton({ open, onClick }: { open: boolean; onClick:
 export function HistoryPanel({ kind, entityId, open }: { kind: 'task' | 'assignment'; entityId: number | null; open: boolean }) {
   const { token } = theme.useToken();
   const [offset, setOffset] = useState(0);
-  const getEmployeeName = useEmployeeNames();
+  const getUserName = useUserNames();
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -62,7 +62,7 @@ export function HistoryPanel({ kind, entityId, open }: { kind: 'task' | 'assignm
               <div style={{ opacity: 0.6, fontSize: '0.72rem' }}>
                 {entry.changed_at} — {formatChangedBy(entry)}
               </div>
-              <div>{formatHistoryText(entry, getEmployeeName, kind === 'task')}</div>
+              <div>{formatHistoryText(entry, getUserName, kind === 'task')}</div>
             </div>
           ))}
         </div>

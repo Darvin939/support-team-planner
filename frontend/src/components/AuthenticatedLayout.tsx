@@ -4,7 +4,7 @@ import {Spin} from 'antd';
 import {AppShell} from './AppShell';
 import {MyAccountModal} from './MyAccountModal';
 import {useMe} from '../hooks/useMe';
-import {formatDisplayName} from '../hooks/useEmployeeNames';
+import {formatDisplayName} from '../hooks/useUserNames';
 
 export function AuthenticatedLayout({ isDark, onToggleTheme }: { isDark: boolean; onToggleTheme: () => void }) {
   const { data: me, isLoading, isError } = useMe();

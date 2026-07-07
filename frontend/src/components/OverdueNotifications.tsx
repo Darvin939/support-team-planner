@@ -60,7 +60,7 @@ export function OverdueNotifications({ compact }: { compact?: boolean }) {
                   <span style={{ fontWeight: 500 }}>{item.task_name}</span>
                 </div>
                 <div style={{ marginTop: 2, fontSize: '0.8rem', color: token.colorTextSecondary }}>
-                  {item.team_name} · {item.employee_name || '—'} · {dayjs(item.date).format(DISPLAY_DATE_FORMAT)}
+                  {item.team_name} · {item.user_name || '—'} · {dayjs(item.date).format(DISPLAY_DATE_FORMAT)}
                 </div>
               </List.Item>
             )}

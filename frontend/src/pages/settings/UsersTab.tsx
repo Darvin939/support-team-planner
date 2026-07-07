@@ -1,18 +1,19 @@
 import {useState} from 'react';
 import {DeleteOutlined, EditOutlined, LockOutlined} from '@ant-design/icons';
-import {Button, Form, Input, List, message, Modal, Popconfirm, Select, Space, Tag, Tooltip} from 'antd';
+import {Button, Form, Input, List, message, Modal, Popconfirm, Select, Space, Switch, Tag, Tooltip} from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
-import {type Employee, useEmployees} from '../../hooks/useSettingsData';
+import {type User, useUsers} from '../../hooks/useSettingsData';
 import {useMe} from '../../hooks/useMe';
 import {apiMutate} from '../../lib/apiMutate';
 
-interface EmployeeFormValues {
-  last_name: string;
+interface UserFormValues {
+  last_name: string | null;
   first_name: string;
   middle_name: string | null;
   login: string | null;
   password: string | null;
   role: string;
+  is_assignee: boolean;
 }
 
 const ROLE_OPTIONS = [
@@ -21,45 +22,45 @@ const ROLE_OPTIONS = [
   { value: 'admin', label: 'Администратор' },
 ];
 
-export function EmployeesTab() {
-  const { data: employees } = useEmployees();
+export function UsersTab() {
+  const { data: users } = useUsers();
   const { data: me } = useMe();
   const isAdmin = me?.role === 'admin';
   const queryClient = useQueryClient();
-  const [modalEmployee, setModalEmployee] = useState<Employee | 'new' | null>(null);
-  const [form] = Form.useForm<EmployeeFormValues>();
+  const [modalUser, setModalUser] = useState<User | 'new' | null>(null);
+  const [form] = Form.useForm<UserFormValues>();
 
   const saveMutation = useMutation({
-    mutationFn: async (values: EmployeeFormValues) => {
-      const isNew = modalEmployee === 'new';
-      const url = isNew ? '/api/employees' : `/api/employees/${(modalEmployee as Employee).id}`;
+    mutationFn: async (values: UserFormValues) => {
+      const isNew = modalUser === 'new';
+      const url = isNew ? '/api/users' : `/api/users/${(modalUser as User).id}`;
       return apiMutate(url, isNew ? 'POST' : 'PUT', { ...values, password: values.password || null });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
       message.success('Сохранено');
-      setModalEmployee(null);
+      setModalUser(null);
     },
     onError: (e: Error) => message.error(e.message),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (employeeId: number) => apiMutate(`/api/employees/${employeeId}`, 'DELETE'),
+    mutationFn: (userId: number) => apiMutate(`/api/users/${userId}`, 'DELETE'),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
-      message.success('Сотрудник удалён');
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      message.success('Пользователь удалён');
     },
     onError: (e: Error) => message.error(e.message),
   });
 
-  const isEditingProtected = modalEmployee !== 'new' && modalEmployee !== null && modalEmployee.is_protected;
+  const isEditingProtected = modalUser !== 'new' && modalUser !== null && modalUser.is_protected;
 
-  function openModal(emp: Employee | 'new') {
-    setModalEmployee(emp);
-    if (emp === 'new') {
-      form.setFieldsValue({ last_name: '', first_name: '', middle_name: '', login: '', password: '', role: 'user' });
+  function openModal(u: User | 'new') {
+    setModalUser(u);
+    if (u === 'new') {
+      form.setFieldsValue({ last_name: '', first_name: '', middle_name: '', login: '', password: '', role: 'user', is_assignee: true });
     } else {
-      form.setFieldsValue({ last_name: emp.last_name, first_name: emp.first_name, middle_name: emp.middle_name ?? '', login: emp.login ?? '', password: '', role: emp.role });
+      form.setFieldsValue({ last_name: u.last_name ?? '', first_name: u.first_name, middle_name: u.middle_name ?? '', login: u.login ?? '', password: '', role: u.role, is_assignee: u.is_assignee });
     }
   }
 
@@ -68,30 +69,30 @@ export function EmployeesTab() {
       {isAdmin && (
         <Space style={{ marginBottom: 16 }}>
           <Button type="primary" onClick={() => openModal('new')}>
-            Добавить сотрудника
+            Добавить пользователя
           </Button>
         </Space>
       )}
 
       <List
         bordered
-        dataSource={employees}
-        renderItem={(emp) => (
+        dataSource={users}
+        renderItem={(u) => (
           <List.Item
             actions={
               isAdmin
                 ? [
-                    <Button key="edit" size="small" onClick={() => openModal(emp)}>
+                    <Button key="edit" size="small" onClick={() => openModal(u)}>
                       <EditOutlined />
                     </Button>,
-                    emp.is_protected ? (
+                    u.is_protected ? (
                       <Tooltip key="delete" title="Учётную запись администратора по умолчанию нельзя удалить">
                         <Button size="small" danger disabled>
                           <DeleteOutlined />
                         </Button>
                       </Tooltip>
                     ) : (
-                      <Popconfirm key="delete" title="Удалить сотрудника?" onConfirm={() => deleteMutation.mutate(emp.id)} okText="Удалить" cancelText="Отмена">
+                      <Popconfirm key="delete" title="Удалить пользователя?" onConfirm={() => deleteMutation.mutate(u.id)} okText="Удалить" cancelText="Отмена">
                         <Button size="small" danger>
                           <DeleteOutlined />
                         </Button>
@@ -101,9 +102,10 @@ export function EmployeesTab() {
                 : []
             }
           >
-            {emp.last_name} {emp.first_name} {emp.middle_name ?? ''} <Tag style={{ marginLeft: 8 }}>{emp.role}</Tag>
-            {emp.login && <Tag style={{ marginLeft: 4 }}>{emp.login}</Tag>}
-            {emp.is_protected && (
+            {[u.last_name, u.first_name, u.middle_name].filter(Boolean).join(' ')} <Tag style={{ marginLeft: 8 }}>{u.role}</Tag>
+            {u.login && <Tag style={{ marginLeft: 4 }}>{u.login}</Tag>}
+            {!u.is_assignee && <Tag style={{ marginLeft: 4 }}>Не исполнитель</Tag>}
+            {u.is_protected && (
               <Tooltip title="Учётную запись администратора по умолчанию нельзя удалить">
                 <Tag icon={<LockOutlined />} color="default" style={{ marginLeft: 4 }}>
                   По умолчанию
@@ -115,11 +117,11 @@ export function EmployeesTab() {
       />
 
       <Modal
-        title={modalEmployee === 'new' ? 'Добавить сотрудника' : 'Редактирование сотрудника'}
-        open={modalEmployee !== null}
-        onCancel={() => setModalEmployee(null)}
+        title={modalUser === 'new' ? 'Добавить пользователя' : 'Редактирование пользователя'}
+        open={modalUser !== null}
+        onCancel={() => setModalUser(null)}
         onOk={() => form.submit()}
-        okText={modalEmployee === 'new' ? 'Создать' : 'Обновить'}
+        okText={modalUser === 'new' ? 'Создать' : 'Обновить'}
         confirmLoading={saveMutation.isPending}
       >
         <Form form={form} layout="vertical" onFinish={(v) => saveMutation.mutate(v)}>
@@ -130,14 +132,17 @@ export function EmployeesTab() {
           )}
           {!isEditingProtected && (
             <>
-              <Form.Item name="last_name" label="Фамилия" rules={[{ required: true, message: 'Введите фамилию' }]}>
-                <Input placeholder="Фамилия" />
-              </Form.Item>
               <Form.Item name="first_name" label="Имя" rules={[{ required: true, message: 'Введите имя' }]}>
                 <Input placeholder="Имя" />
               </Form.Item>
+              <Form.Item name="last_name" label="Фамилия">
+                <Input placeholder="Фамилия" />
+              </Form.Item>
               <Form.Item name="middle_name" label="Отчество">
                 <Input placeholder="Отчество" />
+              </Form.Item>
+              <Form.Item name="is_assignee" label="Может быть исполнителем" valuePropName="checked">
+                <Switch />
               </Form.Item>
             </>
           )}

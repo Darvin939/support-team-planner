@@ -40,9 +40,9 @@ _PUBLIC_PATHS = {'/login', '/logout'}
 _ROLE_RANK = {'user': 0, 'editor': 1, 'admin': 2}
 
 # Мутирующие эндпоинты, требующие роль не ниже admin (управление учётными записями — единственное,
-# что запрещено editor'у). GET /api/employees остаётся доступен всем ролям (нужен для выпадающих
+# что запрещено editor'у). GET /api/users остаётся доступен всем ролям (нужен для выпадающих
 # списков назначения исполнителя в планировщике).
-_ADMIN_ONLY_API_PREFIXES = ('/api/employees',)
+_ADMIN_ONLY_API_PREFIXES = ('/api/users',)
 
 # Мутирующие эндпоинты настроек, требующие роль не ниже editor (всё, кроме учётных записей).
 _EDITOR_API_PREFIXES = ('/api/teams', '/api/freeze-days', '/api/blocks', '/api/block-templates')
@@ -71,10 +71,10 @@ async def require_login(request: Request, call_next):
     path = request.url.path
     if path in _PUBLIC_PATHS or path.startswith('/react-assets/'):
         return await call_next(request)
-    employee_id = request.session.get('employee_id')
-    emp = db.employee_exists(employee_id) if employee_id else None
-    if not employee_id or not emp:
-        # Сессия может ссылаться на сотрудника, которого больше нет (удалили, БД пересоздали) —
+    user_id = request.session.get('user_id')
+    user = db.user_exists(user_id) if user_id else None
+    if not user_id or not user:
+        # Сессия может ссылаться на пользователя, которого больше нет (удалили, БД пересоздали) —
         # обращаемся с этим так же, как с отсутствием сессии, а не пропускаем дальше: иначе запись
         # в task_history/assignment_history упадёт с FOREIGN KEY constraint failed при первом же
         # создании/изменении задачи или назначения.
@@ -85,7 +85,7 @@ async def require_login(request: Request, call_next):
 
     # Роль читается из БД на каждый запрос (не из сессии), чтобы смена роли применялась
     # немедленно, без необходимости перелогина.
-    role = emp['role']
+    role = user['role']
     request.state.role = role
     if _ROLE_RANK.get(role, 0) < _required_rank(request.method, path):
         if path.startswith('/api/'):
@@ -112,7 +112,7 @@ class AssignmentIn(BaseModel):
     date: Optional[str] = None
     block: Optional[str] = None
     status: str = "new"
-    employee_id: Optional[int] = None
+    user_id: Optional[int] = None
     comment: Optional[str] = None
     is_psi: bool = False
     time_spent: Optional[str] = None
@@ -146,17 +146,17 @@ class BlockTemplateIn(BaseModel):
     entries: Optional[List[TemplateEntryIn]] = None
 
 
-class EmployeeIn(BaseModel):
+class UserIn(BaseModel):
     last_name: str = ""
     first_name: str = ""
     middle_name: Optional[str] = None
     password: Optional[str] = None
     role: str = "user"
     login: Optional[str] = None
+    is_assignee: bool = True
 
 
-class MyCredentialsIn(BaseModel):
-    login: Optional[str] = None
+class MyPasswordIn(BaseModel):
     password: Optional[str] = None
 
 
@@ -199,11 +199,11 @@ def login_page():
 @app.post('/login')
 def login_submit(request: Request, login: str = Form(...), password: str = Form(...)):
     """Обработка входа по логину и паролю"""
-    auth_row = db.get_employee_auth_by_login(login.strip()) if login.strip() else None
+    auth_row = db.get_user_auth_by_login(login.strip()) if login.strip() else None
     if not auth_row or not auth.verify_password(password, auth_row['password_hash']):
         return JSONResponse({'error': 'Неверный логин или пароль'}, status_code=401)
 
-    request.session['employee_id'] = auth_row['id']
+    request.session['user_id'] = auth_row['id']
     request.session['role'] = auth_row['role']
     return {'success': True}
 
@@ -220,30 +220,26 @@ def get_me(request: Request):
     """Личность и роль текущего пользователя — то же самое, что require_login уже вычисляет
     в request.state.role, но в виде JSON для клиентских (React) страниц, у которых нет доступа
     к current_role из Jinja-контекста."""
-    emp = db.get_employee(request.session['employee_id'])
+    user = db.get_user(request.session['user_id'])
     return {
-        'employee_id': emp['id'],
-        'role': emp['role'],
-        'last_name': emp['last_name'],
-        'first_name': emp['first_name'],
-        'middle_name': emp['middle_name'],
+        'user_id': user['id'],
+        'role': user['role'],
+        'last_name': user['last_name'],
+        'first_name': user['first_name'],
+        'middle_name': user['middle_name'],
     }
 
 
 @app.put('/api/me')
-def update_me_api(request: Request, data: MyCredentialsIn):
-    """Сотрудник меняет логин и/или пароль собственной учётной записи — доступно любой роли
-    (в отличие от /api/employees, который требует admin), не трогает ФИО/роль."""
-    login = (data.login or '').strip() or None
+def update_me_api(request: Request, data: MyPasswordIn):
+    """Пользователь меняет пароль собственной учётной записи — доступно любой роли. Логин
+    (в отличие от пароля) теперь может менять только admin, через /api/users."""
     password_hash = auth.hash_password(data.password) if (data.password or '').strip() else None
-    if login is None and password_hash is None:
+    if password_hash is None:
         return JSONResponse({'error': 'Нечего обновлять'}, status_code=400)
 
-    success = db.update_own_credentials(request.session['employee_id'], password_hash, login)
-    if success:
-        return {'success': True}
-    else:
-        return JSONResponse({'error': 'Такой логин уже используется'}, status_code=400)
+    db.update_own_password(request.session['user_id'], password_hash)
+    return {'success': True}
 
 
 @app.get('/planning', response_class=HTMLResponse)
@@ -297,17 +293,17 @@ def get_assignments_api(team_id: int, start_date: Optional[str] = None, end_date
 
     result = []
     for a in assignments:
-        employee_name = utils.format_employee_name(a['employee_last_name'],
-                                                   a['employee_first_name'],
-                                                   a['employee_middle_name'])
+        user_name = utils.format_user_name(a['user_last_name'],
+                                            a['user_first_name'],
+                                            a['user_middle_name'])
         result.append({
             'id': a['id'],
             'task_id': a['task_id'],
             'date': a['date'],
             'block': a['block'],
             'status': a['status'],
-            'employee_id': a['employee_id'],
-            'employee_name': employee_name,
+            'user_id': a['user_id'],
+            'user_name': user_name,
             'comment': a['comment'],
             'is_psi': bool(a['is_psi']),
             'time_spent': a['time_spent']
@@ -333,8 +329,8 @@ def save_assignment_api(request: Request, data: AssignmentIn):
     if task and (task['task_status'] in ('done', 'cancelled') or task['is_deleted']):
         return JSONResponse({'error': 'Нельзя изменять назначения завершённой или отменённой задачи'}, status_code=400)
 
-    changed_by = request.session.get('employee_id')
-    db.create_or_update_assignment(data.assignment_id, data.task_id, data.date, block, data.status, data.employee_id,
+    changed_by = request.session.get('user_id')
+    db.create_or_update_assignment(data.assignment_id, data.task_id, data.date, block, data.status, data.user_id,
                                    comment, 1 if data.is_psi else 0, time_spent, changed_by=changed_by)
     if data.status == 'planned':
         db.maybe_advance_task_to_in_progress(data.task_id)
@@ -347,7 +343,7 @@ def delete_assignment_api(request: Request, assignment_id: int):
     task = db.get_task_status_by_assignment(assignment_id)
     if task and (task['task_status'] in ('done', 'cancelled') or task['is_deleted']):
         return JSONResponse({'error': 'Нельзя изменять назначения завершённой или отменённой задачи'}, status_code=400)
-    db.delete_assignment(assignment_id, changed_by=request.session.get('employee_id'))
+    db.delete_assignment(assignment_id, changed_by=request.session.get('user_id'))
     return {'success': True}
 
 
@@ -392,7 +388,7 @@ def save_task_api(request: Request, data: TaskIn):
             return JSONResponse({'error': 'Нельзя редактировать завершённую или отменённую задачу'}, status_code=400)
 
     task_id = int(db.create_or_update_task(data.task_id, data.team_id, name, description, data.criticality,
-                                            changed_by=request.session.get('employee_id')))
+                                            changed_by=request.session.get('user_id')))
 
     if data.dependency_ids is not None:
         if data.dependency_ids and db.has_dependency_cycle(task_id, data.dependency_ids):
@@ -423,7 +419,7 @@ def delete_task_api(request: Request, task_id: int):
     task = db.get_task_status(task_id)
     if task and (task['task_status'] in ('done', 'cancelled') or task['is_deleted']):
         return JSONResponse({'error': 'Нельзя удалить завершённую или отменённую задачу'}, status_code=400)
-    db.delete_task(task_id, changed_by=request.session.get('employee_id'))
+    db.delete_task(task_id, changed_by=request.session.get('user_id'))
     return {'success': True}
 
 
@@ -437,7 +433,7 @@ def update_task_status_api(request: Request, task_id: int, data: TaskStatusIn):
     allowed = VALID_TASK_TRANSITIONS.get(current_status, set())
     if data.status not in allowed:
         return JSONResponse({'error': f'Недопустимый переход: {current_status} → {data.status}'}, status_code=400)
-    db.update_task_status(task_id, data.status, changed_by=request.session.get('employee_id'))
+    db.update_task_status(task_id, data.status, changed_by=request.session.get('user_id'))
     return {'success': True}
 
 
@@ -453,7 +449,7 @@ def get_task_history_api(task_id: int, offset: int = 0, limit: int = 20):
 @app.get('/api/journal/{team_id}')
 def get_team_history_api(team_id: int, offset: int = 0, limit: int = 50, search: str = "",
                           date_from: str = "", date_to: str = "",
-                          changed_by_employee_id: Optional[int] = None):
+                          changed_by_user_id: Optional[int] = None):
     """Журнал изменений команды: все изменения задач и назначений (с пагинацией и фильтрами
     по названию задачи, периоду изменения и автору изменения)"""
     search_val = search.strip() or None
@@ -462,10 +458,10 @@ def get_team_history_api(team_id: int, offset: int = 0, limit: int = 50, search:
     return {
         'items': db.get_team_history(team_id, offset=offset, limit=limit, search=search_val,
                                       date_from=date_from_val, date_to=date_to_val,
-                                      changed_by_employee_id=changed_by_employee_id),
+                                      changed_by_user_id=changed_by_user_id),
         'total': db.get_team_history_count(team_id, search=search_val, date_from=date_from_val,
                                             date_to=date_to_val,
-                                            changed_by_employee_id=changed_by_employee_id)
+                                            changed_by_user_id=changed_by_user_id)
     }
 
 
@@ -534,64 +530,65 @@ def delete_team_api(team_id: int):
     return {'success': True}
 
 
-# === API для сотрудников ===
+# === API для пользователей ===
 
-@app.get('/api/employees')
-def get_employees_api():
-    """Получить всех сотрудников"""
-    return db.get_all_employees()
+@app.get('/api/users')
+def get_users_api():
+    """Получить всех пользователей"""
+    return db.get_all_users()
 
 
 _VALID_ROLES = {'admin', 'editor', 'user'}
 
 
-@app.post('/api/employees')
-def create_employee_api(data: EmployeeIn):
-    """Создать сотрудника"""
-    last_name = data.last_name.strip()
+@app.post('/api/users')
+def create_user_api(data: UserIn):
+    """Создать пользователя"""
+    last_name = data.last_name.strip() or None
     first_name = data.first_name.strip()
     middle_name = (data.middle_name or '').strip() or None
     password_hash = auth.hash_password(data.password) if (data.password or '').strip() else None
     login = (data.login or '').strip() or None
 
-    if not last_name or not first_name:
-        return JSONResponse({'error': 'Фамилия и имя обязательны'}, status_code=400)
+    if not first_name:
+        return JSONResponse({'error': 'Имя обязательно'}, status_code=400)
     if data.role not in _VALID_ROLES:
         return JSONResponse({'error': 'Недопустимая роль'}, status_code=400)
 
-    employee_id = db.create_employee(last_name, first_name, middle_name, password_hash, data.role, login)
-    if employee_id:
-        return {'id': employee_id, 'success': True}
+    user_id = db.create_user(last_name, first_name, middle_name, password_hash, data.role, login, data.is_assignee)
+    if user_id:
+        return {'id': user_id, 'success': True}
     else:
-        return JSONResponse({'error': 'Сотрудник с таким ФИО или логином уже существует'}, status_code=400)
+        return JSONResponse({'error': 'Пользователь с таким логином уже существует'}, status_code=400)
 
 
-@app.put('/api/employees/{employee_id}')
-def update_employee_api(employee_id: int, data: EmployeeIn):
-    """Обновить сотрудника"""
-    last_name = data.last_name.strip()
+@app.put('/api/users/{user_id}')
+def update_user_api(user_id: int, data: UserIn):
+    """Обновить пользователя"""
+    last_name = data.last_name.strip() or None
     first_name = data.first_name.strip()
     middle_name = (data.middle_name or '').strip() or None
     password_hash = auth.hash_password(data.password) if (data.password or '').strip() else None
     login = (data.login or '').strip() or None
 
-    if (not last_name or not first_name) and not db.is_bootstrap_admin_id(employee_id):
-        return JSONResponse({'error': 'Фамилия и имя обязательны'}, status_code=400)
+    if not first_name and not db.is_bootstrap_admin_id(user_id):
+        return JSONResponse({'error': 'Имя обязательно'}, status_code=400)
     if data.role not in _VALID_ROLES:
         return JSONResponse({'error': 'Недопустимая роль'}, status_code=400)
 
-    success = db.update_employee(employee_id, last_name, first_name, middle_name, password_hash, data.role, login)
+    success = db.update_user(user_id, last_name, first_name, middle_name, password_hash, data.role, login,
+                              data.is_assignee)
     if success:
         return {'success': True}
     else:
-        return JSONResponse({'error': 'Сотрудник с таким ФИО или логином уже существует'}, status_code=400)
+        return JSONResponse({'error': 'Пользователь с таким логином уже существует'}, status_code=400)
 
 
-@app.delete('/api/employees/{employee_id}')
-def delete_employee_api(request: Request, employee_id: int):
-    """Удалить сотрудника"""
+@app.delete('/api/users/{user_id}')
+def delete_user_api(request: Request, user_id: int):
+    """Удалить пользователя"""
     try:
-        db.delete_employee(employee_id, changed_by=request.session.get('employee_id'))
+        db.delete_user(user_id, changed_by=request.session.get('user_id'))
         return {'success': True}
     except ValueError as e:
         return JSONResponse({'error': str(e)}, status_code=400)
@@ -654,8 +651,8 @@ def get_active_assignments_api(team_id: int, start_date: Optional[str] = None, e
 
     items = []
     for a in assignments:
-        employee_name = utils.format_employee_name(
-            a['employee_last_name'], a['employee_first_name'], a['employee_middle_name']
+        user_name = utils.format_user_name(
+            a['user_last_name'], a['user_first_name'], a['user_middle_name']
         )
         items.append({
             'id': a['id'],
@@ -665,7 +662,7 @@ def get_active_assignments_api(team_id: int, start_date: Optional[str] = None, e
             'date': a['date'],
             'block': a['block'],
             'status': a['status'],
-            'employee_name': employee_name,
+            'user_name': user_name,
             'comment': a['comment'],
             'team_id': a['team_id'],
             'team_name': a['team_name'],

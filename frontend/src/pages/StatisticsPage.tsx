@@ -22,7 +22,7 @@ interface ActiveAssignment {
   date: string;
   block: string | null;
   status: 'new' | 'planned' | 'rollback' | 'success';
-  employee_name: string | null;
+  user_name: string | null;
   comment: string | null;
 }
 
@@ -62,7 +62,7 @@ function buildColumns(showDate: boolean): TableColumnsType<ActiveAssignment> {
   cols.push(
     { title: 'Блок', dataIndex: 'block', key: 'block' },
     { title: 'Статус', dataIndex: 'status', key: 'status', render: (v) => STATUS_LABEL[v] ?? v },
-    { title: 'Исполнитель', dataIndex: 'employee_name', key: 'employee_name' },
+    { title: 'Исполнитель', dataIndex: 'user_name', key: 'user_name' },
     { title: 'Комментарий', dataIndex: 'comment', key: 'comment' },
   );
   return cols;

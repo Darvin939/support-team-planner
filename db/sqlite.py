@@ -22,21 +22,21 @@ _SCHEMA = '''
 
     CREATE INDEX IF NOT EXISTS idx_team_blocks_team_id ON team_blocks (team_id);
 
-    CREATE TABLE IF NOT EXISTS employees (
+    CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY key autoincrement,
-        last_name TEXT NOT NULL,
+        last_name TEXT,
         first_name TEXT NOT NULL,
         middle_name TEXT,
         password_hash TEXT,
         role TEXT NOT NULL DEFAULT 'user',
         login TEXT,
-        UNIQUE(last_name, first_name, middle_name)
+        is_assignee INTEGER NOT NULL DEFAULT 1
     );
 
     -- Отдельный UNIQUE-индекс (а не inline UNIQUE в CREATE TABLE) — ALTER TABLE ADD COLUMN в SQLite
     -- не умеет добавлять UNIQUE-колонку к уже существующей таблице, поэтому уникальность login
     -- для мигрируемых БД обеспечивается этим индексом, а не констрейнтом самой колонки.
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_employees_login ON employees (login);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_login ON users (login);
 
     CREATE TABLE if NOT EXISTS freeze_days (
         id INTEGER PRIMARY key autoincrement,
@@ -60,13 +60,13 @@ _SCHEMA = '''
         date DATE NOT NULL,
         block text,
         status text NOT NULL DEFAULT 'new',
-        employee_id INTEGER,
+        user_id INTEGER,
         comment text,
         is_psi INTEGER NOT NULL DEFAULT 0,
         time_spent text,
         is_deleted INTEGER NOT NULL DEFAULT 0,
         FOREIGN key (task_id) REFERENCES tasks (id) ON DELETE cascade,
-        FOREIGN key (employee_id) REFERENCES employees (id)
+        FOREIGN key (user_id) REFERENCES users (id)
     );
 
     CREATE TABLE IF NOT EXISTS task_dependencies (
@@ -103,35 +103,35 @@ _SCHEMA = '''
 
     -- Задачи/назначения теперь не удаляются физически (см. tasks.is_deleted/assignments.is_deleted) — это делает
     -- FK на таблицы истории безопасным: запись истории переживёт "удаление" задачи/назначения, потому что строка
-    -- на самом деле никуда не девается. FK на changed_by_employee_id — ON DELETE SET NULL, а не CASCADE: сотрудников
-    -- по-прежнему физически удаляют (delete_employee), и запись истории должна остаться, просто без автора.
+    -- на самом деле никуда не девается. FK на changed_by_user_id — ON DELETE SET NULL, а не CASCADE: пользователей
+    -- по-прежнему физически удаляют (delete_user), и запись истории должна остаться, просто без автора.
     CREATE TABLE IF NOT EXISTS task_history (
-        id                     INTEGER PRIMARY KEY AUTOINCREMENT,
-        task_id                INTEGER NOT NULL,
-        action                 TEXT NOT NULL,
-        field_name             TEXT,
-        old_value              TEXT,
-        new_value              TEXT,
-        changed_at             TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        changed_by_employee_id INTEGER,
+        id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id            INTEGER NOT NULL,
+        action             TEXT NOT NULL,
+        field_name         TEXT,
+        old_value          TEXT,
+        new_value          TEXT,
+        changed_at         TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        changed_by_user_id INTEGER,
         FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE CASCADE,
-        FOREIGN KEY (changed_by_employee_id) REFERENCES employees (id) ON DELETE SET NULL
+        FOREIGN KEY (changed_by_user_id) REFERENCES users (id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS assignment_history (
-        id                     INTEGER PRIMARY KEY AUTOINCREMENT,
-        assignment_id          INTEGER NOT NULL,
-        task_id                INTEGER NOT NULL,
-        date                   DATE NOT NULL,
-        action                 TEXT NOT NULL,
-        field_name             TEXT,
-        old_value              TEXT,
-        new_value              TEXT,
-        changed_at             TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        changed_by_employee_id INTEGER,
+        id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+        assignment_id      INTEGER NOT NULL,
+        task_id            INTEGER NOT NULL,
+        date               DATE NOT NULL,
+        action             TEXT NOT NULL,
+        field_name         TEXT,
+        old_value          TEXT,
+        new_value          TEXT,
+        changed_at         TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        changed_by_user_id INTEGER,
         FOREIGN KEY (assignment_id) REFERENCES assignments (id) ON DELETE CASCADE,
         FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE CASCADE,
-        FOREIGN KEY (changed_by_employee_id) REFERENCES employees (id) ON DELETE SET NULL
+        FOREIGN KEY (changed_by_user_id) REFERENCES users (id) ON DELETE SET NULL
     );
 
     CREATE INDEX IF NOT EXISTS idx_task_history_task_id ON task_history (task_id);
@@ -187,27 +187,115 @@ class SQLiteBackend(DBBackend):
         return sqlite3.IntegrityError
 
     def init_schema(self, conn) -> None:
+        self._migrate_employees_to_users(conn)
         conn.execute('PRAGMA foreign_keys = ON;')
-        # Миграция для БД, созданных до появления колонки login (CREATE TABLE IF NOT EXISTS её не
-        # добавит к уже существующей таблице employees) — SQLite не поддерживает ADD COLUMN IF NOT
-        # EXISTS, поэтому глушим ошибку "duplicate column" на уже мигрированных БД.
-        try:
-            conn.execute('ALTER TABLE employees ADD COLUMN login TEXT')
-        except sqlite3.OperationalError:
-            pass
         conn.executescript(_SCHEMA)
-        # Сотрудник по умолчанию для первого входа (пароль можно сменить в настройках).
-        # INSERT OR IGNORE полагается на UNIQUE(last_name, first_name, middle_name) — безопасно
-        # выполнять при каждом запуске, не создаёт дублей. middle_name='' (не NULL): NULL никогда
-        # не считается равным другому NULL в UNIQUE-констрейнте, так что с NULL проверка бы не сработала.
+        # Миграция для БД, где бутстрап-админ ещё хранится по старой схеме имени
+        # (last_name='Администратор', first_name/middle_name пустые) — переносим на новую, где
+        # имя администратора хранится только в first_name, а last_name/middle_name = NULL (это
+        # системная запись, а не сотрудник поддержки, у которого была бы фамилия).
         conn.execute(
-            "INSERT OR IGNORE INTO employees (last_name, first_name, middle_name, password_hash, role, login) VALUES (?, ?, ?, ?, ?, ?)",
-            ('Администратор', '', '', auth.hash_password('q12345678'), 'admin', 'admin')
+            "UPDATE users SET last_name = NULL, first_name = 'Администратор', middle_name = NULL "
+            "WHERE last_name = 'Администратор' AND (first_name IS NULL OR first_name = '') "
+            "AND (middle_name IS NULL OR middle_name = '')"
         )
-        # Бэкфилл для БД, созданных до появления login: сама INSERT OR IGNORE выше не тронет уже
-        # существующую строку админа (ФИО совпадает), поэтому login='admin' проставляется отдельно —
-        # но только если ещё не задан, чтобы не затирать логин, который уже сменили в настройках.
+        # Бэкфилл login для БД, созданных до появления этой колонки: находим бутстрап-запись по
+        # историческому маркеру имени (пока это единственный признак, раз login ещё не проставлен)
+        # и проставляем login='admin', только если он ещё не задан — не затираем логин, который уже
+        # сменили в настройках. С этого момента и далее опознаём бутстрап-админа только по
+        # login='admin' (см. _is_bootstrap_admin в db/__init__.py) — ФИО для этого больше не
+        # используются нигде, включая код ниже.
         conn.execute(
-            "UPDATE employees SET login = 'admin' WHERE last_name = 'Администратор' AND first_name = '' AND middle_name = '' AND login IS NULL"
+            "UPDATE users SET login = 'admin' WHERE first_name = 'Администратор' "
+            "AND (last_name IS NULL OR last_name = '') AND (middle_name IS NULL OR middle_name = '') AND login IS NULL"
         )
+        # Пользователь по умолчанию для первого входа (пароль можно сменить в настройках).
+        # Раньше полагались на INSERT OR IGNORE + UNIQUE(last_name, first_name, middle_name) для
+        # идемпотентности; эта уникальность больше не гарантируется (ФИО теперь не уникальны для
+        # обычных пользователей), поэтому здесь явная проверка существования по login.
+        existing_admin = conn.execute("SELECT id FROM users WHERE login = 'admin'").fetchone()
+        if not existing_admin:
+            # is_assignee=0 — учётная запись администратора по умолчанию не является исполнителем
+            # назначений (это системная запись, а не сотрудник поддержки), и переключатель
+            # is_assignee для неё скрыт в UI (см. isEditingProtected в UsersTab.tsx), так что
+            # изменить это через приложение невозможно.
+            conn.execute(
+                "INSERT INTO users (last_name, first_name, middle_name, password_hash, role, login, is_assignee) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (None, 'Администратор', None, auth.hash_password('q12345678'), 'admin', 'admin', 0)
+            )
+        # Бэкфилл для БД, где админ был создан/мигрирован до появления этого правила (is_assignee
+        # тогда по умолчанию проставлялся в 1 для всех существующих строк) — безусловно, так как
+        # изменить это значение через UI для защищённой записи невозможно, а значит 1 здесь может
+        # быть только следствием миграции, а не осознанным выбором.
+        conn.execute("UPDATE users SET is_assignee = 0 WHERE login = 'admin'")
         conn.commit()
+
+    @staticmethod
+    def _migrate_employees_to_users(conn) -> None:
+        """Переносит БД, созданные до переименования employees -> users, на новую схему:
+        переименование таблицы/колонок, отказ от UNIQUE(last_name, first_name, middle_name)
+        (уникален теперь только login) и добавление is_assignee. Идемпотентно — безопасно
+        выполнять на каждом запуске, каждый шаг сам проверяет, нужен ли он ещё.
+
+        Отключаем PRAGMA foreign_keys на время миграции: при её включённом состоянии DROP TABLE
+        выполняет неявный DELETE всех строк таблицы перед удалением, что запускает проверку FK —
+        и падает с FOREIGN KEY constraint failed, потому что assignments.user_id ссылается на
+        users(id) без ON DELETE. Включаем обратно в конце, до создания/заполнения остальной схемы."""
+        conn.execute('PRAGMA foreign_keys = OFF;')
+
+        tables = {row[0] for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()}
+
+        if 'employees' in tables:
+            # Миграция для БД, созданных до появления колонки login — SQLite не поддерживает
+            # ADD COLUMN IF NOT EXISTS, поэтому глушим ошибку "duplicate column" на уже
+            # мигрированных БД.
+            try:
+                conn.execute('ALTER TABLE employees ADD COLUMN login TEXT')
+            except sqlite3.OperationalError:
+                pass
+            if 'users' not in tables:
+                # SQLite сам переписывает REFERENCES employees(...) на REFERENCES users(...)
+                # во всех остальных таблицах схемы при переименовании таблицы.
+                conn.execute('ALTER TABLE employees RENAME TO users')
+                tables.discard('employees')
+                tables.add('users')
+
+        if 'users' in tables:
+            columns = {row[1] for row in conn.execute('PRAGMA table_info(users)').fetchall()}
+            if 'is_assignee' not in columns:
+                # Отказ от UNIQUE(last_name, first_name, middle_name) и NOT NULL на last_name
+                # требует пересоздания таблицы — ALTER TABLE в SQLite не умеет менять констрейнты.
+                conn.execute('DROP TABLE IF EXISTS users_new')
+                conn.execute('''
+                    CREATE TABLE users_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        last_name TEXT,
+                        first_name TEXT NOT NULL,
+                        middle_name TEXT,
+                        password_hash TEXT,
+                        role TEXT NOT NULL DEFAULT 'user',
+                        login TEXT,
+                        is_assignee INTEGER NOT NULL DEFAULT 1
+                    )
+                ''')
+                conn.execute('''
+                    INSERT INTO users_new (id, last_name, first_name, middle_name, password_hash, role, login, is_assignee)
+                    SELECT id, last_name, first_name, middle_name, password_hash, role, login, 1 FROM users
+                ''')
+                conn.execute('DROP TABLE users')
+                conn.execute('ALTER TABLE users_new RENAME TO users')
+                conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_login ON users (login)')
+
+        if 'assignments' in tables:
+            cols = {row[1] for row in conn.execute('PRAGMA table_info(assignments)').fetchall()}
+            if 'employee_id' in cols:
+                conn.execute('ALTER TABLE assignments RENAME COLUMN employee_id TO user_id')
+
+        for hist_table in ('task_history', 'assignment_history'):
+            if hist_table in tables:
+                cols = {row[1] for row in conn.execute(f'PRAGMA table_info({hist_table})').fetchall()}
+                if 'changed_by_employee_id' in cols:
+                    conn.execute(f'ALTER TABLE {hist_table} RENAME COLUMN changed_by_employee_id TO changed_by_user_id')

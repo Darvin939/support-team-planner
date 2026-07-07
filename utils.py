@@ -1,10 +1,13 @@
-def format_employee_name(last_name, first_name, middle_name=None):
+def format_user_name(last_name, first_name, middle_name=None):
     """
-    Форматирует ФИО сотрудника в формат: Фамилия И.О.
+    Форматирует ФИО пользователя в формат: Фамилия И.О.
     Пример: Иванов И.И.
+    Фамилия необязательна — если её нет, возвращается просто имя (а не пустая строка).
     """
-    if not last_name:
+    if not last_name and not first_name:
         return ''
+    if not last_name:
+        return first_name
     if not first_name:
         return last_name
 

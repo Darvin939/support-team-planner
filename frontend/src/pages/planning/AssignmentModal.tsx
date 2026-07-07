@@ -18,7 +18,8 @@ import {useMutation, useQueryClient} from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import type {Assignment, Task} from '../../hooks/usePlanningData';
 import {type BlockTemplateEntry, useTeamBlocks, useTeamTemplates} from '../../hooks/usePlanningData';
-import {useEmployees} from '../../hooks/useSettingsData';
+import {useUsers} from '../../hooks/useSettingsData';
+import {formatDisplayName} from '../../hooks/useUserNames';
 import {apiMutate} from '../../lib/apiMutate';
 import {computeAutoAssignDates, getAutoScheduleDateRange} from '../../lib/autoSchedule';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT, TIME_FORMAT} from '../../lib/dateFormats';
@@ -33,7 +34,7 @@ interface AssignmentFormValues {
   is_psi: boolean;
   block_ids: number[];
   status: string;
-  employee_id: number | null;
+  user_id: number | null;
   comment: string;
 }
 
@@ -193,7 +194,7 @@ export function AssignmentModal({
   const isMobile = useIsMobile();
   const { token } = theme.useToken();
   const { data: teamBlocks } = useTeamBlocks(teamId);
-  const { data: employees } = useEmployees();
+  const { data: users } = useUsers();
   const { data: templates } = useTeamTemplates(teamId);
 
   const [autoAssignEnabled, setAutoAssignEnabled] = useState(false);
@@ -213,7 +214,7 @@ export function AssignmentModal({
       is_psi: assignment?.is_psi ?? false,
       block_ids: blockIds,
       status: assignment?.status ?? 'new',
-      employee_id: assignment?.employee_id ?? null,
+      user_id: assignment?.user_id ?? null,
       comment: assignment?.comment ?? '',
     });
     setAutoAssignEnabled(false);
@@ -257,7 +258,7 @@ export function AssignmentModal({
         date: values.date.format(API_DATE_FORMAT),
         block: blockNames || null,
         status: values.status,
-        employee_id: values.employee_id,
+        user_id: values.user_id,
         comment: values.comment || null,
         is_psi: values.is_psi,
         time_spent: timeSpent === '00:00' ? null : timeSpent,
@@ -304,7 +305,7 @@ export function AssignmentModal({
             date: d,
             block: groups[d].join(', '),
             status: 'new',
-            employee_id: null,
+            user_id: null,
             comment: null,
             is_psi: i === 0 ? values.is_psi : false,
             time_spent: timeSpent === '00:00' ? null : timeSpent,
@@ -341,6 +342,17 @@ export function AssignmentModal({
   const [historyOpen, setHistoryOpen] = useHistoryToggle(open, false);
   const isSaving = saveMutation.isPending || autoSaveMutation.isPending;
   const selectedTemplateBlocks = templates?.find((t) => t.id === selectedTemplateId)?.blocks ?? [];
+
+  // Только пользователи с is_assignee могут быть исполнителями — но если у назначения уже стоит
+  // пользователь, у которого этот флаг с тех пор сняли, оставляем его в списке, иначе выбор
+  // выглядел бы пустым/нерабочим при редактировании существующего назначения.
+  const eligibleUsers = users?.filter((u) => u.is_assignee) ?? [];
+  const currentUserId = assignment?.user_id ?? null;
+  if (currentUserId !== null && !eligibleUsers.some((u) => u.id === currentUserId)) {
+    const current = users?.find((u) => u.id === currentUserId);
+    if (current) eligibleUsers.push(current);
+  }
+  const assigneeOptions = eligibleUsers.map((u) => ({ value: u.id, label: formatDisplayName(u) }));
 
   return (
     <Modal
@@ -453,12 +465,12 @@ export function AssignmentModal({
 
         {!autoAssignEnabled && (
           <>
-            <Form.Item name="employee_id" label="Исполнитель">
+            <Form.Item name="user_id" label="Исполнитель">
               <Select
                 allowClear
                 showSearch={{ optionFilterProp: 'label' }}
                 placeholder="Не выбран"
-                options={employees?.map((e) => ({ value: e.id, label: `${e.last_name} ${e.first_name}${e.middle_name ? ' ' + e.middle_name : ''}` }))}
+                options={assigneeOptions}
               />
             </Form.Item>
             <Form.Item name="comment" label="Комментарий">

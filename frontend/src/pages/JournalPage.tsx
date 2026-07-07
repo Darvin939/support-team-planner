@@ -4,7 +4,7 @@ import {Card, DatePicker, Empty, Input, Modal, Pagination, Select, Spin, Tag, Ty
 import {useQuery} from '@tanstack/react-query';
 import dayjs, {type Dayjs} from 'dayjs';
 import {useTeams} from '../hooks/useTeams';
-import {useEmployeeNames, useEmployeeOptions} from '../hooks/useEmployeeNames';
+import {useUserNames, useUserOptions} from '../hooks/useUserNames';
 import {useIsMobile} from '../hooks/useIsMobile';
 import {FilterField, FilterGrid} from '../components/FilterGrid';
 import {formatChangedBy, formatHistoryText, type HistoryEntry} from '../lib/historyFormat';
@@ -24,7 +24,7 @@ interface JournalFilters {
   search: string;
   dateFrom: string | null;
   dateTo: string | null;
-  changedByEmployeeId: number | null;
+  changedByUserId: number | null;
 }
 
 function useJournal(teamId: number | undefined, offset: number, filters: JournalFilters) {
@@ -36,7 +36,7 @@ function useJournal(teamId: number | undefined, offset: number, filters: Journal
       if (filters.search) params.set('search', filters.search);
       if (filters.dateFrom) params.set('date_from', filters.dateFrom);
       if (filters.dateTo) params.set('date_to', filters.dateTo);
-      if (filters.changedByEmployeeId) params.set('changed_by_employee_id', String(filters.changedByEmployeeId));
+      if (filters.changedByUserId) params.set('changed_by_user_id', String(filters.changedByUserId));
       const r = await fetch(`/api/journal/${teamId}?${params}`, { credentials: 'same-origin' });
       if (!r.ok) throw new Error(`GET /api/journal -> ${r.status}`);
       return r.json();
@@ -59,7 +59,7 @@ function useTaskHistory(taskId: number | null, offset: number) {
 function TaskHistoryModal({ taskId, taskName, onClose }: { taskId: number | null; taskName: string | null; onClose: () => void }) {
   const [offset, setOffset] = useState(0);
   const { data, isLoading } = useTaskHistory(taskId, offset);
-  const getEmployeeName = useEmployeeNames();
+  const getUserName = useUserNames();
 
   useEffect(() => {
     if (taskId !== null) setOffset(0);
@@ -76,7 +76,7 @@ function TaskHistoryModal({ taskId, taskName, onClose }: { taskId: number | null
               <div style={{ opacity: 0.6, fontSize: '0.78rem' }}>
                 {entry.changed_at} — {formatChangedBy(entry)}
               </div>
-              <div>{formatHistoryText(entry, getEmployeeName, false)}</div>
+              <div>{formatHistoryText(entry, getUserName, false)}</div>
             </div>
           ))}
         </div>
@@ -101,10 +101,10 @@ export function JournalPage() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { data: teams } = useTeams();
-  const employeeOptions = useEmployeeOptions();
+  const userOptions = useUserOptions();
   const [offset, setOffset] = useState(0);
   const [modalTask, setModalTask] = useState<{ id: number; name: string } | null>(null);
-  const getEmployeeName = useEmployeeNames();
+  const getUserName = useUserNames();
 
   const [search, setSearch] = useState('');
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(() => {
@@ -112,7 +112,7 @@ export function JournalPage() {
     const to = localStorage.getItem(STORAGE_DATE_TO);
     return from && to ? [dayjs(from), dayjs(to)] : null;
   });
-  const [changedByEmployeeId, setChangedByEmployeeId] = useState<number | null>(null);
+  const [changedByUserId, setChangedByUserId] = useState<number | null>(null);
 
   const teamId = teamIdParam ? Number(teamIdParam) : undefined;
 
@@ -147,7 +147,7 @@ export function JournalPage() {
   }
 
   function handleChangedByChange(value: number | undefined) {
-    setChangedByEmployeeId(value ?? null);
+    setChangedByUserId(value ?? null);
     setOffset(0);
   }
 
@@ -155,7 +155,7 @@ export function JournalPage() {
     search,
     dateFrom: dateRange ? dateRange[0].format(API_DATE_FORMAT) : null,
     dateTo: dateRange ? dateRange[1].format(API_DATE_FORMAT) : null,
-    changedByEmployeeId,
+    changedByUserId,
   };
 
   const { data } = useJournal(teamId, offset, filters);
@@ -216,9 +216,9 @@ export function JournalPage() {
                   placeholder="Все"
                   allowClear
                   showSearch={{optionFilterProp: "label"}}
-                  value={changedByEmployeeId ?? undefined}
+                  value={changedByUserId ?? undefined}
                   onChange={handleChangedByChange}
-                  options={employeeOptions}
+                  options={userOptions}
                 />
               </FilterField>
             </FilterGrid>
@@ -239,7 +239,7 @@ export function JournalPage() {
                 </div>
                 <div>
                   «{item.task_name}»{item.task_is_deleted ? <Tag style={{ marginLeft: 6 }}>удалена</Tag> : null} —{' '}
-                  {formatHistoryText(item, getEmployeeName, true)}
+                  {formatHistoryText(item, getUserName, true)}
                 </div>
               </Card>
             ))}

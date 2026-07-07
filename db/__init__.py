@@ -258,148 +258,152 @@ def delete_template(conn, template_id):
     conn.execute('DELETE FROM block_templates WHERE id = ?', (template_id,))
 
 
-# === EMPLOYEES CRUD ===
+# === USERS CRUD ===
 @with_db_connection(commit_on_success=False)
-def employee_exists(conn, employee_id):
-    """Проверить существование сотрудника и получить его роль (используется для валидации сессии
-    в require_login — сессия может пережить удаление сотрудника или пересоздание БД)"""
-    return conn.execute('SELECT role FROM employees WHERE id = ?', (employee_id,)).fetchone()
+def user_exists(conn, user_id):
+    """Проверить существование пользователя и получить его роль (используется для валидации сессии
+    в require_login — сессия может пережить удаление пользователя или пересоздание БД)"""
+    return conn.execute('SELECT role FROM users WHERE id = ?', (user_id,)).fetchone()
 
 
-# Ф.И.О. учётной записи-бутстрапа, создаваемой init_schema() при первом запуске (см. CLAUDE.md) —
+# Логин учётной записи-бутстрапа, создаваемой init_schema() при первом запуске (см. CLAUDE.md) —
 # у неё всегда должен оставаться рабочий вход в систему, поэтому её нельзя удалить через UI/API.
-_BOOTSTRAP_ADMIN_NAME = ('Администратор', '', '')
+# Идентификация по login, а не по ФИО: с тех пор как ФИО перестали быть уникальными, обычный
+# пользователь мог бы случайно (или намеренно) совпасть по имени с бутстрап-записью — login же
+# по-прежнему защищён UNIQUE-индексом, так что это единственный надёжный признак.
+_BOOTSTRAP_ADMIN_LOGIN = 'admin'
 
 
 def _is_bootstrap_admin(row):
-    return (row['last_name'], row['first_name'], row['middle_name'] or '') == _BOOTSTRAP_ADMIN_NAME
+    return row['login'] == _BOOTSTRAP_ADMIN_LOGIN
 
 
 @with_db_connection(commit_on_success=False)
-def is_bootstrap_admin_id(conn, employee_id):
-    """Является ли employee_id учётной записью администратора по умолчанию (см. _is_bootstrap_admin)"""
-    row = conn.execute(
-        'SELECT last_name, first_name, middle_name FROM employees WHERE id = ?', (employee_id,)
-    ).fetchone()
+def is_bootstrap_admin_id(conn, user_id):
+    """Является ли user_id учётной записью администратора по умолчанию (см. _is_bootstrap_admin)"""
+    row = conn.execute('SELECT login FROM users WHERE id = ?', (user_id,)).fetchone()
     return bool(row) and _is_bootstrap_admin(row)
 
 
 @with_db_connection(commit_on_success=False)
-def get_all_employees(conn):
-    """Получить всех сотрудников"""
-    employees = conn.execute(
-        'SELECT id, last_name, first_name, middle_name, role, login FROM employees ORDER BY last_name, first_name, middle_name').fetchall()
+def get_all_users(conn):
+    """Получить всех пользователей"""
+    users = conn.execute(
+        'SELECT id, last_name, first_name, middle_name, role, login, is_assignee FROM users ORDER BY last_name, first_name, middle_name').fetchall()
     result = []
-    for emp in employees:
-        emp_dict = dict(emp)
-        emp_dict['is_protected'] = _is_bootstrap_admin(emp)
-        result.append(emp_dict)
+    for u in users:
+        u_dict = dict(u)
+        u_dict['is_assignee'] = bool(u_dict['is_assignee'])
+        u_dict['is_protected'] = _is_bootstrap_admin(u)
+        result.append(u_dict)
     return result
 
 
 @with_db_connection(commit_on_success=False)
-def get_employee(conn, employee_id):
-    """Получить одного сотрудника по id (используется, например, GET /api/me)"""
+def get_user(conn, user_id):
+    """Получить одного пользователя по id (используется, например, GET /api/me)"""
     row = conn.execute(
-        'SELECT id, last_name, first_name, middle_name, role FROM employees WHERE id = ?', (employee_id,)).fetchone()
+        'SELECT id, last_name, first_name, middle_name, role FROM users WHERE id = ?', (user_id,)).fetchone()
     return dict(row) if row else None
 
 
 @with_db_connection(default_return=None, raise_on_error=False, commit_on_success=False)
-def create_employee(conn, last_name, first_name, middle_name=None, password_hash=None, role='user', login=None):
-    """Создать сотрудника. Возвращает None при нарушении UNIQUE (дубль ФИО или логина) —
+def create_user(conn, last_name, first_name, middle_name=None, password_hash=None, role='user', login=None,
+                 is_assignee=True):
+    """Создать пользователя. Возвращает None при нарушении UNIQUE (дубль логина) —
     raise_on_error=False нужен именно для этого: без него IntegrityError улетал бы наверх
     необработанным, и вызывающий код никогда не увидел бы свою ветку "уже существует"."""
     cursor = conn.execute(
-        '''INSERT INTO employees (last_name, first_name, middle_name, password_hash, role, login)
-           VALUES (?, ?, ?, ?, ?, ?)''',
-        (last_name, first_name, middle_name, password_hash, role, login))
+        '''INSERT INTO users (last_name, first_name, middle_name, password_hash, role, login, is_assignee)
+           VALUES (?, ?, ?, ?, ?, ?, ?)''',
+        (last_name, first_name, middle_name, password_hash, role, login, int(is_assignee)))
     conn.commit()
     return _backend.last_insert_id(cursor)
 
 
-def _update_login_and_password(conn, employee_id, password_hash=None, login=None):
-    """Обновить только login/password_hash, не трогая ФИО/роль — общая часть между update_employee
-    (ветка бутстрап-админа) и update_own_credentials (сотрудник меняет свои учётные данные сам)."""
+def _update_login_and_password(conn, user_id, password_hash=None, login=None):
+    """Обновить только login/password_hash, не трогая ФИО/роль — используется только веткой
+    бутстрап-админа в update_user (для собственного пароля пользователь пользуется отдельной
+    update_own_password, которая логин не трогает вовсе)."""
     if password_hash is not None:
-        conn.execute('UPDATE employees SET password_hash = ? WHERE id = ?', (password_hash, employee_id))
+        conn.execute('UPDATE users SET password_hash = ? WHERE id = ?', (password_hash, user_id))
     if login is not None:
-        conn.execute('UPDATE employees SET login = ? WHERE id = ?', (login, employee_id))
+        conn.execute('UPDATE users SET login = ? WHERE id = ?', (login, user_id))
 
 
 @with_db_connection(default_return=False, raise_on_error=False)
-def update_own_credentials(conn, employee_id, password_hash=None, login=None):
-    """Сотрудник меняет логин и/или пароль своей же учётной записи (не через админский
-    update_employee) — ФИО и роль этой функцией в принципе не затрагиваются."""
-    _update_login_and_password(conn, employee_id, password_hash, login)
+def update_own_password(conn, user_id, password_hash):
+    """Пользователь меняет пароль своей же учётной записи (не через админский update_user) —
+    логин, ФИО и роль этой функцией не затрагиваются: логин теперь может менять только admin."""
+    conn.execute('UPDATE users SET password_hash = ? WHERE id = ?', (password_hash, user_id))
     return True
 
 
 @with_db_connection(default_return=False, raise_on_error=False)
-def update_employee(conn, employee_id, last_name, first_name, middle_name=None, password_hash=None, role='user', login=None):
-    """Обновить сотрудника. password_hash=None означает "не менять пароль", login=None — "не менять логин".
+def update_user(conn, user_id, last_name, first_name, middle_name=None, password_hash=None, role='user', login=None,
+                 is_assignee=True):
+    """Обновить пользователя. password_hash=None означает "не менять пароль", login=None — "не менять логин".
     Для учётной записи администратора по умолчанию ФИО и роль никогда не перезаписываются этой
     функцией (можно поменять только пароль и логин) — независимо от того, что пришло в
     last_name/first_name/middle_name/role, чтобы не зависеть от того, отправил ли клиент эти поля вообще."""
-    current = conn.execute(
-        'SELECT last_name, first_name, middle_name, role FROM employees WHERE id = ?', (employee_id,)
-    ).fetchone()
+    current = conn.execute('SELECT login FROM users WHERE id = ?', (user_id,)).fetchone()
     if not current:
         return False
 
     if _is_bootstrap_admin(current):
-        _update_login_and_password(conn, employee_id, password_hash, login)
+        _update_login_and_password(conn, user_id, password_hash, login)
         return True
 
     if password_hash is not None:
         conn.execute(
-            '''UPDATE employees
+            '''UPDATE users
                SET last_name     = ?,
                    first_name    = ?,
                    middle_name   = ?,
                    password_hash = ?,
                    role          = ?,
-                   login         = ?
-               WHERE id = ?''', (last_name, first_name, middle_name, password_hash, role, login, employee_id))
+                   login         = ?,
+                   is_assignee   = ?
+               WHERE id = ?''',
+            (last_name, first_name, middle_name, password_hash, role, login, int(is_assignee), user_id))
     else:
         conn.execute(
-            '''UPDATE employees
+            '''UPDATE users
                SET last_name   = ?,
                    first_name  = ?,
                    middle_name = ?,
                    role        = ?,
-                   login       = ?
-               WHERE id = ?''', (last_name, first_name, middle_name, role, login, employee_id))
+                   login       = ?,
+                   is_assignee = ?
+               WHERE id = ?''', (last_name, first_name, middle_name, role, login, int(is_assignee), user_id))
     return True
 
 
 @with_db_connection(commit_on_success=False)
-def get_employee_auth_by_login(conn, login):
-    """Получить id, хэш пароля и роль сотрудника по логину — для проверки при входе"""
-    row = conn.execute('SELECT id, password_hash, role FROM employees WHERE login = ?', (login,)).fetchone()
+def get_user_auth_by_login(conn, login):
+    """Получить id, хэш пароля и роль пользователя по логину — для проверки при входе"""
+    row = conn.execute('SELECT id, password_hash, role FROM users WHERE login = ?', (login,)).fetchone()
     return dict(row) if row else None
 
 
 @with_db_connection()
-def delete_employee(conn, employee_id, changed_by=None):
-    """Удалить сотрудника"""
-    employee = conn.execute(
-        'SELECT last_name, first_name, middle_name FROM employees WHERE id = ?', (employee_id,)
-    ).fetchone()
-    if employee and _is_bootstrap_admin(employee):
+def delete_user(conn, user_id, changed_by=None):
+    """Удалить пользователя"""
+    user = conn.execute('SELECT login FROM users WHERE id = ?', (user_id,)).fetchone()
+    if user and _is_bootstrap_admin(user):
         raise ValueError('Нельзя удалить учётную запись администратора по умолчанию')
 
     affected = conn.execute(
-        'SELECT id, task_id, date, employee_id FROM assignments WHERE employee_id = ?', (employee_id,)
+        'SELECT id, task_id, date, user_id FROM assignments WHERE user_id = ?', (user_id,)
     ).fetchall()
     if affected:
-        conn.execute('UPDATE assignments SET employee_id = NULL WHERE employee_id = ?', (employee_id,))
+        conn.execute('UPDATE assignments SET user_id = NULL WHERE user_id = ?', (user_id,))
         for row in affected:
             _record_assignment_history(
                 conn, row['id'], row['task_id'], row['date'], 'update',
-                field_name='employee_id', old_value=str(row['employee_id']), new_value=None,
+                field_name='user_id', old_value=str(row['user_id']), new_value=None,
                 changed_by=changed_by)
-    conn.execute('DELETE FROM employees WHERE id = ?', (employee_id,))
+    conn.execute('DELETE FROM users WHERE id = ?', (user_id,))
 
 
 # === FREEZE DAYS CRUD ===
@@ -541,7 +545,7 @@ def get_tasks_count_by_team(conn, team_id, search=None, show_completed=False):
 
 def _record_task_history(conn, task_id, action, field_name=None, old_value=None, new_value=None, changed_by=None):
     conn.execute(
-        '''INSERT INTO task_history (task_id, action, field_name, old_value, new_value, changed_by_employee_id)
+        '''INSERT INTO task_history (task_id, action, field_name, old_value, new_value, changed_by_user_id)
            VALUES (?, ?, ?, ?, ?, ?)''',
         (task_id, action, field_name, old_value, new_value, changed_by))
 
@@ -550,7 +554,7 @@ def _record_assignment_history(conn, assignment_id, task_id, date_str, action, f
                                 new_value=None, changed_by=None):
     conn.execute(
         '''INSERT INTO assignment_history
-               (assignment_id, task_id, date, action, field_name, old_value, new_value, changed_by_employee_id)
+               (assignment_id, task_id, date, action, field_name, old_value, new_value, changed_by_user_id)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
         (assignment_id, task_id, date_str, action, field_name, old_value, new_value, changed_by))
 
@@ -723,15 +727,15 @@ def get_assignment(conn, task_id, date_str):
                   a.date,
                   a.block,
                   a.status,
-                  a.employee_id,
+                  a.user_id,
                   a.comment,
                   a.is_psi,
                   a.time_spent,
-                  e.last_name   as employee_last_name,
-                  e.first_name  as employee_first_name,
-                  e.middle_name as employee_middle_name
+                  u.last_name   as user_last_name,
+                  u.first_name  as user_first_name,
+                  u.middle_name as user_middle_name
            FROM assignments a
-                    LEFT JOIN employees e ON a.employee_id = e.id
+                    LEFT JOIN users u ON a.user_id = u.id
            WHERE a.task_id = ?
              AND a.date = ?
              AND a.is_deleted = 0''',
@@ -750,16 +754,16 @@ def get_assignments_by_team_in_period(conn, team_id, start_date, end_date, task_
                       a.date,
                       a.block,
                       a.status,
-                      a.employee_id,
+                      a.user_id,
                       a.comment,
                       a.is_psi,
                       a.time_spent,
-                      e.last_name   as employee_last_name,
-                      e.first_name  as employee_first_name,
-                      e.middle_name as employee_middle_name
+                      u.last_name   as user_last_name,
+                      u.first_name  as user_first_name,
+                      u.middle_name as user_middle_name
                FROM assignments a
                         JOIN tasks t ON a.task_id = t.id
-                        LEFT JOIN employees e ON a.employee_id = e.id
+                        LEFT JOIN users u ON a.user_id = u.id
                WHERE t.team_id = ?
                  AND a.is_deleted = 0
                  AND a.date BETWEEN ? AND ?'''
@@ -774,13 +778,13 @@ def get_assignments_by_team_in_period(conn, team_id, start_date, end_date, task_
 
 
 @with_db_connection()
-def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, status, employee_id, comment,
+def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, status, user_id, comment,
                                  is_psi=0, time_spent=None, changed_by=None):
     """Создать или обновить назначение"""
     existing = conn.execute('SELECT * FROM assignments WHERE id = ?', (assignment_id,)).fetchone()
 
     new_values = {'date': date_str, 'task_id': task_id, 'block': block, 'status': status,
-                  'employee_id': employee_id, 'comment': comment, 'is_psi': is_psi, 'time_spent': time_spent}
+                  'user_id': user_id, 'comment': comment, 'is_psi': is_psi, 'time_spent': time_spent}
 
     if existing:
         for field, new_val in new_values.items():
@@ -794,18 +798,18 @@ def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, s
                    task_id     = ?,
                    block       = ?,
                    status      = ?,
-                   employee_id = ?,
+                   user_id     = ?,
                    comment     = ?,
                    is_psi      = ?,
                    time_spent  = ?
                WHERE id = ?''',
-            (date_str, task_id, block, status, employee_id, comment, is_psi, time_spent, assignment_id)
+            (date_str, task_id, block, status, user_id, comment, is_psi, time_spent, assignment_id)
         )
     else:
         cursor = conn.execute(
-            '''INSERT INTO assignments (task_id, date, block, status, employee_id, comment, is_psi, time_spent)
+            '''INSERT INTO assignments (task_id, date, block, status, user_id, comment, is_psi, time_spent)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
-            (task_id, date_str, block, status, employee_id, comment, is_psi, time_spent)
+            (task_id, date_str, block, status, user_id, comment, is_psi, time_spent)
         )
         new_assignment_id = _backend.last_insert_id(cursor)
         snapshot = json.dumps(new_values, ensure_ascii=False, default=str)
@@ -858,15 +862,15 @@ def get_active_assignments_in_period(conn, team_id, start_date, end_date, team_i
     where, params = _active_assignments_where(team_id, start_date, end_date, team_ids)
     # @formatter:off
     query = '''SELECT a.id, a.task_id, t.name AS task_name, t.criticality,
-                      a.date, a.block, a.status, a.employee_id, a.comment, a.is_psi,
-                      e.last_name  AS employee_last_name,
-                      e.first_name AS employee_first_name,
-                      e.middle_name AS employee_middle_name,
+                      a.date, a.block, a.status, a.user_id, a.comment, a.is_psi,
+                      u.last_name  AS user_last_name,
+                      u.first_name AS user_first_name,
+                      u.middle_name AS user_middle_name,
                       t.team_id, tm.name AS team_name
                FROM assignments a
                    JOIN tasks t ON a.task_id = t.id
                    JOIN teams tm ON t.team_id = tm.id
-                   LEFT JOIN employees e ON a.employee_id = e.id
+                   LEFT JOIN users u ON a.user_id = u.id
                ''' + where + '''
                ORDER BY a.date,
                         CASE t.criticality WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 3 END,
@@ -911,11 +915,11 @@ def get_task_history(conn, task_id):
     # @formatter:off
     rows = conn.execute(
         '''SELECT th.*,
-                  e.last_name AS changed_by_last_name,
-                  e.first_name AS changed_by_first_name,
-                  e.middle_name AS changed_by_middle_name
+                  u.last_name AS changed_by_last_name,
+                  u.first_name AS changed_by_first_name,
+                  u.middle_name AS changed_by_middle_name
            FROM task_history th
-               LEFT JOIN employees e ON th.changed_by_employee_id = e.id
+               LEFT JOIN users u ON th.changed_by_user_id = u.id
            WHERE th.task_id = ?
            ORDER BY th.changed_at, th.id''',
         (task_id,)
@@ -930,11 +934,11 @@ def get_assignment_history(conn, assignment_id, offset=0, limit=20):
     # @formatter:off
     rows = conn.execute(
         '''SELECT ah.*,
-                  e.last_name AS changed_by_last_name,
-                  e.first_name AS changed_by_first_name,
-                  e.middle_name AS changed_by_middle_name
+                  u.last_name AS changed_by_last_name,
+                  u.first_name AS changed_by_first_name,
+                  u.middle_name AS changed_by_middle_name
            FROM assignment_history ah
-               LEFT JOIN employees e ON ah.changed_by_employee_id = e.id
+               LEFT JOIN users u ON ah.changed_by_user_id = u.id
            WHERE ah.assignment_id = ?
            ORDER BY ah.changed_at DESC, ah.id DESC
            LIMIT ? OFFSET ?''',
@@ -964,21 +968,21 @@ def get_task_full_history(conn, task_id, offset=0, limit=20):
                SELECT th.id AS id, th.task_id AS task_id, NULL AS assignment_id, NULL AS date,
                       th.action AS action, th.field_name AS field_name, th.old_value AS old_value,
                       th.new_value AS new_value, th.changed_at AS changed_at,
-                      th.changed_by_employee_id AS changed_by_employee_id, 'task' AS entity,
-                      e.last_name AS changed_by_last_name, e.first_name AS changed_by_first_name,
-                      e.middle_name AS changed_by_middle_name
+                      th.changed_by_user_id AS changed_by_user_id, 'task' AS entity,
+                      u.last_name AS changed_by_last_name, u.first_name AS changed_by_first_name,
+                      u.middle_name AS changed_by_middle_name
                FROM task_history th
-                   LEFT JOIN employees e ON th.changed_by_employee_id = e.id
+                   LEFT JOIN users u ON th.changed_by_user_id = u.id
                WHERE th.task_id = ?
                UNION ALL
                SELECT ah.id AS id, ah.task_id AS task_id, ah.assignment_id AS assignment_id, ah.date AS date,
                       ah.action AS action, ah.field_name AS field_name, ah.old_value AS old_value,
                       ah.new_value AS new_value, ah.changed_at AS changed_at,
-                      ah.changed_by_employee_id AS changed_by_employee_id, 'assignment' AS entity,
-                      e.last_name AS changed_by_last_name, e.first_name AS changed_by_first_name,
-                      e.middle_name AS changed_by_middle_name
+                      ah.changed_by_user_id AS changed_by_user_id, 'assignment' AS entity,
+                      u.last_name AS changed_by_last_name, u.first_name AS changed_by_first_name,
+                      u.middle_name AS changed_by_middle_name
                FROM assignment_history ah
-                   LEFT JOIN employees e ON ah.changed_by_employee_id = e.id
+                   LEFT JOIN users u ON ah.changed_by_user_id = u.id
                WHERE ah.task_id = ?
            ) combined
            ORDER BY changed_at DESC, id DESC
@@ -1004,30 +1008,30 @@ _TEAM_HISTORY_COMBINED_SQL = '''SELECT * FROM (
                SELECT th.id AS id, th.task_id AS task_id, NULL AS assignment_id, NULL AS date,
                       th.action AS action, th.field_name AS field_name, th.old_value AS old_value,
                       th.new_value AS new_value, th.changed_at AS changed_at,
-                      th.changed_by_employee_id AS changed_by_employee_id, 'task' AS entity,
+                      th.changed_by_user_id AS changed_by_user_id, 'task' AS entity,
                       t.name AS task_name, t.is_deleted AS task_is_deleted,
-                      e.last_name AS changed_by_last_name, e.first_name AS changed_by_first_name,
-                      e.middle_name AS changed_by_middle_name
+                      u.last_name AS changed_by_last_name, u.first_name AS changed_by_first_name,
+                      u.middle_name AS changed_by_middle_name
                FROM task_history th
                    JOIN tasks t ON th.task_id = t.id
-                   LEFT JOIN employees e ON th.changed_by_employee_id = e.id
+                   LEFT JOIN users u ON th.changed_by_user_id = u.id
                WHERE t.team_id = ?
                UNION ALL
                SELECT ah.id AS id, ah.task_id AS task_id, ah.assignment_id AS assignment_id, ah.date AS date,
                       ah.action AS action, ah.field_name AS field_name, ah.old_value AS old_value,
                       ah.new_value AS new_value, ah.changed_at AS changed_at,
-                      ah.changed_by_employee_id AS changed_by_employee_id, 'assignment' AS entity,
+                      ah.changed_by_user_id AS changed_by_user_id, 'assignment' AS entity,
                       t.name AS task_name, t.is_deleted AS task_is_deleted,
-                      e.last_name AS changed_by_last_name, e.first_name AS changed_by_first_name,
-                      e.middle_name AS changed_by_middle_name
+                      u.last_name AS changed_by_last_name, u.first_name AS changed_by_first_name,
+                      u.middle_name AS changed_by_middle_name
                FROM assignment_history ah
                    JOIN tasks t ON ah.task_id = t.id
-                   LEFT JOIN employees e ON ah.changed_by_employee_id = e.id
+                   LEFT JOIN users u ON ah.changed_by_user_id = u.id
                WHERE t.team_id = ?
            ) combined'''
 
 
-def _team_history_filter_clause(search, date_from, date_to, changed_by_employee_id):
+def _team_history_filter_clause(search, date_from, date_to, changed_by_user_id):
     """Собирает WHERE-условия и параметры для фильтрации журнала команды поверх
     _TEAM_HISTORY_COMBINED_SQL. Используется и выборкой, и подсчётом total, чтобы фильтры
     в обоих местах гарантированно совпадали."""
@@ -1043,22 +1047,22 @@ def _team_history_filter_clause(search, date_from, date_to, changed_by_employee_
     if date_to:
         conditions.append('changed_at <= ?')
         params.append(f'{date_to} 23:59:59')
-    if changed_by_employee_id:
-        conditions.append('changed_by_employee_id = ?')
-        params.append(changed_by_employee_id)
+    if changed_by_user_id:
+        conditions.append('changed_by_user_id = ?')
+        params.append(changed_by_user_id)
     clause = f"WHERE {' AND '.join(conditions)}" if conditions else ''
     return clause, params
 
 
 @with_db_connection(commit_on_success=False)
 def get_team_history(conn, team_id, offset=0, limit=50, search=None, date_from=None, date_to=None,
-                      changed_by_employee_id=None):
+                      changed_by_user_id=None):
     """Журнал изменений команды: все изменения задач и назначений по всем задачам команды
     (включая удалённые задачи/назначения — is_deleted теперь отдельный флаг, а не физическое
     удаление, поэтому JOIN на tasks/assignments безопасен и не требует восстановления из JSON).
     Новые записи сверху. Поддерживает фильтры по названию задачи (fuzzy-поиск, как в поиске задач),
     периоду изменения и автору изменения."""
-    filter_clause, filter_params = _team_history_filter_clause(search, date_from, date_to, changed_by_employee_id)
+    filter_clause, filter_params = _team_history_filter_clause(search, date_from, date_to, changed_by_user_id)
     # @formatter:off
     rows = conn.execute(
         f'''{_TEAM_HISTORY_COMBINED_SQL}
@@ -1072,10 +1076,10 @@ def get_team_history(conn, team_id, offset=0, limit=50, search=None, date_from=N
 
 
 @with_db_connection(commit_on_success=False)
-def get_team_history_count(conn, team_id, search=None, date_from=None, date_to=None, changed_by_employee_id=None):
+def get_team_history_count(conn, team_id, search=None, date_from=None, date_to=None, changed_by_user_id=None):
     """Общее количество записей журнала изменений команды (для пагинации), с учётом тех же
     фильтров, что и get_team_history."""
-    filter_clause, filter_params = _team_history_filter_clause(search, date_from, date_to, changed_by_employee_id)
+    filter_clause, filter_params = _team_history_filter_clause(search, date_from, date_to, changed_by_user_id)
     # @formatter:off
     row = conn.execute(
         f'''SELECT COUNT(*) AS count FROM ({_TEAM_HISTORY_COMBINED_SQL}) history_combined

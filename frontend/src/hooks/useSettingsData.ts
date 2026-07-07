@@ -1,12 +1,13 @@
 import {useQuery} from '@tanstack/react-query';
 
-export interface Employee {
+export interface User {
   id: number;
-  last_name: string;
+  last_name: string | null;
   first_name: string;
   middle_name: string | null;
   role: string;
   login: string | null;
+  is_assignee: boolean;
   is_protected: boolean;
 }
 
@@ -33,8 +34,8 @@ async function getJson<T>(url: string): Promise<T> {
   return r.json();
 }
 
-export function useEmployees() {
-  return useQuery<Employee[]>({ queryKey: ['employees'], queryFn: () => getJson('/api/employees') });
+export function useUsers() {
+  return useQuery<User[]>({ queryKey: ['users'], queryFn: () => getJson('/api/users') });
 }
 
 export function useBlocks() {

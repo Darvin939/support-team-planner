@@ -17,8 +17,8 @@ export interface Assignment {
   date: string;
   block: string | null;
   status: 'new' | 'planned' | 'rollback' | 'success';
-  employee_id: number | null;
-  employee_name: string | null;
+  user_id: number | null;
+  user_name: string | null;
   comment: string | null;
   is_psi: boolean;
   time_spent: string | null;
@@ -88,7 +88,7 @@ export interface OverdueAssignment {
   criticality: 'high' | 'medium' | 'low';
   date: string;
   status: 'new' | 'planned';
-  employee_name: string | null;
+  user_name: string | null;
   comment: string | null;
   is_psi: boolean;
 }

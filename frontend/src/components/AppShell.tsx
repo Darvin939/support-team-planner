@@ -193,7 +193,7 @@ export function AppShell({
         <div style={{ position: 'absolute', bottom: 0, width: '100%', padding: 10, display: 'flex', flexDirection: 'column', gap: 2 }}>
           <button
             onClick={onOpenProfile}
-            title="Изменить логин/пароль"
+            title="Изменить пароль"
             style={{
               display: 'block', width: '100%', padding: '4px 10px 8px', background: 'none', border: 'none',
               color: c.text, fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', textAlign: 'left',

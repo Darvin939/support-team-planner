@@ -3,32 +3,32 @@ import {useLocation, useNavigate, useParams} from 'react-router-dom';
 import {DeleteOutlined, EditOutlined, InfoCircleOutlined} from '@ant-design/icons';
 import type {TableColumnsType} from 'antd';
 import {
-  Button,
-  Card,
-  Checkbox,
-  DatePicker,
-  Empty,
-  Input,
-  message,
-  Pagination,
-  Popconfirm,
-  Select,
-  Space,
-  Table,
-  theme,
-  Typography
+    Button,
+    Card,
+    Checkbox,
+    DatePicker,
+    Empty,
+    Input,
+    message,
+    Pagination,
+    Popconfirm,
+    Select,
+    Space,
+    Table,
+    theme,
+    Typography
 } from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import dayjs, {type Dayjs} from 'dayjs';
 import {useTeams} from '../hooks/useTeams';
 import {
-  type Assignment,
-  type Task,
-  useAssignments,
-  useTaskById,
-  useTaskDeps,
-  useTasks,
-  useTodayActive
+    type Assignment,
+    type Task,
+    useAssignments,
+    useTaskById,
+    useTaskDeps,
+    useTasks,
+    useTodayActive
 } from '../hooks/usePlanningData';
 import {useFreezeDays} from '../hooks/useSettingsData';
 import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
@@ -225,7 +225,7 @@ export function PlanningPage() {
         date: newDate,
         block: existing.block,
         status: existing.status,
-        employee_id: existing.employee_id,
+        user_id: existing.user_id,
         comment: existing.comment,
         is_psi: existing.is_psi,
         time_spent: existing.time_spent,

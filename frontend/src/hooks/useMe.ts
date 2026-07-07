@@ -1,9 +1,9 @@
 import {useQuery} from '@tanstack/react-query';
 
 export interface Me {
-  employee_id: number;
+  user_id: number;
   role: string;
-  last_name: string;
+  last_name: string | null;
   first_name: string;
   middle_name: string | null;
 }

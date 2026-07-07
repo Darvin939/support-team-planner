@@ -68,7 +68,7 @@ export interface AssignmentLite {
   id: number;
   block: string | null;
   status: 'new' | 'planned' | 'rollback' | 'success';
-  employee_name: string | null;
+  user_name: string | null;
   comment: string | null;
   is_psi: boolean;
   time_spent: string | null;
@@ -100,7 +100,7 @@ export function ScheduleChip({ assignment, onClick, draggable }: { assignment: A
       <BlockRail block={assignment.block} />
       <span style={{ fontSize: '0.68rem', color: statusColor }}>{ASSIGNMENT_STATUS_LABELS[assignment.status] ?? assignment.status}</span>
       {assignment.comment && <span style={{ fontSize: '0.63rem', fontStyle: 'italic', color: token.colorTextTertiary }}>{assignment.comment}</span>}
-      <span style={{ fontSize: '0.68rem', color: token.colorTextSecondary }}>{assignment.employee_name}</span>
+      <span style={{ fontSize: '0.68rem', color: token.colorTextSecondary }}>{assignment.user_name}</span>
       {(assignment.is_psi || assignment.time_spent) && (
         <span style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
           {assignment.is_psi && (
