@@ -947,25 +947,6 @@ def get_active_assignments_stats(conn, team_id, start_date, end_date, team_ids=N
 
 # === HISTORY ===
 @with_db_connection(commit_on_success=False)
-def get_task_history(conn, task_id):
-    """История изменений самой задачи (без назначений)"""
-    # @formatter:off
-    rows = conn.execute(
-        '''SELECT th.*,
-                  u.last_name AS changed_by_last_name,
-                  u.first_name AS changed_by_first_name,
-                  u.middle_name AS changed_by_middle_name
-           FROM task_history th
-               LEFT JOIN users u ON th.changed_by_user_id = u.id
-           WHERE th.task_id = ?
-           ORDER BY th.changed_at, th.id''',
-        (task_id,)
-    ).fetchall()
-    # @formatter:on
-    return [dict(r) for r in rows]
-
-
-@with_db_connection(commit_on_success=False)
 def get_assignment_history(conn, assignment_id, offset=0, limit=20):
     """История изменений конкретного назначения (пока оно существует), новые сверху"""
     # @formatter:off

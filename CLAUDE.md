@@ -109,7 +109,7 @@ FastAPI app split across a handful of modules:
           `assignment_history` row per changed field (or one summary row for create/delete), via the internal (non-
           `@with_db_connection`) helpers `_record_task_history`/`_record_assignment_history`, so the history insert
           commits atomically with the mutation itself.
-        - Read side: `get_task_history`, `get_assignment_history` (+ `get_assignment_history_count`), and
+        - Read side: `get_assignment_history` (+ `get_assignment_history_count`), and
           `get_task_full_history` (+ `get_task_full_history_count`) — the "full" variant `UNION ALL`s `task_history`
           with `assignment_history` filtered by `task_id` (not `assignment_id`), sorted by `changed_at DESC`, so a
           task's combined timeline still shows history for assignments that have since been deleted.
