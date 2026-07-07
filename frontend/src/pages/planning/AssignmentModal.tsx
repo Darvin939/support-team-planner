@@ -130,6 +130,7 @@ function AutoScheduleGrid({
                   style={{
                     ...cellTint,
                     padding: 4,
+                    height: 58,
                     verticalAlign: 'top',
                     cursor: 'pointer',
                     boxShadow: isOccupied ? `inset 0 0 0 2px ${token.colorWarning}` : undefined,
@@ -190,6 +191,7 @@ export function AssignmentModal({
   const [form] = Form.useForm<AssignmentFormValues>();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
+  const { token } = theme.useToken();
   const { data: teamBlocks } = useTeamBlocks(teamId);
   const { data: employees } = useEmployees();
   const { data: templates } = useTeamTemplates(teamId);
@@ -236,7 +238,7 @@ export function AssignmentModal({
     setAutoAssignSelected(null);
     if (checked) {
       form.setFieldValue('status', 'new');
-      const defaultTemplateId = templates?.length === 1 ? templates[0].id : null;
+      const defaultTemplateId = templates?.[0]?.id ?? null;
       setSelectedTemplateId(defaultTemplateId);
       recomputeSchedule(defaultTemplateId, (watchedDate ?? dayjs()).format(API_DATE_FORMAT));
     }
@@ -334,6 +336,7 @@ export function AssignmentModal({
     onError: (e: Error) => message.error(e.message),
   });
 
+  const autoAssignMissingTemplate = autoAssignEnabled && !selectedTemplateId;
   const isTerminal = task ? task.task_status === 'done' || task.task_status === 'cancelled' : false;
   const [historyOpen, setHistoryOpen] = useHistoryToggle(open, false);
   const isSaving = saveMutation.isPending || autoSaveMutation.isPending;
@@ -355,9 +358,8 @@ export function AssignmentModal({
               </Button>
             </Popconfirm>
           )}
-          <Button onClick={onClose}>Закрыть</Button>
           {!isTerminal && (
-            <Button type="primary" onClick={() => form.submit()} loading={isSaving}>
+            <Button type="primary" onClick={() => form.submit()} loading={isSaving} disabled={autoAssignMissingTemplate}>
               {assignment ? 'Обновить' : 'Создать'}
             </Button>
           )}
@@ -407,6 +409,7 @@ export function AssignmentModal({
               <div style={{ fontSize: '0.8rem', marginBottom: 4 }}>Автораспределение по графику</div>
               <Select
                 style={{ width: '100%' }}
+                status={autoAssignMissingTemplate ? 'error' : undefined}
                 placeholder="— выберите шаблон —"
                 value={selectedTemplateId ?? undefined}
                 onChange={(v) => {
@@ -416,6 +419,9 @@ export function AssignmentModal({
                 }}
                 options={templates?.map((t) => ({ value: t.id, label: t.name }))}
               />
+              {autoAssignMissingTemplate && (
+                <div style={{ color: token.colorError, fontSize: '0.75rem', marginTop: 4 }}>Выберите график раскатки</div>
+              )}
             </div>
             {selectedTemplateId && watchedDate && (
               <>

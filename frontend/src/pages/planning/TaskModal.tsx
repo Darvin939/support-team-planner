@@ -109,7 +109,6 @@ export function TaskModal({
               </Button>
             </Popconfirm>
           )}
-          <Button onClick={onClose}>Закрыть</Button>
           {!isTerminal && (
             <Button type="primary" onClick={() => form.submit()} loading={saveMutation.isPending}>
               {task ? 'Обновить' : 'Создать'}
