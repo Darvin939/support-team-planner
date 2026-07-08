@@ -1,18 +1,18 @@
 import {useEffect, useState} from 'react';
 import {
-    Alert,
-    Button,
-    DatePicker,
-    Form,
-    Input,
-    message,
-    Modal,
-    Popconfirm,
-    Select,
-    Space,
-    Switch,
-    theme,
-    TimePicker
+  Alert,
+  Button,
+  DatePicker,
+  Form,
+  Input,
+  message,
+  Modal,
+  Popconfirm,
+  Select,
+  Space,
+  Switch,
+  theme,
+  TimePicker
 } from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import dayjs from 'dayjs';
@@ -31,7 +31,6 @@ import {getCellTint, getHeaderTint} from './cellTint';
 interface AssignmentFormValues {
   date: dayjs.Dayjs;
   time_spent: dayjs.Dayjs | null;
-  is_psi: boolean;
   block_ids: number[];
   status: string;
   user_id: number | null;
@@ -211,7 +210,6 @@ export function AssignmentModal({
     form.setFieldsValue({
       date: dayjs(assignment?.date ?? date ?? undefined),
       time_spent: assignment?.time_spent ? dayjs(assignment.time_spent, TIME_FORMAT) : null,
-      is_psi: assignment?.is_psi ?? false,
       block_ids: blockIds,
       status: assignment?.status ?? 'new',
       user_id: assignment?.user_id ?? null,
@@ -260,7 +258,6 @@ export function AssignmentModal({
         status: values.status,
         user_id: values.user_id,
         comment: values.comment || null,
-        is_psi: values.is_psi,
         time_spent: timeSpent === '00:00' ? null : timeSpent,
       });
     },
@@ -297,7 +294,7 @@ export function AssignmentModal({
 
       const timeSpent = values.time_spent ? values.time_spent.format(TIME_FORMAT) : null;
       await Promise.all(
-        dates.map((d, i) => {
+        dates.map((d) => {
           const existing = taskAssignments.find((a) => a.date === d);
           return apiMutate('/api/assignment', 'POST', {
             assignment_id: existing?.id ?? null,
@@ -307,7 +304,6 @@ export function AssignmentModal({
             status: 'new',
             user_id: null,
             comment: null,
-            is_psi: i === 0 ? values.is_psi : false,
             time_spent: timeSpent === '00:00' ? null : timeSpent,
           });
         }),
@@ -397,12 +393,6 @@ export function AssignmentModal({
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span>Автоназначение</span>
             <Switch checked={autoAssignEnabled} onChange={handleAutoAssignToggle} />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span>ПСИ</span>
-            <Form.Item name="is_psi" valuePropName="checked" noStyle>
-              <Switch />
-            </Form.Item>
           </div>
         </div>
 

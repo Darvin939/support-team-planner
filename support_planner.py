@@ -114,7 +114,6 @@ class AssignmentIn(BaseModel):
     status: str = "new"
     user_id: Optional[int] = None
     comment: Optional[str] = None
-    is_psi: bool = False
     time_spent: Optional[str] = None
 
 
@@ -184,9 +183,7 @@ class TaskPriorityIn(BaseModel):
 
 
 VALID_TASK_TRANSITIONS = {
-    'new': {'ready', 'in_progress', 'cancelled'},
-    'ready': {'in_progress', 'cancelled'},
-    'in_progress': {'done', 'cancelled'},
+    'new': {'done', 'cancelled'},
 }
 
 
@@ -312,7 +309,6 @@ def get_assignments_api(team_id: int, start_date: Optional[str] = None, end_date
             'user_id': a['user_id'],
             'user_name': user_name,
             'comment': a['comment'],
-            'is_psi': bool(a['is_psi']),
             'time_spent': a['time_spent']
         })
 
@@ -338,9 +334,7 @@ def save_assignment_api(request: Request, data: AssignmentIn):
 
     changed_by = request.session.get('user_id')
     db.create_or_update_assignment(data.assignment_id, data.task_id, data.date, block, data.status, data.user_id,
-                                   comment, 1 if data.is_psi else 0, time_spent, changed_by=changed_by)
-    if data.status == 'planned':
-        db.maybe_advance_task_to_in_progress(data.task_id)
+                                   comment, time_spent, changed_by=changed_by)
     return {'success': True}
 
 
@@ -697,7 +691,6 @@ def get_active_assignments_api(team_id: int, start_date: Optional[str] = None, e
             'comment': a['comment'],
             'team_id': a['team_id'],
             'team_name': a['team_name'],
-            'is_psi': bool(a['is_psi']),
         })
     return {
         'items': items,

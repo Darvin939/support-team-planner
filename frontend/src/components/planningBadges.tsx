@@ -1,4 +1,5 @@
 import type {CSSProperties} from 'react';
+import {CheckOutlined, CloseOutlined} from '@ant-design/icons';
 import {theme, Tooltip} from 'antd';
 import {ASSIGNMENT_STATUS_LABELS, TASK_STATUS_LABELS} from '../lib/historyFormat';
 
@@ -18,9 +19,13 @@ function tintedStyle(color: string): CSSProperties {
 export function TaskStatusBadge({ value }: { value: string }) {
   const { token } = theme.useToken();
   if (value === 'new') return null;
-  const color =
-    value === 'ready' ? token.colorPrimary : value === 'in_progress' ? token.colorWarning : value === 'done' ? token.colorSuccess : token.colorError;
-  return <span style={{ ...tintedStyle(color), borderRadius: 10, fontWeight: 600 }}>{TASK_STATUS_LABELS[value] ?? value}</span>;
+  const color = value === 'done' ? token.colorSuccess : token.colorError;
+  const icon = value === 'done' ? <CheckOutlined /> : <CloseOutlined />;
+  return (
+    <Tooltip title={TASK_STATUS_LABELS[value] ?? value}>
+      <span style={{ color, fontSize: '0.95rem', display: 'inline-flex', alignItems: 'center' }}>{icon}</span>
+    </Tooltip>
+  );
 }
 
 export function DepBadge({ kind, names }: { kind: 'deleted' | 'cancelled' | 'pending'; names: string[] }) {
@@ -62,7 +67,6 @@ export interface AssignmentLite {
   status: 'new' | 'planned' | 'rollback' | 'success';
   user_name: string | null;
   comment: string | null;
-  is_psi: boolean;
   time_spent: string | null;
 }
 
@@ -93,16 +97,9 @@ export function ScheduleChip({ assignment, onClick, draggable }: { assignment: A
       <span style={{ fontSize: '0.68rem', color: statusColor }}>{ASSIGNMENT_STATUS_LABELS[assignment.status] ?? assignment.status}</span>
       {assignment.comment && <span style={{ fontSize: '0.63rem', fontStyle: 'italic', color: token.colorTextTertiary }}>{assignment.comment}</span>}
       <span style={{ fontSize: '0.68rem', color: token.colorTextSecondary }}>{assignment.user_name}</span>
-      {(assignment.is_psi || assignment.time_spent) && (
-        <span style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-          {assignment.is_psi && (
-            <span style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.03em', ...tintedStyle('#9254de'), padding: '0 4px', borderRadius: 6 }}>ПСИ</span>
-          )}
-          {assignment.time_spent && (
-            <span style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.03em', ...tintedStyle(token.colorPrimary), padding: '0 4px', borderRadius: 6 }}>
-              {assignment.time_spent}
-            </span>
-          )}
+      {assignment.time_spent && (
+        <span style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.03em', ...tintedStyle(token.colorPrimary), padding: '0 4px', borderRadius: 6 }}>
+          {assignment.time_spent}
         </span>
       )}
     </div>

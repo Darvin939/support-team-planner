@@ -7,7 +7,7 @@ export interface Task {
   id: number;
   name: string;
   description: string | null;
-  task_status: 'new' | 'ready' | 'in_progress' | 'done' | 'cancelled';
+  task_status: 'new' | 'done' | 'cancelled';
 }
 
 export interface Assignment {
@@ -19,7 +19,6 @@ export interface Assignment {
   user_id: number | null;
   user_name: string | null;
   comment: string | null;
-  is_psi: boolean;
   time_spent: string | null;
 }
 
@@ -87,7 +86,6 @@ export interface OverdueAssignment {
   status: 'new' | 'planned';
   user_name: string | null;
   comment: string | null;
-  is_psi: boolean;
 }
 
 export function useOverdueAssignments() {

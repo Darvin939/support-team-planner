@@ -699,19 +699,6 @@ def update_task_status(conn, task_id, new_status, changed_by=None):
     return True
 
 
-@with_db_connection()
-def maybe_advance_task_to_in_progress(conn, task_id):
-    """Автоматически переводит задачу в in_progress если есть плановое назначение"""
-    task = conn.execute("SELECT task_status FROM tasks WHERE id = ?", (task_id,)).fetchone()
-    if task and task['task_status'] in ('new', 'ready'):
-        has_planned = conn.execute(
-            "SELECT 1 FROM assignments WHERE task_id = ? AND status = 'planned'", (task_id,)
-        ).fetchone()
-        if has_planned:
-            conn.execute("UPDATE tasks SET task_status = 'in_progress' WHERE id = ?", (task_id,))
-    return True
-
-
 # === TASK DEPENDENCIES ===
 
 @with_db_connection(commit_on_success=False)
@@ -824,7 +811,6 @@ def get_assignment(conn, task_id, date_str):
                   a.status,
                   a.user_id,
                   a.comment,
-                  a.is_psi,
                   a.time_spent,
                   u.last_name   as user_last_name,
                   u.first_name  as user_first_name,
@@ -851,7 +837,6 @@ def get_assignments_by_team_in_period(conn, team_id, start_date, end_date, task_
                       a.status,
                       a.user_id,
                       a.comment,
-                      a.is_psi,
                       a.time_spent,
                       u.last_name   as user_last_name,
                       u.first_name  as user_first_name,
@@ -874,12 +859,12 @@ def get_assignments_by_team_in_period(conn, team_id, start_date, end_date, task_
 
 @with_db_connection()
 def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, status, user_id, comment,
-                                 is_psi=0, time_spent=None, changed_by=None):
+                                 time_spent=None, changed_by=None):
     """Создать или обновить назначение"""
     existing = conn.execute('SELECT * FROM assignments WHERE id = ?', (assignment_id,)).fetchone()
 
     new_values = {'date': date_str, 'task_id': task_id, 'block': block, 'status': status,
-                  'user_id': user_id, 'comment': comment, 'is_psi': is_psi, 'time_spent': time_spent}
+                  'user_id': user_id, 'comment': comment, 'time_spent': time_spent}
 
     if existing:
         for field, new_val in new_values.items():
@@ -895,16 +880,15 @@ def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, s
                    status      = ?,
                    user_id     = ?,
                    comment     = ?,
-                   is_psi      = ?,
                    time_spent  = ?
                WHERE id = ?''',
-            (date_str, task_id, block, status, user_id, comment, is_psi, time_spent, assignment_id)
+            (date_str, task_id, block, status, user_id, comment, time_spent, assignment_id)
         )
     else:
         cursor = conn.execute(
-            '''INSERT INTO assignments (task_id, date, block, status, user_id, comment, is_psi, time_spent)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
-            (task_id, date_str, block, status, user_id, comment, is_psi, time_spent)
+            '''INSERT INTO assignments (task_id, date, block, status, user_id, comment, time_spent)
+               VALUES (?, ?, ?, ?, ?, ?, ?)''',
+            (task_id, date_str, block, status, user_id, comment, time_spent)
         )
         new_assignment_id = _backend.last_insert_id(cursor)
         snapshot = json.dumps(new_values, ensure_ascii=False, default=str)
@@ -957,7 +941,7 @@ def get_active_assignments_in_period(conn, team_id, start_date, end_date, team_i
     where, params = _active_assignments_where(team_id, start_date, end_date, team_ids)
     # @formatter:off
     query = '''SELECT a.id, a.task_id, t.name AS task_name,
-                      a.date, a.block, a.status, a.user_id, a.comment, a.is_psi,
+                      a.date, a.block, a.status, a.user_id, a.comment,
                       u.last_name  AS user_last_name,
                       u.first_name AS user_first_name,
                       u.middle_name AS user_middle_name,

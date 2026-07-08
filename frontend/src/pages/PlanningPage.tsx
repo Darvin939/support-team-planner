@@ -1,7 +1,7 @@
 import {type HTMLAttributes, useEffect, useMemo, useRef, useState} from 'react';
 import {useLocation, useNavigate, useParams} from 'react-router-dom';
-import {DeleteOutlined, EditOutlined, HolderOutlined, InfoCircleOutlined} from '@ant-design/icons';
-import type {TableColumnsType} from 'antd';
+import {CheckOutlined, CloseOutlined, EditOutlined, HolderOutlined, InfoCircleOutlined} from '@ant-design/icons';
+import type {MenuProps, TableColumnsType} from 'antd';
 import {
   Button,
   Card,
@@ -11,8 +11,8 @@ import {
   Empty,
   Input,
   message,
+  Modal,
   Pagination,
-  Popconfirm,
   Select,
   Space,
   Table,
@@ -49,9 +49,7 @@ import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT} from '.
 import {TASK_STATUS_LABELS} from '../lib/historyFormat';
 
 const VALID_TASK_TRANSITIONS: Record<string, string[]> = {
-  new: ['ready', 'in_progress', 'cancelled'],
-  ready: ['in_progress', 'cancelled'],
-  in_progress: ['done', 'cancelled'],
+  new: ['done', 'cancelled'],
 };
 
 const STORAGE_TEAM_ID = 'selectedTeamId';
@@ -67,8 +65,6 @@ const ASSIGNMENT_STATUS_OPTIONS = [
 ];
 const TASK_STATUS_OPTIONS = [
   { value: 'new', label: 'Новый' },
-  { value: 'ready', label: 'К планированию' },
-  { value: 'in_progress', label: 'В работе' },
   { value: 'done', label: 'Выполнено' },
   { value: 'cancelled', label: 'Отменено' },
 ];
@@ -130,17 +126,6 @@ export function PlanningPage() {
       if (status === 'done' || status === 'cancelled') {
         message.success(`«${task?.name ?? taskId}» — ${TASK_STATUS_LABELS[status] ?? status}`);
       }
-    },
-    onError: (e: Error) => message.error(e.message),
-  });
-
-  const deleteTaskMutation = useMutation({
-    mutationFn: (taskId: number) => apiMutate(`/api/task/${taskId}`, 'DELETE'),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
-      pendingCenterRef.current = true;
-      message.success('Задача удалена');
     },
     onError: (e: Error) => message.error(e.message),
   });
@@ -245,7 +230,6 @@ export function PlanningPage() {
         status: existing.status,
         user_id: existing.user_id,
         comment: existing.comment,
-        is_psi: existing.is_psi,
         time_spent: existing.time_spent,
       });
     },
@@ -296,7 +280,7 @@ export function PlanningPage() {
       dataIndex: 'name',
       key: 'name',
       fixed: 'left',
-      width: 300,
+      width: 400,
       render: (_, task) => {
         const taskDeps = depsByTask.get(task.id) ?? [];
         const deleted = taskDeps.filter((d) => d.dep_is_deleted);
@@ -304,16 +288,49 @@ export function PlanningPage() {
         const pending = taskDeps.filter((d) => !d.dep_is_deleted && d.dep_status !== 'done' && d.dep_status !== 'cancelled');
         const isTerminal = task.task_status === 'done' || task.task_status === 'cancelled';
         const transitions = VALID_TASK_TRANSITIONS[task.task_status] ?? [];
+        const menuItems: MenuProps['items'] = [
+          ...(transitions.length > 0
+            ? [
+                {
+                  key: 'status-group',
+                  type: 'group' as const,
+                  label: 'Статус',
+                  children: transitions.map((s) => ({
+                    key: s,
+                    label: TASK_STATUS_LABELS[s] ?? s,
+                    icon: s === 'done' ? <CheckOutlined /> : <CloseOutlined />,
+                  })),
+                },
+              ]
+            : []),
+          {
+            key: 'priority-group',
+            type: 'group',
+            label: 'Приоритет',
+            children: [
+              { key: 'start', label: 'В начало списка' },
+              { key: 'end', label: 'В конец списка' },
+            ],
+          },
+        ];
+        function handleMenuClick(key: string) {
+          if (key === 'start' || key === 'end') {
+            priorityMutation.mutate({ taskId: task.id, position: key });
+            return;
+          }
+          if (key === 'done' || key === 'cancelled') {
+            Modal.confirm({
+              title: `Перевести работу в статус «${TASK_STATUS_LABELS[key]}»?`,
+              okText: 'Перевести',
+              cancelText: 'Отмена',
+              onOk: () => statusMutation.mutate({ taskId: task.id, status: key }),
+            });
+          }
+        }
         return (
           <Dropdown
             trigger={['contextMenu']}
-            menu={{
-              items: [
-                { key: 'start', label: 'В начало списка' },
-                { key: 'end', label: 'В конец списка' },
-              ],
-              onClick: ({ key }) => priorityMutation.mutate({ taskId: task.id, position: key as 'start' | 'end' }),
-            }}
+            menu={{ items: menuItems, onClick: ({ key }) => handleMenuClick(key) }}
           >
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -339,34 +356,7 @@ export function PlanningPage() {
               <span style={{ fontWeight: 500 }} data-task-row-name>{task.name}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4, flexWrap: 'wrap' }}>
-              {!isTerminal && (
-                <Popconfirm title="Удалить работу?" onConfirm={() => deleteTaskMutation.mutate(task.id)} okText="Удалить" cancelText="Отмена">
-                  <Button type="text" size="small" danger>
-                    <DeleteOutlined />
-                  </Button>
-                </Popconfirm>
-              )}
               <TaskStatusBadge value={task.task_status} />
-              {transitions.map((s) => {
-                if (s === 'done' || s === 'cancelled') {
-                  return (
-                    <Popconfirm
-                      key={s}
-                      title={`Перевести работу в статус «${TASK_STATUS_LABELS[s]}»?`}
-                      onConfirm={() => statusMutation.mutate({ taskId: task.id, status: s })}
-                      okText="Перевести"
-                      cancelText="Отмена"
-                    >
-                      <Button size="small">{TASK_STATUS_LABELS[s]}</Button>
-                    </Popconfirm>
-                  );
-                }
-                return (
-                  <Button key={s} size="small" onClick={() => statusMutation.mutate({ taskId: task.id, status: s })}>
-                    {TASK_STATUS_LABELS[s]}
-                  </Button>
-                );
-              })}
               {deleted.length > 0 && <DepBadge kind="deleted" names={deleted.map((d) => d.dep_name)} />}
               {cancelled.length > 0 && <DepBadge kind="cancelled" names={cancelled.map((d) => d.dep_name)} />}
               {pending.length > 0 && <DepBadge kind="pending" names={pending.map((d) => d.dep_name)} />}

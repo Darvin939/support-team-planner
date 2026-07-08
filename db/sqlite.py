@@ -191,6 +191,10 @@ class SQLiteBackend(DBBackend):
         self._migrate_criticality_to_priority(conn)
         conn.execute('PRAGMA foreign_keys = ON;')
         conn.executescript(_SCHEMA)
+        # Промежуточные статусы задачи (ready/in_progress) упразднены — у задачи остаётся только
+        # единое активное состояние (new) и терминальные (done/cancelled). Безусловно, при каждом
+        # старте: это нормализация значений, а не разовый бэкфилл, повторный запуск безопасен.
+        conn.execute("UPDATE tasks SET task_status = 'new' WHERE task_status IN ('ready', 'in_progress')")
         # Миграция для БД, где бутстрап-админ ещё хранится по старой схеме имени
         # (last_name='Администратор', first_name/middle_name пустые) — переносим на новую, где
         # имя администратора хранится только в first_name, а last_name/middle_name = NULL (это
