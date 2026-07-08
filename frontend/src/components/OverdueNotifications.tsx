@@ -4,7 +4,6 @@ import {Badge, Empty, List, Popover, Spin, theme, Typography} from 'antd';
 import dayjs from 'dayjs';
 import {useOverdueAssignments} from '../hooks/usePlanningData';
 import {MAX_PERIOD_DAYS} from '../hooks/useDateRangeFilter';
-import {CriticalityBadge} from './planningBadges';
 import {DISPLAY_DATE_FORMAT} from '../lib/dateFormats';
 
 const iconStyle = { width: 17, height: 17, display: 'inline-flex' } as const;
@@ -56,7 +55,6 @@ export function OverdueNotifications({ compact }: { compact?: boolean }) {
                 style={{ cursor: 'pointer', display: 'block', padding: '8px 4px' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <CriticalityBadge value={item.criticality} />
                   <span style={{ fontWeight: 500 }}>{item.task_name}</span>
                 </div>
                 <div style={{ marginTop: 2, fontSize: '0.8rem', color: token.colorTextSecondary }}>

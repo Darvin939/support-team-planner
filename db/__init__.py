@@ -7,6 +7,8 @@ from db.sqlite import SQLiteBackend
 
 _backend: DBBackend = SQLiteBackend()
 
+_PRIORITY_GAP = 1000
+
 
 def get_db_connection():
     conn = _backend.connect()
@@ -494,28 +496,14 @@ def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, show_compl
     params += [limit, offset]
     # @formatter:off
     return conn.execute(
-        f'''SELECT id, name, description, criticality, task_status
+        f'''SELECT id, name, description, task_status
             FROM tasks
             WHERE team_id = ?
               AND is_deleted = 0
             {completed_clause}
             {search_clause}
             {id_clause}
-            ORDER BY CASE criticality
-                         WHEN 'high'   THEN 0
-                         WHEN 'medium' THEN 1
-                         WHEN 'low'    THEN 2
-                         ELSE 3
-                         END,
-                     CASE task_status
-                         WHEN 'in_progress' THEN 0
-                         WHEN 'ready'       THEN 1
-                         WHEN 'new'         THEN 2
-                         WHEN 'done'        THEN 3
-                         WHEN 'cancelled'   THEN 4
-                         ELSE 5
-                         END,
-                     id
+            ORDER BY priority DESC, id
             LIMIT ? OFFSET ?''',
         params
     ).fetchall()
@@ -566,11 +554,13 @@ def task_exists(conn, task_id):
 
 
 @with_db_connection(commit_on_success=False)
-def create_or_update_task(conn, task_id, team_id, name, description, criticality='medium', changed_by=None):
-    """Создать или обновить задачу"""
-    existing = conn.execute('SELECT name, description, criticality FROM tasks WHERE id = ?', (task_id,)).fetchone()
+def create_or_update_task(conn, task_id, team_id, name, description, changed_by=None):
+    """Создать или обновить задачу. priority этой функцией не редактируется на UPDATE — им
+    управляют только reorder_team_tasks/move_task_to_edge; на CREATE новая задача всегда уходит
+    в конец списка команды (наименьший приоритет)."""
+    existing = conn.execute('SELECT name, description FROM tasks WHERE id = ?', (task_id,)).fetchone()
     if existing:
-        for field, new_val in (('name', name), ('description', description), ('criticality', criticality)):
+        for field, new_val in (('name', name), ('description', description)):
             old_val = existing[field]
             if old_val != new_val:
                 _record_task_history(conn, task_id, 'update', field_name=field,
@@ -578,23 +568,91 @@ def create_or_update_task(conn, task_id, team_id, name, description, criticality
         conn.execute(
             '''UPDATE tasks
                SET name        = ?,
-                   description = ?,
-                   criticality = ?
+                   description = ?
                WHERE id = ?''',
-            (name, description, criticality, task_id)
+            (name, description, task_id)
         )
         conn.commit()
     else:
+        min_priority = conn.execute(
+            'SELECT MIN(priority) FROM tasks WHERE team_id = ? AND is_deleted = 0', (team_id,)
+        ).fetchone()[0]
+        new_priority = (min_priority - _PRIORITY_GAP) if min_priority is not None else 0
         cursor = conn.execute(
-            'INSERT INTO tasks (team_id, name, description, criticality) VALUES (?, ?, ?, ?)',
-            (team_id, name, description, criticality)
+            'INSERT INTO tasks (team_id, name, description, priority) VALUES (?, ?, ?, ?)',
+            (team_id, name, description, new_priority)
         )
         task_id = _backend.last_insert_id(cursor)
         snapshot = json.dumps({'team_id': team_id, 'name': name, 'description': description,
-                                'criticality': criticality}, ensure_ascii=False)
+                                'priority': new_priority}, ensure_ascii=False)
         _record_task_history(conn, task_id, 'create', new_value=snapshot, changed_by=changed_by)
         conn.commit()
     return task_id
+
+
+@with_db_connection()
+def reorder_team_tasks(conn, team_id, task_ids, changed_by=None):
+    """Переупорядочить задачи в пределах уже загруженной страницы (drag-and-drop).
+
+    task_ids — новый порядок ровно тех задач, что были на странице, от самой важной к наименее
+    важной. Алгоритм не создаёт новых значений priority и никогда не "выходит" за диапазон
+    страницы: берёт ТЕКУЩИЕ priority ровно этого набора задач, сортирует их по убыванию и
+    раздаёт заново в новом порядке — первая задача нового порядка получает наибольшее из уже
+    существующих значений, и т.д. Только реально изменившиеся строки попадают в историю."""
+    if len(task_ids) != len(set(task_ids)):
+        raise ValueError('Дублирующиеся task_id')
+    if not task_ids:
+        return True
+
+    placeholders = ','.join('?' * len(task_ids))
+    rows = conn.execute(
+        f'SELECT id, priority FROM tasks WHERE id IN ({placeholders}) AND team_id = ? AND is_deleted = 0',
+        (*task_ids, team_id)
+    ).fetchall()
+    priority_by_id = {r['id']: r['priority'] for r in rows}
+    if set(priority_by_id) != set(task_ids):
+        raise ValueError('Некоторые задачи не найдены в этой команде или удалены')
+
+    priorities_desc = sorted(priority_by_id.values(), reverse=True)
+    for tid, new_priority in zip(task_ids, priorities_desc):
+        old_priority = priority_by_id[tid]
+        if old_priority == new_priority:
+            continue
+        _record_task_history(conn, tid, 'update', field_name='priority',
+                              old_value=str(old_priority), new_value=str(new_priority), changed_by=changed_by)
+        conn.execute('UPDATE tasks SET priority = ? WHERE id = ?', (new_priority, tid))
+    return True
+
+
+@with_db_connection()
+def move_task_to_edge(conn, task_id, position, changed_by=None):
+    """Переместить задачу в начало (position='start') или конец ('end') списка ВСЕЙ её команды
+    (контекстное меню). team_id намеренно не принимается параметром — команда определяется самой
+    задачей, так что подделать её через фронтенд нельзя."""
+    task = conn.execute('SELECT priority, team_id, is_deleted FROM tasks WHERE id = ?', (task_id,)).fetchone()
+    if not task or task['is_deleted']:
+        raise ValueError('Задача не найдена')
+
+    agg_col = 'MAX(priority)' if position == 'start' else 'MIN(priority)'
+    edge_row = conn.execute(
+        f'SELECT {agg_col} AS edge FROM tasks WHERE team_id = ? AND is_deleted = 0 AND id != ?',
+        (task['team_id'], task_id)
+    ).fetchone()
+    edge = edge_row['edge']
+    old_priority = task['priority']
+
+    if edge is None:
+        return True  # единственная задача команды — двигать некуда
+
+    already_there = old_priority >= edge if position == 'start' else old_priority <= edge
+    if already_there:
+        return True  # уже на нужном краю — no-op
+
+    new_priority = edge + _PRIORITY_GAP if position == 'start' else edge - _PRIORITY_GAP
+    _record_task_history(conn, task_id, 'update', field_name='priority',
+                          old_value=str(old_priority), new_value=str(new_priority), changed_by=changed_by)
+    conn.execute('UPDATE tasks SET priority = ? WHERE id = ?', (new_priority, task_id))
+    return True
 
 
 @with_db_connection()
@@ -728,7 +786,7 @@ def get_active_tasks_flat(conn, team_id, search=None, limit=50, include_ids=None
         placeholders = ','.join('?' * len(include_ids))
         include_clause = f'''
             UNION
-            SELECT id, name, task_status, criticality
+            SELECT id, name, task_status
             FROM tasks
             WHERE team_id = ? AND is_deleted = 0 AND id IN ({placeholders})
         '''
@@ -737,8 +795,8 @@ def get_active_tasks_flat(conn, team_id, search=None, limit=50, include_ids=None
 
     # @formatter:off
     query = f'''
-        SELECT id, name, task_status, criticality FROM (
-            SELECT id, name, task_status, criticality
+        SELECT id, name, task_status FROM (
+            SELECT id, name, task_status
             FROM tasks
             WHERE team_id = ?
               AND is_deleted = 0
@@ -898,7 +956,7 @@ def get_active_assignments_in_period(conn, team_id, start_date, end_date, team_i
     уведомлениями о просрочке, которым нужен полный список, а не одна страница)."""
     where, params = _active_assignments_where(team_id, start_date, end_date, team_ids)
     # @formatter:off
-    query = '''SELECT a.id, a.task_id, t.name AS task_name, t.criticality,
+    query = '''SELECT a.id, a.task_id, t.name AS task_name,
                       a.date, a.block, a.status, a.user_id, a.comment, a.is_psi,
                       u.last_name  AS user_last_name,
                       u.first_name AS user_first_name,
@@ -909,9 +967,7 @@ def get_active_assignments_in_period(conn, team_id, start_date, end_date, team_i
                    JOIN teams tm ON t.team_id = tm.id
                    LEFT JOIN users u ON a.user_id = u.id
                ''' + where + '''
-               ORDER BY a.date,
-                        CASE t.criticality WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 3 END,
-                        t.name'''
+               ORDER BY a.date, t.priority DESC, t.name'''
     # @formatter:on
     if limit is not None:
         query += ' LIMIT ? OFFSET ?'
@@ -926,10 +982,7 @@ def get_active_assignments_stats(conn, team_id, start_date, end_date, team_ids=N
     # @formatter:off
     query = '''SELECT COUNT(*) AS total,
                       SUM(CASE WHEN a.status = 'new' THEN 1 ELSE 0 END) AS status_new,
-                      SUM(CASE WHEN a.status = 'planned' THEN 1 ELSE 0 END) AS status_planned,
-                      SUM(CASE WHEN t.criticality = 'high' THEN 1 ELSE 0 END) AS crit_high,
-                      SUM(CASE WHEN t.criticality = 'medium' THEN 1 ELSE 0 END) AS crit_medium,
-                      SUM(CASE WHEN t.criticality = 'low' THEN 1 ELSE 0 END) AS crit_low
+                      SUM(CASE WHEN a.status = 'planned' THEN 1 ELSE 0 END) AS status_planned
                FROM assignments a
                    JOIN tasks t ON a.task_id = t.id
                ''' + where
@@ -939,9 +992,6 @@ def get_active_assignments_stats(conn, team_id, start_date, end_date, team_ids=N
         'total': row['total'] or 0,
         'status_new': row['status_new'] or 0,
         'status_planned': row['status_planned'] or 0,
-        'crit_high': row['crit_high'] or 0,
-        'crit_medium': row['crit_medium'] or 0,
-        'crit_low': row['crit_low'] or 0,
     }
 
 

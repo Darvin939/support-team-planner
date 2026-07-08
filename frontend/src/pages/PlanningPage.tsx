@@ -1,12 +1,13 @@
-import {useEffect, useMemo, useRef, useState} from 'react';
+import {type HTMLAttributes, useEffect, useMemo, useRef, useState} from 'react';
 import {useLocation, useNavigate, useParams} from 'react-router-dom';
-import {DeleteOutlined, EditOutlined, InfoCircleOutlined} from '@ant-design/icons';
+import {DeleteOutlined, EditOutlined, HolderOutlined, InfoCircleOutlined} from '@ant-design/icons';
 import type {TableColumnsType} from 'antd';
 import {
   Button,
   Card,
   Checkbox,
   DatePicker,
+  Dropdown,
   Empty,
   Input,
   message,
@@ -35,11 +36,12 @@ import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
 import {useIsMobile} from '../hooks/useIsMobile';
 import {StatGroupLabel, StatTile} from '../components/StatTile';
 import {FilterField, FilterGrid} from '../components/FilterGrid';
-import {CriticalityBadge, DepBadge, ScheduleChip, TaskStatusBadge} from '../components/planningBadges';
+import {DepBadge, ScheduleChip, TaskStatusBadge} from '../components/planningBadges';
 import {TaskModal} from './planning/TaskModal';
 import {AssignmentModal} from './planning/AssignmentModal';
 import {useAssignmentDrag} from './planning/useAssignmentDrag';
 import {useTableDragScroll} from './planning/useTableDragScroll';
+import {useTaskRowDrag} from './planning/useTaskRowDrag';
 import {getCellTint, getHeaderTint} from './planning/cellTint';
 import {apiMutate} from '../lib/apiMutate';
 import {linkify} from '../lib/linkify';
@@ -62,11 +64,6 @@ const ASSIGNMENT_STATUS_OPTIONS = [
   { value: 'planned', label: 'Запланировано' },
   { value: 'rollback', label: 'Откат' },
   { value: 'success', label: 'Успешно' },
-];
-const CRITICALITY_OPTIONS = [
-  { value: 'low', label: 'Низкая' },
-  { value: 'medium', label: 'Средняя' },
-  { value: 'high', label: 'Высокая' },
 ];
 const TASK_STATUS_OPTIONS = [
   { value: 'new', label: 'Новый' },
@@ -109,7 +106,6 @@ export function PlanningPage() {
   const [search, setSearch] = useState('');
   const [showCompleted, setShowCompleted] = useState(false);
   const [page, setPage] = useState(1);
-  const [critFilter, setCritFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [taskStatusFilter, setTaskStatusFilter] = useState<string[]>([]);
   const [taskModal, setTaskModal] = useState<{ open: boolean; task: Task | null }>({ open: false, task: null });
@@ -119,6 +115,7 @@ export function PlanningPage() {
     date: null,
     assignment: null,
   });
+
   const queryClient = useQueryClient();
   const { data: freezeDaysList } = useFreezeDays();
   const freezeDays = useMemo(() => new Set(freezeDaysList ?? []), [freezeDaysList]);
@@ -146,6 +143,27 @@ export function PlanningPage() {
       message.success('Задача удалена');
     },
     onError: (e: Error) => message.error(e.message),
+  });
+
+  const reorderMutation = useMutation({
+    mutationFn: (taskIds: number[]) => apiMutate(`/api/tasks/${teamId}/reorder`, 'PATCH', { task_ids: taskIds }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+    onError: (e: Error) => message.error(e.message),
+  });
+
+  const priorityMutation = useMutation({
+    mutationFn: ({ taskId, position }: { taskId: number; position: 'start' | 'end' }) =>
+      apiMutate(`/api/task/${taskId}/priority`, 'PATCH', { position }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      message.success('Приоритет изменён');
+    },
+    onError: (e: Error) => message.error(e.message),
+  });
+
+  useTaskRowDrag({
+    onDrop: (newOrder) => reorderMutation.mutate(newOrder),
+    color: token.colorPrimary,
   });
 
   useEffect(() => {
@@ -255,7 +273,6 @@ export function PlanningPage() {
 
   const filteredTasks = useMemo(() => {
     return (taskData?.tasks ?? []).filter((t) => {
-      if (critFilter.length && !critFilter.includes(t.criticality)) return false;
       if (taskStatusFilter.length && !taskStatusFilter.includes(t.task_status)) return false;
       if (statusFilter.length) {
         const taskAssignments = assignmentsByTask.get(t.id) ?? [];
@@ -263,7 +280,7 @@ export function PlanningPage() {
       }
       return true;
     });
-  }, [taskData, critFilter, taskStatusFilter, statusFilter, assignmentsByTask]);
+  }, [taskData, taskStatusFilter, statusFilter, assignmentsByTask]);
 
   function handleTeamSelect(value: number) {
     localStorage.setItem(STORAGE_TEAM_ID, String(value));
@@ -288,8 +305,29 @@ export function PlanningPage() {
         const isTerminal = task.task_status === 'done' || task.task_status === 'cancelled';
         const transitions = VALID_TASK_TRANSITIONS[task.task_status] ?? [];
         return (
+          <Dropdown
+            trigger={['contextMenu']}
+            menu={{
+              items: [
+                { key: 'start', label: 'В начало списка' },
+                { key: 'end', label: 'В конец списка' },
+              ],
+              onClick: ({ key }) => priorityMutation.mutate({ taskId: task.id, position: key as 'start' | 'end' }),
+            }}
+          >
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Button
+                type="text"
+                size="small"
+                style={{ cursor: 'grab' }}
+                data-task-row-handle="true"
+                data-task-row-id={task.id}
+                onMouseDown={(e) => e.preventDefault()}
+                title="Перетащить для изменения приоритета"
+              >
+                <HolderOutlined />
+              </Button>
               <Button
                 type="text"
                 size="small"
@@ -298,8 +336,7 @@ export function PlanningPage() {
               >
                 {isTerminal ? <InfoCircleOutlined /> : <EditOutlined />}
               </Button>
-              <CriticalityBadge value={task.criticality} />
-              <span style={{ fontWeight: 500 }}>{task.name}</span>
+              <span style={{ fontWeight: 500 }} data-task-row-name>{task.name}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4, flexWrap: 'wrap' }}>
               {!isTerminal && (
@@ -342,6 +379,7 @@ export function PlanningPage() {
               </div>
             )}
           </div>
+          </Dropdown>
         );
       },
     };
@@ -403,10 +441,8 @@ export function PlanningPage() {
   }
 
   const statusCounts = { new: 0, planned: 0 };
-  const critCounts = { high: 0, medium: 0, low: 0 };
   (todayActive ?? []).forEach((a) => {
     if (a.status in statusCounts) statusCounts[a.status as keyof typeof statusCounts]++;
-    if (a.criticality in critCounts) critCounts[a.criticality as keyof typeof critCounts]++;
   });
 
   return (
@@ -448,9 +484,6 @@ export function PlanningPage() {
               }}
             />
           </FilterField>
-          <FilterField label="КРИТИЧНОСТЬ" isMobile={isMobile}>
-            <Select mode="multiple" style={{ width: isMobile ? '100%' : 180 }} placeholder="Все" value={critFilter} onChange={setCritFilter} options={CRITICALITY_OPTIONS} />
-          </FilterField>
           <FilterField label="СТАТУС" isMobile={isMobile}>
             <Select mode="multiple" style={{ width: isMobile ? '100%' : 180 }} placeholder="Все" value={statusFilter} onChange={setStatusFilter} options={ASSIGNMENT_STATUS_OPTIONS} />
           </FilterField>
@@ -478,10 +511,6 @@ export function PlanningPage() {
         <StatGroupLabel>Статус</StatGroupLabel>
         <StatTile label="Новый" value={statusCounts.new} accent="#1668dc" />
         <StatTile label="Запланировано" value={statusCounts.planned} accent="#d89614" />
-        <StatGroupLabel>Критичность</StatGroupLabel>
-        <StatTile label="Высокая" value={critCounts.high} accent="#d32029" />
-        <StatTile label="Средняя" value={critCounts.medium} accent="#d89614" />
-        <StatTile label="Низкая" value={critCounts.low} accent="#49aa19" />
       </Space>
 
       <Card>
@@ -506,6 +535,7 @@ export function PlanningPage() {
               size="small"
               scroll={{ x: 'max-content' }}
               sticky={{ offsetHeader: isMobile ? TOP_BAR_HEIGHT : 0 }}
+              onRow={(task) => ({ 'data-task-row-id': task.id }) as HTMLAttributes<HTMLElement>}
             />
           </div>
         )}

@@ -5,9 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 Support Team Planner — a FastAPI web app (Russian UI) for scheduling support team tasks. Teams have tasks with
-criticality levels; tasks get assigned to dates with employees, statuses, and optional deployment blocks (with
-dependency tracking and fuzzy search). Every task/assignment edit is logged to an audit history, and the whole app sits
-behind a lightweight per-employee login.
+a manually-ordered priority; tasks get assigned to dates with employees, statuses, and optional deployment blocks
+(with dependency tracking and fuzzy search). Every task/assignment edit is logged to an audit history, and the whole
+app sits behind a lightweight per-employee login.
 
 ## Commands
 
@@ -149,7 +149,7 @@ statically. `frontend/src/` layout:
 - `components/` — shared UI: `AppShell`/`AuthenticatedLayout` (sidebar, role-gated nav via `GET /api/me`,
   all nav clicks are plain client-side `navigate()` — every route is React now, so there's no split between
   migrated/legacy paths), `MyAccountModal.tsx` (self-service login/password change, see Domain Concepts),
-  `planningBadges.tsx` (criticality/status/dependency/schedule badges shared across
+  `planningBadges.tsx` (status/dependency/schedule badges shared across
   Planning and Journal), `StatTile.tsx`.
 - `hooks/` — one thin TanStack Query wrapper per data domain: `usePlanningData.ts`, `useSettingsData.ts`,
   `useTeams.ts`, `useMe.ts`, `useEmployeeNames.ts`.
@@ -202,8 +202,15 @@ Two separate status machines coexist — do not confuse them:
   enforced in both `support_planner.py:VALID_TASK_TRANSITIONS` and
   `frontend/src/pages/PlanningPage.tsx:VALID_TASK_TRANSITIONS` — keep them in
   sync. Tasks in terminal states (`done`, `cancelled`) block all assignment/task edits.
-- **Criticality**: `high`, `medium`, `low` (sorted in that order in queries; tasks list is sorted criticality-first,
-  then task_status)
+- **Priority**: `tasks.priority` — an integer, higher = more important; the sole, fully-manual sort key for a
+  team's task list (`ORDER BY priority DESC, id`; task status no longer affects order). New tasks are appended to
+  the end (`MIN(priority) - _PRIORITY_GAP`). Reordered via drag-and-drop within the currently loaded page
+  (`PATCH /api/tasks/{team_id}/reorder`, `db.reorder_team_tasks` — permutes only the already-owned priority values
+  of that page's tasks, so it can never encroach on another page's range) or via a right-click context menu's
+  "move to start/end of the whole team's list" (`PATCH /api/task/{task_id}/priority`, `db.move_task_to_edge`).
+  Replaces the old 3-tier `criticality` (`high`/`medium`/`low`) column — on upgrade, `SQLiteBackend
+  ._migrate_criticality_to_priority` backfills existing rows' `priority` from their old
+  criticality/task_status/id order once, so the visible order doesn't change on deploy.
 - **Task dependencies**: arbitrary DAG between tasks within a team; cycle creation is rejected at the API level (
   `POST /api/task` returns 400 if `has_dependency_cycle` detects one)
 - **Freeze days**: dates when no changes are deployed; can be added individually, as ranges, or by full-month

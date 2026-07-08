@@ -7,7 +7,6 @@ export interface Task {
   id: number;
   name: string;
   description: string | null;
-  criticality: 'high' | 'medium' | 'low';
   task_status: 'new' | 'ready' | 'in_progress' | 'done' | 'cancelled';
 }
 
@@ -64,7 +63,6 @@ export function useTaskDeps(teamId: number, taskIds: number[]) {
 
 interface ActiveAssignmentLite {
   id: number;
-  criticality: 'high' | 'medium' | 'low';
   status: 'new' | 'planned';
 }
 
@@ -85,7 +83,6 @@ export interface OverdueAssignment {
   team_id: number;
   task_name: string;
   team_name: string;
-  criticality: 'high' | 'medium' | 'low';
   date: string;
   status: 'new' | 'planned';
   user_name: string | null;
@@ -153,7 +150,6 @@ export interface ActiveTaskListItem {
   id: number;
   name: string;
   task_status: string;
-  criticality: string;
 }
 
 export function useActiveTasksList(teamId: number, search: string, includeIds: number[]) {

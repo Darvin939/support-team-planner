@@ -15,14 +15,6 @@ function tintedStyle(color: string): CSSProperties {
   };
 }
 
-const CRIT_SHORT_LABEL: Record<string, string> = { high: 'В', medium: 'С', low: 'Н' };
-
-export function CriticalityBadge({ value }: { value: string }) {
-  const { token } = theme.useToken();
-  const color = value === 'high' ? token.colorError : value === 'medium' ? token.colorWarning : token.colorSuccess;
-  return <span style={tintedStyle(color)}>{CRIT_SHORT_LABEL[value] ?? value}</span>;
-}
-
 export function TaskStatusBadge({ value }: { value: string }) {
   const { token } = theme.useToken();
   if (value === 'new') return null;

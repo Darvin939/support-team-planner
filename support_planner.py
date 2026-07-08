@@ -123,7 +123,6 @@ class TaskIn(BaseModel):
     team_id: Optional[int] = None
     name: str = ""
     description: Optional[str] = None
-    criticality: str = "medium"
     dependency_ids: Optional[List[int]] = None
 
 
@@ -174,6 +173,14 @@ class FreezeDayMonthIn(BaseModel):
 
 class TaskStatusIn(BaseModel):
     status: str
+
+
+class TaskReorderIn(BaseModel):
+    task_ids: List[int]
+
+
+class TaskPriorityIn(BaseModel):
+    position: str
 
 
 VALID_TASK_TRANSITIONS = {
@@ -367,7 +374,7 @@ def get_tasks_api(team_id: int, offset: int = 0, limit: int = 20, search: str = 
                                   task_id=task_id)
     total = db.get_tasks_count_by_team(team_id, search=search_val, show_completed=show_completed)
     return {
-        'tasks': [{'id': t['id'], 'name': t['name'], 'description': t['description'], 'criticality': t['criticality'],
+        'tasks': [{'id': t['id'], 'name': t['name'], 'description': t['description'],
                    'task_status': t['task_status']} for t in tasks],
         'total': total
     }
@@ -387,7 +394,7 @@ def save_task_api(request: Request, data: TaskIn):
         if task and (task['task_status'] in ('done', 'cancelled') or task['is_deleted']):
             return JSONResponse({'error': 'Нельзя редактировать завершённую или отменённую задачу'}, status_code=400)
 
-    task_id = int(db.create_or_update_task(data.task_id, data.team_id, name, description, data.criticality,
+    task_id = int(db.create_or_update_task(data.task_id, data.team_id, name, description,
                                             changed_by=request.session.get('user_id')))
 
     if data.dependency_ids is not None:
@@ -411,8 +418,7 @@ def get_active_tasks_list(team_id: int, search: str = "", limit: int = 50, inclu
     search_val = search.strip() or None
     parsed_include_ids = [int(x) for x in include_ids.split(',') if x.strip()] if include_ids else None
     rows = db.get_active_tasks_flat(team_id, search=search_val, limit=limit, include_ids=parsed_include_ids)
-    return [{'id': r['id'], 'name': r['name'], 'task_status': r['task_status'],
-             'criticality': r['criticality']} for r in rows]
+    return [{'id': r['id'], 'name': r['name'], 'task_status': r['task_status']} for r in rows]
 
 
 @app.delete('/api/task/{task_id}')
@@ -436,6 +442,30 @@ def update_task_status_api(request: Request, task_id: int, data: TaskStatusIn):
     if data.status not in allowed:
         return JSONResponse({'error': f'Недопустимый переход: {current_status} → {data.status}'}, status_code=400)
     db.update_task_status(task_id, data.status, changed_by=request.session.get('user_id'))
+    return {'success': True}
+
+
+@app.patch('/api/tasks/{team_id}/reorder')
+def reorder_tasks_api(request: Request, team_id: int, data: TaskReorderIn):
+    """Переупорядочить задачи в пределах одной уже загруженной страницы (drag-and-drop)"""
+    if not data.task_ids:
+        return JSONResponse({'error': 'task_ids required'}, status_code=400)
+    try:
+        db.reorder_team_tasks(team_id, data.task_ids, changed_by=request.session.get('user_id'))
+    except ValueError as e:
+        return JSONResponse({'error': str(e)}, status_code=400)
+    return {'success': True}
+
+
+@app.patch('/api/task/{task_id}/priority')
+def move_task_priority_api(request: Request, task_id: int, data: TaskPriorityIn):
+    """Переместить задачу в начало/конец списка всей команды (контекстное меню)"""
+    if data.position not in ('start', 'end'):
+        return JSONResponse({'error': 'position must be start or end'}, status_code=400)
+    try:
+        db.move_task_to_edge(task_id, data.position, changed_by=request.session.get('user_id'))
+    except ValueError as e:
+        return JSONResponse({'error': str(e)}, status_code=404)
     return {'success': True}
 
 
@@ -660,7 +690,6 @@ def get_active_assignments_api(team_id: int, start_date: Optional[str] = None, e
             'id': a['id'],
             'task_id': a['task_id'],
             'task_name': a['task_name'],
-            'criticality': a['criticality'],
             'date': a['date'],
             'block': a['block'],
             'status': a['status'],
@@ -675,7 +704,6 @@ def get_active_assignments_api(team_id: int, start_date: Optional[str] = None, e
         'total': stats['total'],
         'stats': {
             'status': {'new': stats['status_new'], 'planned': stats['status_planned']},
-            'criticality': {'high': stats['crit_high'], 'medium': stats['crit_medium'], 'low': stats['crit_low']},
         },
     }
 

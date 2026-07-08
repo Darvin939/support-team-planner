@@ -71,3 +71,32 @@ td[data-schedule-cell]:hover:not(.assignment-drag-over):not(.assignment-drag-inv
    colorError) by useAssignmentDrag.ts, since a static value here would only ever
    match one of light/dark theme. The classes still exist purely as state markers
    for the td[data-schedule-cell]:hover :not() exclusion above. */
+
+.task-row-drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2000;
+  pointer-events: none;
+  opacity: 0.85;
+  padding: 4px 9px;
+  border: 1px solid;
+  border-radius: 4px;
+  font-weight: 500;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  background: rgba(128, 128, 128, 0.15);
+  backdrop-filter: blur(4px);
+}
+
+/* Отдельный плавающий элемент, а не box-shadow на самой строке — ячейки грида (getCellTint)
+   рисуют собственный непрозрачный фон поверх box-shadow родительского <tr>, перекрывая его
+   везде, кроме зазоров между ячейками. Этот индикатор рендерится в document.body поверх всего,
+   поэтому фон ячеек на него не влияет. */
+.task-row-drag-indicator {
+  position: fixed;
+  height: 3px;
+  z-index: 2000;
+  pointer-events: none;
+  border-radius: 2px;
+  transform: translateY(-1.5px);
+}

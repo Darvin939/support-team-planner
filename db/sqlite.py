@@ -48,7 +48,7 @@ _SCHEMA = '''
         team_id INTEGER NOT NULL,
         name text NOT NULL,
         description text,
-        criticality text NOT NULL DEFAULT 'medium',
+        priority INTEGER NOT NULL DEFAULT 0,
         task_status TEXT NOT NULL DEFAULT 'new',
         is_deleted INTEGER NOT NULL DEFAULT 0,
         FOREIGN key (team_id) REFERENCES teams (id) ON DELETE cascade
@@ -188,6 +188,7 @@ class SQLiteBackend(DBBackend):
 
     def init_schema(self, conn) -> None:
         self._migrate_employees_to_users(conn)
+        self._migrate_criticality_to_priority(conn)
         conn.execute('PRAGMA foreign_keys = ON;')
         conn.executescript(_SCHEMA)
         # Миграция для БД, где бутстрап-админ ещё хранится по старой схеме имени
@@ -299,3 +300,47 @@ class SQLiteBackend(DBBackend):
                 cols = {row[1] for row in conn.execute(f'PRAGMA table_info({hist_table})').fetchall()}
                 if 'changed_by_employee_id' in cols:
                     conn.execute(f'ALTER TABLE {hist_table} RENAME COLUMN changed_by_employee_id TO changed_by_user_id')
+
+    _PRIORITY_GAP = 1000
+
+    @staticmethod
+    def _migrate_criticality_to_priority(conn) -> None:
+        """Переносит tasks.criticality (упразднённое 3-уровневое поле) на числовой priority —
+        непрерывный, полностью ручной ключ сортировки. ALTER TABLE ADD COLUMN — единственный
+        способ добавить колонку в SQLite без пересоздания таблицы; try/except нужен потому что
+        SQLite не поддерживает ADD COLUMN IF NOT EXISTS (тот же приём, что и для login выше).
+
+        Бэкфилл выполняется только в ветке, где priority ещё отсутствовал (т.е. строго один раз
+        за всю жизнь БД) — если запускать его на каждом старте, он затирал бы priority, который
+        пользователи уже вручную переставили через drag-and-drop/контекстное меню.
+
+        Присваиваем старым задачам убывающую последовательность (шаг _PRIORITY_GAP), обходя
+        каждую команду в том же порядке, в котором задачи сортировались до этой миграции
+        (criticality high/medium/low, затем task_status in_progress/ready/new/done/cancelled,
+        затем id) — так, чтобы порядок на экране не менялся сразу после деплоя."""
+        tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        if 'tasks' not in tables:
+            return  # совсем свежая БД — priority появится через _SCHEMA ниже
+
+        columns = {row[1] for row in conn.execute('PRAGMA table_info(tasks)').fetchall()}
+        if 'priority' in columns:
+            return  # уже мигрировано
+
+        conn.execute('ALTER TABLE tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0')
+
+        if 'criticality' not in columns:
+            return  # не должно случиться (priority отсутствовал => старая схема), но защитный выход
+
+        for (team_id,) in conn.execute('SELECT id FROM teams').fetchall():
+            rows = conn.execute(
+                '''SELECT id FROM tasks WHERE team_id = ?
+                   ORDER BY CASE criticality WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 3 END,
+                            CASE task_status WHEN 'in_progress' THEN 0 WHEN 'ready' THEN 1 WHEN 'new' THEN 2
+                                             WHEN 'done' THEN 3 WHEN 'cancelled' THEN 4 ELSE 5 END,
+                            id''',
+                (team_id,)
+            ).fetchall()
+            priority = len(rows) * SQLiteBackend._PRIORITY_GAP
+            for row in rows:
+                conn.execute('UPDATE tasks SET priority = ? WHERE id = ?', (priority, row['id']))
+                priority -= SQLiteBackend._PRIORITY_GAP

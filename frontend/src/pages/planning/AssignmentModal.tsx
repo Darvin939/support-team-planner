@@ -1,18 +1,18 @@
 import {useEffect, useState} from 'react';
 import {
-  Alert,
-  Button,
-  DatePicker,
-  Form,
-  Input,
-  message,
-  Modal,
-  Popconfirm,
-  Select,
-  Space,
-  Switch,
-  theme,
-  TimePicker
+    Alert,
+    Button,
+    DatePicker,
+    Form,
+    Input,
+    message,
+    Modal,
+    Popconfirm,
+    Select,
+    Space,
+    Switch,
+    theme,
+    TimePicker
 } from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import dayjs from 'dayjs';
@@ -380,9 +380,6 @@ export function AssignmentModal({
     >
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
       <Form form={form} layout="vertical" disabled={isTerminal} onFinish={(v) => (autoAssignEnabled ? autoSaveMutation.mutate(v) : saveMutation.mutate(v))} style={{ flex: 1, minWidth: 0 }}>
-        <Form.Item label="Критичность">
-          <Select disabled value={task?.criticality} options={[{ value: 'low', label: 'Низкая' }, { value: 'medium', label: 'Средняя' }, { value: 'high', label: 'Высокая' }]} />
-        </Form.Item>
         <Space.Compact block>
           <Form.Item name="date" label="Дата" style={{ flex: 1 }} rules={[{ required: true }]}>
             <DatePicker style={{ width: '100%' }} format={DISPLAY_DATE_FORMAT} minDate={dayjs('2000-01-01')} maxDate={dayjs('2099-12-31')} allowClear={false} />
