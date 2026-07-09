@@ -1,4 +1,4 @@
-import {useQuery} from '@tanstack/react-query';
+import {keepPreviousData, useQuery} from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import {API_DATE_FORMAT} from '../lib/dateFormats';
 import {MAX_PERIOD_DAYS} from './useDateRangeFilter';
@@ -160,5 +160,6 @@ export function useActiveTasksList(teamId: number, search: string, includeIds: n
           (includeIdsKey ? `&include_ids=${includeIdsKey}` : '')
       ),
     enabled: !!teamId,
+    placeholderData: keepPreviousData,
   });
 }

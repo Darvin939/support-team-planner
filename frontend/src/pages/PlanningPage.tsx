@@ -46,7 +46,7 @@ import {getCellTint, getHeaderTint} from './planning/cellTint';
 import {apiMutate} from '../lib/apiMutate';
 import {linkify} from '../lib/linkify';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT} from '../lib/dateFormats';
-import {TASK_STATUS_LABELS} from '../lib/historyFormat';
+import {ASSIGNMENT_STATUS_LABELS, TASK_STATUS_LABELS} from '../lib/historyFormat';
 
 const VALID_TASK_TRANSITIONS: Record<string, string[]> = {
   new: ['done', 'cancelled'],
@@ -241,6 +241,30 @@ export function PlanningPage() {
     onError: (e: Error) => message.error(e.message),
   });
 
+  const assignmentStatusMutation = useMutation({
+    mutationFn: ({ assignmentId, status }: { assignmentId: number; status: string }) => {
+      const existing = (assignments ?? []).find((a) => a.id === assignmentId);
+      if (!existing) throw new Error('Назначение не найдено');
+      return apiMutate('/api/assignment', 'POST', {
+        assignment_id: existing.id,
+        task_id: existing.task_id,
+        date: existing.date,
+        block: existing.block,
+        status,
+        user_id: existing.user_id,
+        comment: existing.comment,
+        time_spent: existing.time_spent,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      message.success('Статус назначения обновлён');
+    },
+    onError: (e: Error) => message.error(e.message),
+  });
+
   const isTaskLocked = (taskId: number) => {
     const t = taskData?.tasks.find((x) => x.id === taskId);
     return !t || t.task_status === 'done' || t.task_status === 'cancelled';
@@ -408,7 +432,35 @@ export function PlanningPage() {
         render: (_, task) => {
           const assignment = assignmentByKey.get(`${task.id}-${dateStr}`);
           const isTerminal = task.task_status === 'done' || task.task_status === 'cancelled';
-          return assignment ? <ScheduleChip assignment={assignment} draggable={!isTerminal} /> : null;
+          if (!assignment) return null;
+          if (isTerminal) return <ScheduleChip assignment={assignment} draggable={false} />;
+          const statusItems: MenuProps['items'] = [
+            {
+              key: 'status-group',
+              type: 'group',
+              label: 'Статус',
+              children: ASSIGNMENT_STATUS_OPTIONS.filter((o) => o.value !== assignment.status).map((o) => ({
+                key: o.value,
+                label: ASSIGNMENT_STATUS_LABELS[o.value] ?? o.label
+              }))
+            }
+          ];
+          return (
+            <Dropdown
+              trigger={['contextMenu']}
+              menu={{
+                items: statusItems,
+                onClick: ({ key, domEvent }) => {
+                  domEvent.stopPropagation();
+                  assignmentStatusMutation.mutate({ assignmentId: assignment.id, status: key });
+                },
+              }}
+            >
+              <div>
+                <ScheduleChip assignment={assignment} draggable />
+              </div>
+            </Dropdown>
+          );
         },
       };
     });
@@ -516,7 +568,7 @@ export function PlanningPage() {
         {filteredTasks.length === 0 ? (
           <Empty description="Нет запланированных работ" />
         ) : (
-          <div data-planning-grid style={{ cursor: 'grab' }}>
+          <div data-planning-grid style={{ cursor: 'grab' }} onContextMenu={(e) => e.preventDefault()}>
             <Table
               rowKey="id"
               columns={columns}

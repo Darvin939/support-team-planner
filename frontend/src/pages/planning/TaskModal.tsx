@@ -32,7 +32,8 @@ export function TaskModal({
   const queryClient = useQueryClient();
   const [depIds, setDepIds] = useState<Set<number>>(new Set());
   const [depSearch, setDepSearch] = useState('');
-  const { data: activeTasks } = useActiveTasksList(teamId, depSearch, existingDepIds);
+  const [debouncedDepSearch, setDebouncedDepSearch] = useState('');
+  const { data: activeTasks, isLoading: depsLoading } = useActiveTasksList(teamId, debouncedDepSearch, existingDepIds);
   const isTerminal = task ? task.task_status === 'done' || task.task_status === 'cancelled' : false;
   const [historyOpen, setHistoryOpen] = useHistoryToggle(open, isTerminal);
   const isMobile = useIsMobile();
@@ -45,7 +46,13 @@ export function TaskModal({
     });
     setDepIds(new Set(existingDepIds));
     setDepSearch('');
+    setDebouncedDepSearch('');
   }, [open, task, existingDepIds, form]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedDepSearch(depSearch), 500);
+    return () => clearTimeout(timer);
+  }, [depSearch]);
 
   const saveMutation = useMutation({
     mutationFn: (values: TaskFormValues) =>
@@ -124,7 +131,9 @@ export function TaskModal({
           <Form.Item label="Зависит от">
             <Input.Search placeholder="Поиск..." value={depSearch} onChange={(e) => setDepSearch(e.target.value)} style={{ marginBottom: 8 }} allowClear />
             <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid rgba(128,128,128,0.3)', borderRadius: 6, padding: '4px 8px' }}>
-              {filteredDeps.length === 0 && <span style={{ color: 'rgba(128,128,128,0.8)' }}>Нет совпадений</span>}
+              {filteredDeps.length === 0 && (
+                <span style={{ color: 'rgba(128,128,128,0.8)' }}>{depsLoading ? 'Загрузка...' : 'Нет совпадений'}</span>
+              )}
               {filteredDeps.map((t) => (
                 <div key={t.id} style={{ padding: '4px 0' }}>
                   <Checkbox checked={depIds.has(t.id)} onChange={() => toggleDep(t.id)}>
