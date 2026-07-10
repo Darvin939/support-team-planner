@@ -11,6 +11,7 @@ from starlette.middleware.sessions import SessionMiddleware
 import auth
 import db
 import utils
+from ssl_context import get_cert
 
 app = FastAPI()
 
@@ -778,4 +779,8 @@ def delete_template_api(template_id: int):
 if __name__ == '__main__':
     import uvicorn
 
-    uvicorn.run(app, port=5093, host="0.0.0.0")
+    cert, key = get_cert()
+    if cert and key:
+        uvicorn.run(app, port=5093, host="0.0.0.0", ssl_keyfile=key, ssl_certfile=cert)
+    else:
+        uvicorn.run(app, port=5093, host="0.0.0.0")
