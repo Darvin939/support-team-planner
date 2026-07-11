@@ -54,6 +54,7 @@ export function useTaskRowDrag(options: { onDrop: (newOrder: number[]) => void; 
     }
 
     function handleMouseDown(e: MouseEvent) {
+      if (e.button !== 0) return;
       const target = e.target as HTMLElement;
       const handle = target.closest('[data-task-row-handle]') as HTMLElement | null;
       if (!handle) return;

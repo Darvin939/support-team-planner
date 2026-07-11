@@ -59,6 +59,7 @@ export function useAssignmentDrag(options: {
     }
 
     function handleMouseDown(e: MouseEvent) {
+      if (e.button !== 0) return;
       const target = e.target as HTMLElement;
       const chip = target.closest('[data-assignment-id]') as HTMLElement | null;
       if (!chip) return;
