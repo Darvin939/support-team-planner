@@ -1,6 +1,13 @@
-import {type HTMLAttributes, useEffect, useMemo, useRef, useState} from 'react';
+import {type HTMLAttributes, lazy, Suspense, useEffect, useMemo, useRef, useState} from 'react';
 import {useLocation, useNavigate, useParams} from 'react-router-dom';
-import {CheckOutlined, CloseOutlined, EditOutlined, HolderOutlined, InfoCircleOutlined} from '@ant-design/icons';
+import {
+  ApartmentOutlined,
+  CheckOutlined,
+  CloseOutlined,
+  EditOutlined,
+  HolderOutlined,
+  InfoCircleOutlined
+} from '@ant-design/icons';
 import type {MenuProps, TableColumnsType} from 'antd';
 import {
   Button,
@@ -37,7 +44,7 @@ import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
 import {useIsMobile} from '../hooks/useIsMobile';
 import {StatGroupLabel, StatTile} from '../components/StatTile';
 import {FilterField, FilterGrid} from '../components/FilterGrid';
-import {CriticalityBadge, DepBadge, ScheduleChip} from '../components/planningBadges';
+import {CriticalityBadge, DepBadge, type DepBadgeEntry, ScheduleChip} from '../components/planningBadges';
 import {TaskModal} from './planning/TaskModal';
 import {AssignmentModal} from './planning/AssignmentModal';
 import {useAssignmentDrag} from './planning/useAssignmentDrag';
@@ -49,6 +56,8 @@ import {linkify} from '../lib/linkify';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT} from '../lib/dateFormats';
 import {ASSIGNMENT_STATUS_LABELS, TASK_STATUS_LABELS} from '../lib/historyFormat';
 import {NAME_COLUMN_WIDTH} from '../lib/layout';
+
+const DependencyGraphModal = lazy(() => import('./planning/DependencyGraphModal').then((m) => ({ default: m.DependencyGraphModal })));
 
 const VALID_TASK_TRANSITIONS: Record<string, string[]> = {
   new: ['done', 'cancelled'],
@@ -119,6 +128,8 @@ export function PlanningPage() {
   const [segmentFilter, setSegmentFilter] = useState<number[]>([]);
   const { data: segments } = useSegments();
   const [taskModal, setTaskModal] = useState<{ open: boolean; task: Task | null }>({ open: false, task: null });
+  const [depJumpTaskId, setDepJumpTaskId] = useState<number | null>(null);
+  const [graphModal, setGraphModal] = useState<{ open: boolean; taskId?: number }>({ open: false });
   const [assignmentModal, setAssignmentModal] = useState<{ open: boolean; task: Task | null; date: string | null; assignment: Assignment | null }>({
     open: false,
     task: null,
@@ -179,8 +190,15 @@ export function PlanningPage() {
 
   const { data: taskData } = useTasks(teamId ?? 0, (page - 1) * pageSize, pageSize, search, showCompleted);
   const taskIds = useMemo(() => taskData?.tasks.map((t) => t.id) ?? [], [taskData]);
+  // Зависимость, на которую перешли по клику, может отсутствовать в текущей загруженной странице
+  // (пагинация/фильтры) — подмешиваем её id в запрос зависимостей, чтобы модалка задачи открылась
+  // с уже заполненным списком "Зависит от", а не пустым.
+  const depsTaskIds = useMemo(
+    () => (depJumpTaskId && !taskIds.includes(depJumpTaskId) ? [...taskIds, depJumpTaskId] : taskIds),
+    [taskIds, depJumpTaskId]
+  );
   const { data: assignments } = useAssignments(teamId ?? 0, dateFrom, dateTo, taskIds);
-  const { data: deps } = useTaskDeps(teamId ?? 0, taskIds);
+  const { data: deps } = useTaskDeps(teamId ?? 0, depsTaskIds);
   const { data: todayActive } = useTodayActive(teamId ?? 0, today);
 
   const assignmentByKey = useMemo(() => {
@@ -213,6 +231,20 @@ export function PlanningPage() {
     setAssignmentModal({ open: true, task: jumpTask, date: jump.jumpDate, assignment });
     navigate(location.pathname, { replace: true, state: null });
   }, [jump, jumpTask, jumpAssignments, navigate, location.pathname]);
+
+  // Открытие задачи-зависимости, недоступной прямо на странице (другая страница пагинации,
+  // отфильтрована поиском/статусом) — тот же приём "резолвить по id, затем открыть модалку",
+  // что и jumpTask выше, но без перехода по роуту (мы уже на PlanningPage).
+  const { data: depJumpTask, isFetched: depJumpFetched } = useTaskById(teamId ?? 0, depJumpTaskId);
+  useEffect(() => {
+    if (!depJumpTaskId || !depJumpFetched) return;
+    if (depJumpTask) {
+      setTaskModal({ open: true, task: depJumpTask });
+    } else {
+      message.info('Задача не найдена');
+    }
+    setDepJumpTaskId(null);
+  }, [depJumpTaskId, depJumpTask, depJumpFetched]);
 
   const depsByTask = useMemo(() => {
     const map = new Map<number, typeof deps>();
@@ -312,6 +344,21 @@ export function PlanningPage() {
     navigate(`/planning/${value}`);
   }
 
+  function handleDepNavigate(dep: DepBadgeEntry) {
+    const row = document.querySelector<HTMLElement>(`[data-planning-grid] .ant-table-tbody tr[data-task-row-id="${dep.id}"]`);
+    if (row) {
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const cells = Array.from(row.querySelectorAll<HTMLElement>('td'));
+      cells.forEach((cell) => {
+        cell.style.setProperty('--highlight-pulse-color', token.colorPrimary);
+        cell.classList.add('task-row-highlight-pulse');
+      });
+      window.setTimeout(() => cells.forEach((cell) => cell.classList.remove('task-row-highlight-pulse')), 1600);
+      return;
+    }
+    setDepJumpTaskId(dep.id);
+  }
+
   const dates = useMemo(() => dateRange(range[0], range[1]), [range]);
 
   const columns: TableColumnsType<Task> = useMemo(() => {
@@ -335,6 +382,15 @@ export function PlanningPage() {
         const deleted = taskDeps.filter((d) => d.dep_is_deleted);
         const cancelled = taskDeps.filter((d) => !d.dep_is_deleted && d.dep_status === 'cancelled');
         const pending = taskDeps.filter((d) => !d.dep_is_deleted && d.dep_status !== 'done' && d.dep_status !== 'cancelled');
+        const done = taskDeps.filter((d) => !d.dep_is_deleted && d.dep_status === 'done');
+        const toDepEntry = (d: (typeof taskDeps)[number]): DepBadgeEntry => ({
+          id: d.dep_id,
+          name: d.dep_name,
+          status: d.dep_status,
+          criticality: d.dep_criticality,
+          segmentName: d.dep_segment_name,
+          isDeleted: !!d.dep_is_deleted,
+        });
         const isTerminal = task.task_status === 'done' || task.task_status === 'cancelled';
         const transitions = isUser ? [] : (VALID_TASK_TRANSITIONS[task.task_status] ?? []);
         const menuItems: MenuProps['items'] = [
@@ -365,10 +421,20 @@ export function PlanningPage() {
                   ],
                 },
               ]),
+          {
+            key: 'graph-group',
+            type: 'group' as const,
+            label: 'Граф',
+            children: [{ key: 'graph', label: 'Граф зависимостей по этой работе', icon: <ApartmentOutlined /> }],
+          },
         ];
         function handleMenuClick(key: string) {
           if (key === 'start' || key === 'end') {
             priorityMutation.mutate({ taskId: task.id, position: key });
+            return;
+          }
+          if (key === 'graph') {
+            setGraphModal({ open: true, taskId: task.id });
             return;
           }
           if (key === 'done' || key === 'cancelled') {
@@ -411,9 +477,10 @@ export function PlanningPage() {
               <span style={{ fontWeight: 500, minWidth: 0, overflowWrap: 'anywhere' }} data-task-row-name>{task.name}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4, flexWrap: 'wrap' }}>
-              {deleted.length > 0 && <DepBadge kind="deleted" names={deleted.map((d) => d.dep_name)} />}
-              {cancelled.length > 0 && <DepBadge kind="cancelled" names={cancelled.map((d) => d.dep_name)} />}
-              {pending.length > 0 && <DepBadge kind="pending" names={pending.map((d) => d.dep_name)} />}
+              {deleted.length > 0 && <DepBadge kind="deleted" deps={deleted.map(toDepEntry)} onNavigate={handleDepNavigate} />}
+              {cancelled.length > 0 && <DepBadge kind="cancelled" deps={cancelled.map(toDepEntry)} onNavigate={handleDepNavigate} />}
+              {pending.length > 0 && <DepBadge kind="pending" deps={pending.map(toDepEntry)} onNavigate={handleDepNavigate} />}
+              {done.length > 0 && <DepBadge kind="done" deps={done.map(toDepEntry)} onNavigate={handleDepNavigate} />}
             </div>
             {task.description && (
               <div
@@ -607,9 +674,14 @@ export function PlanningPage() {
 
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <Button type="primary" onClick={() => setTaskModal({ open: true, task: null })}>
-            Добавить работу
-          </Button>
+          <Space>
+            <Button type="primary" onClick={() => setTaskModal({ open: true, task: null })}>
+              Добавить работу
+            </Button>
+            <Button icon={<ApartmentOutlined />} onClick={() => setGraphModal({ open: true })}>
+              Граф зависимостей
+            </Button>
+          </Space>
           <span style={{ fontFamily: "'JetBrains Mono Variable', monospace", color: token.colorTextSecondary, fontSize: '0.9rem' }}>
             Всего работ: {taskData?.total ?? 0} | Отображено: {filteredTasks.length}
           </span>
@@ -673,6 +745,20 @@ export function PlanningPage() {
         onDeleted={triggerCenterOnNextLoad}
         onClose={() => setAssignmentModal({ open: false, task: null, date: null, assignment: null })}
       />
+      {graphModal.open && (
+        <Suspense fallback={null}>
+          <DependencyGraphModal
+            open={graphModal.open}
+            teamId={teamId}
+            taskId={graphModal.taskId}
+            onClose={() => setGraphModal({ open: false })}
+            onNavigate={(taskId) => {
+              setGraphModal({ open: false });
+              setDepJumpTaskId(taskId);
+            }}
+          />
+        </Suspense>
+      )}
     </>
   );
 }

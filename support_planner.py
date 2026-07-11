@@ -435,7 +435,65 @@ def get_team_deps(team_id: int, task_ids: Optional[str] = None):
     parsed_task_ids = [int(x) for x in task_ids.split(',') if x.strip()] if task_ids else None
     rows = db.get_all_deps_for_team(team_id, task_ids=parsed_task_ids)
     return [{'task_id': r['task_id'], 'dep_id': r['dep_id'], 'dep_name': r['dep_name'],
-             'dep_status': r['dep_status'], 'dep_is_deleted': bool(r['dep_is_deleted'])} for r in rows]
+             'dep_status': r['dep_status'], 'dep_is_deleted': bool(r['dep_is_deleted']),
+             'dep_criticality': r['dep_criticality'], 'dep_segment_id': r['dep_segment_id'],
+             'dep_segment_name': r['dep_segment_name']} for r in rows]
+
+
+@app.get('/api/tasks/{team_id}/dependency-graph')
+def get_team_dependency_graph(team_id: int, task_id: Optional[int] = None):
+    """Граф зависимостей для визуализации — в отличие от /deps не ограничен списком уже
+    загруженных на странице задач. Без task_id — весь граф команды (задачи без единой связи
+    исключены). С task_id — только связная компонента конкретной задачи (её предки и потомки)."""
+    graph = db.get_dependency_graph_for_team(team_id, task_id=task_id)
+    return {
+        'nodes': [{'id': n['id'], 'name': n['name'], 'description': n['description'],
+                   'task_status': n['task_status'], 'criticality': n['criticality'],
+                   'segment_id': n['segment_id'], 'segment_name': n['segment_name']} for n in graph['nodes']],
+        'edges': [{'task_id': e['task_id'], 'dep_id': e['dep_id']} for e in graph['edges']],
+    }
+
+
+class TaskDependencyIn(BaseModel):
+    task_id: int
+    depends_on_task_id: int
+
+
+def _validate_task_dependency_edit(data: 'TaskDependencyIn'):
+    """Общие проверки для добавления/удаления одной связи зависимости с графа: обе задачи
+    существуют и не удалены, принадлежат одной команде, а зависящая задача (task_id) не в
+    терминальном статусе — те же правила, что уже действуют при редактировании зависимостей
+    через форму задачи (POST /api/task)."""
+    task, dep_task = db.get_tasks_for_dependency_edit(data.task_id, data.depends_on_task_id)
+    if not task or not dep_task or task['is_deleted'] or dep_task['is_deleted']:
+        return JSONResponse({'error': 'Задача не найдена'}, status_code=404)
+    if task['team_id'] != dep_task['team_id']:
+        return JSONResponse({'error': 'Задачи принадлежат разным командам'}, status_code=400)
+    if task['task_status'] in ('done', 'cancelled'):
+        return JSONResponse({'error': 'Нельзя редактировать завершённую или отменённую задачу'}, status_code=400)
+    return None
+
+
+@app.post('/api/task-dependency')
+def add_task_dependency_api(data: TaskDependencyIn):
+    """Добавить одну связь зависимости прямо с графа (без пересохранения всей задачи)."""
+    error = _validate_task_dependency_edit(data)
+    if error:
+        return error
+    if db.has_dependency_cycle(data.task_id, [data.depends_on_task_id]):
+        return JSONResponse({'error': 'Обнаружена циклическая зависимость'}, status_code=400)
+    db.add_task_dependency(data.task_id, data.depends_on_task_id)
+    return {'success': True}
+
+
+@app.delete('/api/task-dependency')
+def remove_task_dependency_api(data: TaskDependencyIn):
+    """Удалить одну связь зависимости прямо с графа."""
+    error = _validate_task_dependency_edit(data)
+    if error:
+        return error
+    db.remove_task_dependency(data.task_id, data.depends_on_task_id)
+    return {'success': True}
 
 
 @app.get('/api/tasks/{team_id}/active-list')

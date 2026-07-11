@@ -1,6 +1,6 @@
-import type {CSSProperties} from 'react';
+import {type CSSProperties, useState} from 'react';
 import {CheckOutlined, CloseOutlined} from '@ant-design/icons';
-import {theme, Tooltip} from 'antd';
+import {Button, Popover, Space, theme, Tooltip} from 'antd';
 import {ASSIGNMENT_STATUS_LABELS, TASK_STATUS_LABELS} from '../lib/historyFormat';
 
 function tintedStyle(color: string): CSSProperties {
@@ -36,26 +36,63 @@ export function TaskStatusBadge({ value }: { value: string }) {
   );
 }
 
-export function DepBadge({ kind, names }: { kind: 'deleted' | 'cancelled' | 'pending'; names: string[] }) {
+export interface DepBadgeEntry {
+  id: number;
+  name: string;
+  status: string;
+  criticality: string;
+  segmentName: string;
+  isDeleted: boolean;
+}
+
+export function DepBadge({
+  kind,
+  deps,
+  onNavigate,
+}: {
+  kind: 'deleted' | 'cancelled' | 'pending' | 'done';
+  deps: DepBadgeEntry[];
+  onNavigate: (dep: DepBadgeEntry) => void;
+}) {
   const { token } = theme.useToken();
-  const color = kind === 'deleted' ? token.colorTextTertiary : kind === 'cancelled' ? token.colorError : token.colorWarning;
-  const icon = kind === 'deleted' ? '🗑' : kind === 'cancelled' ? '⛔' : '⏳';
-  const label = kind === 'deleted' ? 'зависимость удалена' : kind === 'cancelled' ? 'зависимость отменена' : 'ожидает';
+  const [open, setOpen] = useState(false);
+  const color =
+    kind === 'deleted' ? token.colorTextTertiary : kind === 'cancelled' ? token.colorError : kind === 'done' ? token.colorSuccess : token.colorWarning;
+  const icon = kind === 'deleted' ? '🗑' : kind === 'cancelled' ? '⛔' : kind === 'done' ? '✔' : '⏳';
+  const label = kind === 'deleted' ? 'зависимость удалена' : kind === 'cancelled' ? 'зависимость отменена' : kind === 'done' ? 'выполнено' : 'ожидает';
+
+  const content = (
+    <div style={{ width: 280, maxHeight: 320, overflow: 'auto' }}>
+      <Space direction="vertical" size={10} style={{ width: '100%' }}>
+        {deps.map((dep, i) => (
+          <div key={dep.id} style={i > 0 ? { borderTop: `1px solid ${token.colorBorderSecondary}`, paddingTop: 10 } : undefined}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500, overflowWrap: 'anywhere' }}>
+              <CriticalityBadge value={dep.criticality} />
+              <TaskStatusBadge value={dep.status} />
+              {dep.name}
+            </div>
+            <div style={{ marginTop: 2, fontSize: '0.78rem', color: token.colorTextTertiary }}>{dep.segmentName}</div>
+            <div style={{ marginTop: 6 }}>
+              {dep.isDeleted ? (
+                <span style={{ fontSize: '0.8rem', color: token.colorTextTertiary }}>Задача удалена</span>
+              ) : (
+                <Button size="small" type="link" style={{ padding: 0, height: 'auto' }} onClick={() => { setOpen(false); onNavigate(dep); }}>
+                  Перейти к задаче
+                </Button>
+              )}
+            </div>
+          </div>
+        ))}
+      </Space>
+    </div>
+  );
+
   return (
-    <Tooltip
-      title={names.map((name, i) => (
-        <div
-          key={i}
-          style={i < names.length - 1 ? { borderBottom: '1px solid rgba(255, 255, 255, 0.25)', paddingBottom: 4, marginBottom: 4 } : undefined}
-        >
-          {name}
-        </div>
-      ))}
-    >
-      <span style={{ ...tintedStyle(color), borderRadius: 10, marginLeft: 4 }}>
-        {icon} {label}: {names.length}
+    <Popover content={content} open={open} onOpenChange={setOpen} trigger="click" placement="bottomLeft">
+      <span style={{ ...tintedStyle(color), borderRadius: 10, marginLeft: 4, cursor: 'pointer' }}>
+        {icon} {label}: {deps.length}
       </span>
-    </Tooltip>
+    </Popover>
   );
 }
 

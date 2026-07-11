@@ -1,5 +1,6 @@
-import {keepPreviousData, useQuery} from '@tanstack/react-query';
+import {keepPreviousData, useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 import dayjs from 'dayjs';
+import {apiMutate} from '../lib/apiMutate';
 import {API_DATE_FORMAT} from '../lib/dateFormats';
 import {MAX_PERIOD_DAYS} from './useDateRangeFilter';
 
@@ -32,6 +33,9 @@ export interface TaskDep {
   dep_name: string;
   dep_status: string;
   dep_is_deleted: boolean | number;
+  dep_criticality: 'high' | 'medium' | 'low';
+  dep_segment_id: number;
+  dep_segment_name: string;
 }
 
 async function getJson<T>(url: string): Promise<T> {
@@ -156,6 +160,49 @@ export interface ActiveTaskListItem {
   name: string;
   task_status: string;
   criticality: string;
+}
+
+export interface DependencyGraphNode {
+  id: number;
+  name: string;
+  description: string | null;
+  task_status: string;
+  criticality: string;
+  segment_id: number;
+  segment_name: string;
+}
+
+export interface DependencyGraphEdge {
+  task_id: number;
+  dep_id: number;
+}
+
+export function useDependencyGraph(teamId: number, enabled: boolean, taskId?: number) {
+  return useQuery<{ nodes: DependencyGraphNode[]; edges: DependencyGraphEdge[] }>({
+    queryKey: ['dependency-graph', teamId, taskId ?? null],
+    queryFn: () => getJson(`/api/tasks/${teamId}/dependency-graph${taskId ? `?task_id=${taskId}` : ''}`),
+    enabled: !!teamId && enabled,
+  });
+}
+
+/** Добавление/удаление одной связи зависимости прямо с графа (POST/DELETE /api/task-dependency),
+ * без пересохранения всей задачи через /api/task. */
+export function useAddTaskDependency() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { task_id: number; depends_on_task_id: number }) =>
+      apiMutate('/api/task-dependency', 'POST', vars),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dependency-graph'] }),
+  });
+}
+
+export function useRemoveTaskDependency() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { task_id: number; depends_on_task_id: number }) =>
+      apiMutate('/api/task-dependency', 'DELETE', vars),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dependency-graph'] }),
+  });
 }
 
 export function useActiveTasksList(teamId: number, search: string, includeIds: number[]) {
