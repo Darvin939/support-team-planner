@@ -48,6 +48,7 @@ import {apiMutate} from '../lib/apiMutate';
 import {linkify} from '../lib/linkify';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT} from '../lib/dateFormats';
 import {ASSIGNMENT_STATUS_LABELS, TASK_STATUS_LABELS} from '../lib/historyFormat';
+import {NAME_COLUMN_WIDTH} from '../lib/layout';
 
 const VALID_TASK_TRANSITIONS: Record<string, string[]> = {
   new: ['done', 'cancelled'],
@@ -316,7 +317,7 @@ export function PlanningPage() {
       dataIndex: 'name',
       key: 'name',
       fixed: 'left',
-      width: 400,
+      width: NAME_COLUMN_WIDTH,
       onCell: (task) => {
         if (task.task_status === 'done') {
           return { style: { background: `color-mix(in srgb, ${token.colorSuccess} 16%, ${token.colorBgContainer})` } };
@@ -381,7 +382,7 @@ export function PlanningPage() {
             trigger={['contextMenu']}
             menu={{ items: menuItems, onClick: ({ key }) => handleMenuClick(key) }}
           >
-          <div title={isTerminal ? TASK_STATUS_LABELS[task.task_status] : undefined}>
+          <div title={isTerminal ? TASK_STATUS_LABELS[task.task_status] : undefined} style={{ maxWidth: NAME_COLUMN_WIDTH }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <Button
                 type="text"
@@ -404,7 +405,7 @@ export function PlanningPage() {
                 {isTerminal ? <InfoCircleOutlined /> : <EditOutlined />}
               </Button>
               <CriticalityBadge value={task.criticality} />
-              <span style={{ fontWeight: 500 }} data-task-row-name>{task.name}</span>
+              <span style={{ fontWeight: 500, minWidth: 0, overflowWrap: 'anywhere' }} data-task-row-name>{task.name}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4, flexWrap: 'wrap' }}>
               {deleted.length > 0 && <DepBadge kind="deleted" names={deleted.map((d) => d.dep_name)} />}
@@ -413,7 +414,7 @@ export function PlanningPage() {
             </div>
             {task.description && (
               <div
-                style={{ marginTop: 4, padding: '5px 8px', border: `1px solid ${token.colorBorder}`, borderRadius: 2, background: token.colorFillTertiary, fontSize: '0.85rem', color: token.colorTextSecondary, whiteSpace: 'pre-wrap' }}
+                style={{ marginTop: 4, padding: '5px 8px', border: `1px solid ${token.colorBorder}`, borderRadius: 2, background: token.colorFillTertiary, fontSize: '0.85rem', color: token.colorTextSecondary, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
               >
                 {linkify(task.description)}
               </div>

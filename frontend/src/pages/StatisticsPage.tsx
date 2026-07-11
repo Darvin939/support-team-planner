@@ -10,6 +10,7 @@ import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT} from '../lib/dateFormats';
 import {StatGroupLabel, StatTile} from '../components/StatTile';
 import {FilterField, FilterGrid} from '../components/FilterGrid';
 import {CriticalityBadge} from '../components/planningBadges';
+import {NAME_COLUMN_WIDTH} from '../lib/layout';
 
 const STORAGE_STATS_TEAMS = 'statsSelectedTeams';
 const DEFAULT_STATS_PAGE_SIZE = 20;
@@ -55,7 +56,13 @@ function useActiveAssignments(from: string, to: string, teamIds: number[], offse
 
 function buildColumns(showDate: boolean): TableColumnsType<ActiveAssignment> {
   const cols: TableColumnsType<ActiveAssignment> = [
-    { title: 'Работа', dataIndex: 'task_name', key: 'task_name' },
+    {
+      title: 'Работа',
+      dataIndex: 'task_name',
+      key: 'task_name',
+      width: NAME_COLUMN_WIDTH,
+      render: (v: string) => <span style={{ overflowWrap: 'anywhere' }}>{v}</span>,
+    },
     { title: 'Команда', dataIndex: 'team_name', key: 'team_name' },
     { title: 'Крит.', dataIndex: 'criticality', key: 'criticality', render: (v) => <CriticalityBadge value={v} /> },
   ];
@@ -110,7 +117,7 @@ function StatsSection({
       </Space>
       {total > 0 ? (
         <>
-          <Table rowKey="id" columns={buildColumns(showDate)} dataSource={items} pagination={false} size="small" scroll={{ x: true }} />
+          <Table rowKey="id" columns={buildColumns(showDate)} dataSource={items} pagination={false} size="small" scroll={{ x: 'max-content' }} />
           {total > pageSize && (
             <div style={{ textAlign: 'center', marginTop: 16 }}>
               <Pagination
