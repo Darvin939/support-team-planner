@@ -11,7 +11,8 @@ import {StatGroupLabel, StatTile} from '../components/StatTile';
 import {FilterField, FilterGrid} from '../components/FilterGrid';
 
 const STORAGE_STATS_TEAMS = 'statsSelectedTeams';
-const STATS_PAGE_SIZE = 20;
+const DEFAULT_STATS_PAGE_SIZE = 20;
+const STATS_PAGE_SIZE_OPTIONS = ['10', '20', '50', '100'];
 
 interface ActiveAssignment {
   id: number;
@@ -34,13 +35,13 @@ interface ActiveAssignmentsResponse {
 
 const STATUS_LABEL: Record<string, string> = { new: 'Новый', planned: 'Запланировано', rollback: 'Откат', success: 'Успешно' };
 
-function useActiveAssignments(from: string, to: string, teamIds: number[], offset: number) {
+function useActiveAssignments(from: string, to: string, teamIds: number[], offset: number, limit: number) {
   return useQuery<ActiveAssignmentsResponse>({
-    queryKey: ['active-assignments', from, to, teamIds, offset],
+    queryKey: ['active-assignments', from, to, teamIds, offset, limit],
     queryFn: async () => {
       const teamParam = teamIds.length ? `&team_ids=${teamIds.join(',')}` : '';
       const r = await fetch(
-        `/api/active-assignments/0?start_date=${from}&end_date=${to}${teamParam}&offset=${offset}&limit=${STATS_PAGE_SIZE}`,
+        `/api/active-assignments/0?start_date=${from}&end_date=${to}${teamParam}&offset=${offset}&limit=${limit}`,
         { credentials: 'same-origin' }
       );
       if (!r.ok) throw new Error(`GET /api/active-assignments -> ${r.status}`);
@@ -69,13 +70,19 @@ function StatsSection({
   response,
   showDate,
   offset,
+  pageSize,
+  pageSizeOptions,
   onPageChange,
+  onPageSizeChange,
 }: {
   title: string;
   response: ActiveAssignmentsResponse | undefined;
   showDate: boolean;
   offset: number;
+  pageSize: number;
+  pageSizeOptions: string[];
   onPageChange: (offset: number) => void;
+  onPageSizeChange: (size: number) => void;
 }) {
   const items = response?.items ?? [];
   const total = response?.total ?? 0;
@@ -95,14 +102,21 @@ function StatsSection({
       {total > 0 ? (
         <>
           <Table rowKey="id" columns={buildColumns(showDate)} dataSource={items} pagination={false} size="small" scroll={{ x: true }} />
-          {total > STATS_PAGE_SIZE && (
+          {total > pageSize && (
             <div style={{ textAlign: 'center', marginTop: 16 }}>
               <Pagination
-                current={offset / STATS_PAGE_SIZE + 1}
-                pageSize={STATS_PAGE_SIZE}
+                current={offset / pageSize + 1}
+                pageSize={pageSize}
                 total={total}
-                onChange={(page) => onPageChange((page - 1) * STATS_PAGE_SIZE)}
-                showSizeChanger={false}
+                pageSizeOptions={pageSizeOptions}
+                showSizeChanger
+                onChange={(page, size) => {
+                  if (size !== pageSize) {
+                    onPageSizeChange(size);
+                  } else {
+                    onPageChange((page - 1) * pageSize);
+                  }
+                }}
               />
             </div>
           )}
@@ -127,12 +141,19 @@ export function StatisticsPage() {
   });
 
   const [range, handleRangeChange] = useDateRangeFilter(() => [dayjs().subtract(7, 'day'), dayjs()]);
+  const [pageSize, setPageSize] = useState(DEFAULT_STATS_PAGE_SIZE);
   const [todayOffset, setTodayOffset] = useState(0);
   const [periodOffset, setPeriodOffset] = useState(0);
 
   function handleTeamsChange(ids: number[]) {
     setSelectedTeamIds(ids);
     localStorage.setItem(STORAGE_STATS_TEAMS, JSON.stringify(ids));
+    setTodayOffset(0);
+    setPeriodOffset(0);
+  }
+
+  function handlePageSizeChange(size: number) {
+    setPageSize(size);
     setTodayOffset(0);
     setPeriodOffset(0);
   }
@@ -145,8 +166,8 @@ export function StatisticsPage() {
   }, [periodFrom, periodTo]);
 
   const today = dayjs().format(API_DATE_FORMAT);
-  const { data: todayData } = useActiveAssignments(today, today, selectedTeamIds, todayOffset);
-  const { data: periodData } = useActiveAssignments(periodFrom, periodTo, selectedTeamIds, periodOffset);
+  const { data: todayData } = useActiveAssignments(today, today, selectedTeamIds, todayOffset, pageSize);
+  const { data: periodData } = useActiveAssignments(periodFrom, periodTo, selectedTeamIds, periodOffset, pageSize);
 
   return (
     <>
@@ -174,7 +195,10 @@ export function StatisticsPage() {
         response={todayData}
         showDate={false}
         offset={todayOffset}
+        pageSize={pageSize}
+        pageSizeOptions={STATS_PAGE_SIZE_OPTIONS}
         onPageChange={setTodayOffset}
+        onPageSizeChange={handlePageSizeChange}
       />
 
       <Card style={{ marginBottom: 16 }}>
@@ -197,7 +221,10 @@ export function StatisticsPage() {
         response={periodData}
         showDate
         offset={periodOffset}
+        pageSize={pageSize}
+        pageSizeOptions={STATS_PAGE_SIZE_OPTIONS}
         onPageChange={setPeriodOffset}
+        onPageSizeChange={handlePageSizeChange}
       />
     </>
   );

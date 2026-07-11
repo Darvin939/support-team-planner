@@ -54,7 +54,8 @@ const VALID_TASK_TRANSITIONS: Record<string, string[]> = {
 };
 
 const STORAGE_TEAM_ID = 'selectedTeamId';
-const PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = ['10', '20', '50', '100'];
 // Must match TOP_BAR_HEIGHT in components/AppShell.tsx (mobile fixed top bar height).
 const TOP_BAR_HEIGHT = 56;
 
@@ -105,6 +106,7 @@ export function PlanningPage() {
   const [search, setSearch] = useState('');
   const [showCompleted, setShowCompleted] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [taskStatusFilter, setTaskStatusFilter] = useState<string[]>([]);
   const [taskModal, setTaskModal] = useState<{ open: boolean; task: Task | null }>({ open: false, task: null });
@@ -166,7 +168,7 @@ export function PlanningPage() {
   const dateTo = range[1].format(API_DATE_FORMAT);
   const today = dayjs().format(API_DATE_FORMAT);
 
-  const { data: taskData } = useTasks(teamId ?? 0, (page - 1) * PAGE_SIZE, PAGE_SIZE, search, showCompleted);
+  const { data: taskData } = useTasks(teamId ?? 0, (page - 1) * pageSize, pageSize, search, showCompleted);
   const taskIds = useMemo(() => taskData?.tasks.map((t) => t.id) ?? [], [taskData]);
   const { data: assignments } = useAssignments(teamId ?? 0, dateFrom, dateTo, taskIds);
   const { data: deps } = useTaskDeps(teamId ?? 0, taskIds);
@@ -586,17 +588,23 @@ export function PlanningPage() {
           </div>
         )}
 
-        {taskData && taskData.total > PAGE_SIZE && (
+        {taskData && taskData.total > pageSize && (
           <div style={{ textAlign: 'center', marginTop: 16 }}>
             <Pagination
               current={page}
-              pageSize={PAGE_SIZE}
+              pageSize={pageSize}
               total={taskData.total}
-              onChange={(p) => {
+              pageSizeOptions={PAGE_SIZE_OPTIONS}
+              showSizeChanger
+              onChange={(p, size) => {
                 pendingCenterRef.current = true;
-                setPage(p);
+                if (size !== pageSize) {
+                  setPageSize(size);
+                  setPage(1);
+                } else {
+                  setPage(p);
+                }
               }}
-              showSizeChanger={false}
             />
           </div>
         )}
