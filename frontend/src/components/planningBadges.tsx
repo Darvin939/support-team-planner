@@ -3,7 +3,7 @@ import {CheckOutlined, CloseOutlined} from '@ant-design/icons';
 import {Button, Popover, Space, theme, Tooltip} from 'antd';
 import {ASSIGNMENT_STATUS_LABELS, TASK_STATUS_LABELS} from '../lib/historyFormat';
 
-function tintedStyle(color: string): CSSProperties {
+export function tintedStyle(color: string): CSSProperties {
   return {
     display: 'inline-block',
     padding: '2px 8px',
