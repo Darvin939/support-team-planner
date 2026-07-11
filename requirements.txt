@@ -6,4 +6,3 @@ python-multipart
 requests
 python-dotenv
 urllib3
-atexit
