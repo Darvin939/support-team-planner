@@ -6,6 +6,9 @@ import {useIsMobile} from '../hooks/useIsMobile';
 import {OverdueNotifications} from './OverdueNotifications';
 
 const TOP_BAR_HEIGHT = 56;
+const SIDEBAR_WIDTH = 216;
+const SIDEBAR_COLLAPSED_WIDTH = 72;
+const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
 
 const iconStyle = { width: 17, height: 17, display: 'inline-flex' } as const;
 
@@ -73,6 +76,27 @@ function BurgerIcon() {
   );
 }
 
+function UserIcon() {
+  return (
+    <span style={iconStyle}>
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="10" cy="6.8" r="3.2" />
+        <path d="M3.8 16.2c.7-3.3 3.3-5.2 6.2-5.2s5.5 1.9 6.2 5.2" />
+      </svg>
+    </span>
+  );
+}
+
+function ChevronIcon({ direction }: { direction: 'left' | 'right' }) {
+  return (
+    <span style={iconStyle}>
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+        {direction === 'left' ? <path d="M12.5 4.5 7 10l5.5 5.5" /> : <path d="M7.5 4.5 13 10l-5.5 5.5" />}
+      </svg>
+    </span>
+  );
+}
+
 export function AppShell({
   children,
   activePath,
@@ -97,10 +121,21 @@ export function AppShell({
   const c = isDark ? chrome.dark : chrome.light;
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1');
+  const [logoHovered, setLogoHovered] = useState(false);
+  const showCollapsedUI = !isMobile && collapsed;
+  const sidebarWidth = showCollapsedUI ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH;
 
   useEffect(() => {
     if (!isMobile) setSidebarOpen(false);
   }, [isMobile]);
+
+  function toggleCollapsed() {
+    setCollapsed((v) => {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, v ? '0' : '1');
+      return !v;
+    });
+  }
 
   useEffect(() => {
     if (!sidebarOpen) return;
@@ -154,7 +189,7 @@ export function AppShell({
         </div>
       )}
       <Layout.Sider
-        width={216}
+        width={isMobile ? SIDEBAR_WIDTH : sidebarWidth}
         style={{
           background: c.bg,
           position: 'fixed',
@@ -164,26 +199,43 @@ export function AppShell({
           overflow: 'auto',
           zIndex: 1000,
           transform: isMobile && !sidebarOpen ? 'translateX(-100%)' : 'translateX(0)',
-          transition: 'transform 0.25s ease',
+          transition: 'transform 0.25s ease, width 0.2s ease',
           boxShadow: isMobile && sidebarOpen ? '0 0 24px rgba(0, 0, 0, 0.35)' : undefined,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '18px 18px 16px', color: c.text, fontWeight: 700, fontSize: '0.95rem' }}>
+        <div
+          onClick={!isMobile ? toggleCollapsed : undefined}
+          onMouseEnter={() => setLogoHovered(true)}
+          onMouseLeave={() => setLogoHovered(false)}
+          title={!isMobile ? (collapsed ? 'Развернуть' : 'Свернуть') : undefined}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: showCollapsedUI ? 'center' : 'flex-start',
+            gap: 10, padding: '18px 18px 16px', color: c.text, fontWeight: 700, fontSize: '0.95rem',
+            cursor: !isMobile ? 'pointer' : 'default',
+          }}
+        >
           <span style={iconStyle}>
-            <svg viewBox="0 0 20 20" fill="none" stroke="#1668dc" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="14" height="14" rx="3" />
-              <path d="M3 8.5h14M8.2 3v14" />
-            </svg>
+            {!isMobile && logoHovered ? (
+              <ChevronIcon direction={collapsed ? 'right' : 'left'} />
+            ) : (
+              <svg viewBox="0 0 20 20" fill="none" stroke="#1668dc" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="14" height="14" rx="3" />
+                <path d="M3 8.5h14M8.2 3v14" />
+              </svg>
+            )}
           </span>
-          <span>
-            Пульт<span style={{ color: '#1668dc' }}>.</span>Планировщик
-          </span>
+          {!showCollapsedUI && (
+            <span>
+              Пульт<span style={{ color: '#1668dc' }}>.</span>Планировщик
+            </span>
+          )}
         </div>
-        <div style={{ padding: '0 14px 10px', color: c.text }}>
-          <OverdueNotifications />
+        <div style={{ padding: showCollapsedUI ? '0 0 10px' : '0 14px 10px', color: c.text, display: 'flex', justifyContent: showCollapsedUI ? 'center' : 'flex-start' }}>
+          <OverdueNotifications compact={showCollapsedUI} />
         </div>
         <Menu
           mode="inline"
+          inlineCollapsed={showCollapsedUI}
           selectedKeys={[activePath]}
           items={navItems}
           onClick={({ key }) => handleNavigate(key)}
@@ -195,34 +247,41 @@ export function AppShell({
             onClick={onOpenProfile}
             title="Изменить пароль"
             style={{
-              display: 'block', width: '100%', padding: '4px 10px 8px', background: 'none', border: 'none',
+              display: 'flex', alignItems: 'center', gap: 11, justifyContent: showCollapsedUI ? 'center' : 'flex-start',
+              width: '100%', padding: showCollapsedUI ? '8px 10px' : '4px 10px 8px', background: 'none', border: 'none',
               color: c.text, fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', textAlign: 'left',
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}
           >
-            {userName}
+            <UserIcon />
+            {!showCollapsedUI && (
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{userName}</span>
+            )}
           </button>
           <button
             onClick={onToggleTheme}
+            title={isDark ? 'Светлая тема' : 'Тёмная тема'}
             style={{
-              display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '8px 10px',
+              display: 'flex', alignItems: 'center', gap: 11, justifyContent: showCollapsedUI ? 'center' : 'flex-start',
+              width: '100%', padding: '8px 10px',
               background: 'none', border: 'none', color: c.text, cursor: 'pointer', textAlign: 'left', fontSize: '0.88rem',
             }}
           >
-            {isDark ? '☾' : '☀'} {isDark ? 'Тёмная тема' : 'Светлая тема'}
+            {isDark ? '☾' : '☀'} {!showCollapsedUI && (isDark ? 'Тёмная тема' : 'Светлая тема')}
           </button>
           <button
             onClick={onLogout}
+            title="Выйти"
             style={{
-              display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '8px 10px',
+              display: 'flex', alignItems: 'center', gap: 11, justifyContent: showCollapsedUI ? 'center' : 'flex-start',
+              width: '100%', padding: '8px 10px',
               background: 'none', border: 'none', color: c.text, cursor: 'pointer', textAlign: 'left', fontSize: '0.88rem',
             }}
           >
-            <LogoutIcon /> Выйти
+            <LogoutIcon /> {!showCollapsedUI && 'Выйти'}
           </button>
         </div>
       </Layout.Sider>
-      <Layout style={{ marginLeft: isMobile ? 0 : 216 }}>
+      <Layout style={{ marginLeft: isMobile ? 0 : sidebarWidth, transition: 'margin-left 0.2s ease' }}>
         <Layout.Content style={{ padding: 24, paddingTop: isMobile ? TOP_BAR_HEIGHT + 24 : 24, margin: '0 auto', width: '100%' }}>
           {children}
         </Layout.Content>
