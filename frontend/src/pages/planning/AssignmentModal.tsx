@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import {type CSSProperties, useEffect, useState} from 'react';
 import {
   Alert,
   Button,
@@ -83,13 +83,45 @@ function AutoScheduleGrid({
   const today = dayjs().format(API_DATE_FORMAT);
   const dragRef = useAutoScheduleDragScroll<HTMLDivElement>();
 
+  const headerCellBase: CSSProperties = {
+    position: 'relative',
+    padding: `${token.paddingXS}px ${token.paddingXS}px`,
+    textAlign: 'left',
+    color: token.colorTextHeading,
+    fontWeight: token.fontWeightStrong,
+    background: token.colorFillAlter,
+    borderBottom: `1px solid ${token.colorBorderSecondary}`,
+  };
+  const headerSplitStyle: CSSProperties = {
+    position: 'absolute',
+    top: '50%',
+    insetInlineEnd: 0,
+    width: 1,
+    height: '1.6em',
+    backgroundColor: token.colorBorderSecondary,
+    transform: 'translateY(-50%)',
+  };
+  const bodyCellBase: CSSProperties = {
+    padding: `${token.paddingXS}px ${token.paddingXS}px`,
+    borderBottom: `1px solid ${token.colorBorderSecondary}`,
+  };
+  const fixedColStyle: CSSProperties = {
+    position: 'sticky',
+    left: 0,
+    borderRight: `1px solid ${token.colorBorderSecondary}`,
+  };
+  const opaqueHeaderBg = `linear-gradient(${token.colorFillAlter}, ${token.colorFillAlter}), linear-gradient(${token.colorBgContainer}, ${token.colorBgContainer})`;
+
   return (
     <div ref={dragRef} style={{ overflowX: 'auto', border: `1px solid ${token.colorBorder}`, borderRadius: token.borderRadiusSM }}>
-      <table style={{ borderCollapse: 'collapse', width: 'max-content', fontSize: '0.82rem' }}>
+      <table style={{ borderCollapse: 'collapse', width: 'max-content', fontSize: token.fontSize }}>
         <thead>
           <tr>
-            <th style={{ padding: '4px 8px', textAlign: 'left', color: token.colorTextSecondary }}>Дата</th>
-            {dates.map((dateStr) => {
+            <th style={{ ...headerCellBase, ...fixedColStyle, zIndex: 2, background: undefined, backgroundImage: opaqueHeaderBg }}>
+              Дата
+              {dates.length > 0 && <span style={headerSplitStyle} />}
+            </th>
+            {dates.map((dateStr, i) => {
               const d = dayjs(dateStr);
               const isWeekend = d.day() === 0 || d.day() === 6;
               const isFreeze = freezeDays.has(dateStr);
@@ -99,13 +131,14 @@ function AutoScheduleGrid({
                 <th
                   key={dateStr}
                   style={{
-                    padding: '4px 6px',
+                    ...headerCellBase,
                     minWidth: 56,
                     fontFamily: "'JetBrains Mono Variable', monospace",
                     ...headerTint,
                   }}
                 >
                   {d.format(DISPLAY_DATE_SHORT_FORMAT)}
+                  {i < dates.length - 1 && <span style={headerSplitStyle} />}
                 </th>
               );
             })}
@@ -113,7 +146,7 @@ function AutoScheduleGrid({
         </thead>
         <tbody>
           <tr>
-            <td style={{ padding: '4px 8px', fontWeight: 600 }}>Блок</td>
+            <td style={{ ...bodyCellBase, ...fixedColStyle, zIndex: 1, background: token.colorBgContainer, fontWeight: token.fontWeightStrong }}>Блок</td>
             {dates.map((dateStr) => {
               const isOccupied = taskAssignments.some((a) => a.date === dateStr && a.id !== currentAssignmentId);
               const blocksHere = templateBlocks.filter((b) => autoAssignDates[b.id] === dateStr);
@@ -128,11 +161,12 @@ function AutoScheduleGrid({
                   key={dateStr}
                   onClick={() => onPlace(dateStr)}
                   style={{
+                    ...bodyCellBase,
                     ...cellTint,
-                    padding: 4,
                     height: 58,
                     verticalAlign: 'top',
                     cursor: 'pointer',
+                    borderLeft: `1px solid ${token.colorBorder}`,
                     boxShadow: isOccupied ? `inset 0 0 0 2px ${token.colorWarning}` : undefined,
                   }}
                 >
