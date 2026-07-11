@@ -140,18 +140,20 @@ export function TaskModal({
           <Form.Item name="description" label="Описание">
             <Input.TextArea rows={4} />
           </Form.Item>
-          <Form.Item name="criticality" label="Критичность" rules={[{ required: true, message: 'Выберите критичность' }]}>
-            <Select
-              options={[
-                { value: 'low', label: 'Низкая' },
-                { value: 'medium', label: 'Средняя' },
-                { value: 'high', label: 'Высокая' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="segment_id" label="Сегмент" rules={[{ required: true, message: 'Выберите сегмент' }]}>
-            <Select placeholder="Выберите сегмент" options={segments?.map((s) => ({ value: s.id, label: s.name }))} />
-          </Form.Item>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <Form.Item name="criticality" label="Критичность" rules={[{ required: true, message: 'Выберите критичность' }]} style={{ flex: 1, minWidth: 0 }}>
+              <Select
+                options={[
+                  { value: 'low', label: 'Низкая' },
+                  { value: 'medium', label: 'Средняя' },
+                  { value: 'high', label: 'Высокая' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item name="segment_id" label="Сегмент" rules={[{ required: true, message: 'Выберите сегмент' }]} style={{ flex: 1, minWidth: 0 }}>
+              <Select placeholder="Выберите сегмент" options={segments?.map((s) => ({ value: s.id, label: s.name }))} />
+            </Form.Item>
+          </div>
           <Form.Item label="Зависит от">
             <Input.Search placeholder="Поиск..." value={depSearch} onChange={(e) => setDepSearch(e.target.value)} style={{ marginBottom: 8 }} allowClear />
             <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid rgba(128,128,128,0.3)', borderRadius: 6, padding: '4px 8px' }}>

@@ -59,11 +59,11 @@ export function DepBadge({
   const color =
     kind === 'deleted' ? token.colorTextTertiary : kind === 'cancelled' ? token.colorError : kind === 'done' ? token.colorSuccess : token.colorWarning;
   const icon = kind === 'deleted' ? '🗑' : kind === 'cancelled' ? '⛔' : kind === 'done' ? '✔' : '⏳';
-  const label = kind === 'deleted' ? 'зависимость удалена' : kind === 'cancelled' ? 'зависимость отменена' : kind === 'done' ? 'выполнено' : 'ожидает';
+  const label = kind === 'deleted' ? 'удалено' : kind === 'cancelled' ? 'отменено' : kind === 'done' ? 'выполнено' : 'ожидает';
 
   const content = (
-    <div style={{ width: 280, maxHeight: 320, overflow: 'auto' }}>
-      <Space direction="vertical" size={10} style={{ width: '100%' }}>
+    <div style={{ maxWidth: 380, maxHeight: 320, overflow: 'auto' }}>
+      <Space orientation="vertical" size={10} style={{ width: '100%' }}>
         {deps.map((dep, i) => (
           <div key={dep.id} style={i > 0 ? { borderTop: `1px solid ${token.colorBorderSecondary}`, paddingTop: 10 } : undefined}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500, overflowWrap: 'anywhere' }}>

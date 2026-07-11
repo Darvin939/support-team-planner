@@ -476,12 +476,15 @@ export function PlanningPage() {
               <CriticalityBadge value={task.criticality} />
               <span style={{ fontWeight: 500, minWidth: 0, overflowWrap: 'anywhere' }} data-task-row-name>{task.name}</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4, flexWrap: 'wrap' }}>
-              {deleted.length > 0 && <DepBadge kind="deleted" deps={deleted.map(toDepEntry)} onNavigate={handleDepNavigate} />}
-              {cancelled.length > 0 && <DepBadge kind="cancelled" deps={cancelled.map(toDepEntry)} onNavigate={handleDepNavigate} />}
-              {pending.length > 0 && <DepBadge kind="pending" deps={pending.map(toDepEntry)} onNavigate={handleDepNavigate} />}
-              {done.length > 0 && <DepBadge kind="done" deps={done.map(toDepEntry)} onNavigate={handleDepNavigate} />}
-            </div>
+            {taskDeps.length > 0 &&
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4, flexWrap: 'wrap' }}>
+                <span>Связи:</span>
+                {deleted.length > 0 && <DepBadge kind="deleted" deps={deleted.map(toDepEntry)} onNavigate={handleDepNavigate} />}
+                {cancelled.length > 0 && <DepBadge kind="cancelled" deps={cancelled.map(toDepEntry)} onNavigate={handleDepNavigate} />}
+                {pending.length > 0 && <DepBadge kind="pending" deps={pending.map(toDepEntry)} onNavigate={handleDepNavigate} />}
+                {done.length > 0 && <DepBadge kind="done" deps={done.map(toDepEntry)} onNavigate={handleDepNavigate} />}
+              </div>
+            }
             {task.description && (
               <div
                 style={{ marginTop: 4, padding: '5px 8px', border: `1px solid ${token.colorBorder}`, borderRadius: 2, background: token.colorFillTertiary, fontSize: '0.85rem', color: token.colorTextSecondary, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}

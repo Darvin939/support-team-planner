@@ -359,7 +359,7 @@ export function DependencyGraphModal({
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView
-          nodesDraggable={false}
+          nodesDraggable
           nodesConnectable
           onConnect={handleConnect}
           onReconnect={handleReconnect}
