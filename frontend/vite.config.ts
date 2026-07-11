@@ -16,4 +16,27 @@ export default defineConfig(({command}) => ({
       '/logout': 'http://localhost:5093',
     },
   },
+  build: {
+    // antd + @ant-design/icons are isolated into their own vendor chunk (below) and are
+    // inherently >500kB even after minification; the default warning threshold exists to
+    // catch app-code bloat, not to flag a known, cached-across-routes vendor chunk.
+    chunkSizeWarningLimit: 1200,
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes('node_modules')) {
+            if (id.includes('antd') || id.includes('@ant-design')) return 'antd'
+            if (
+              id.includes('/react/') ||
+              id.includes('/react-dom/') ||
+              id.includes('/react-router') ||
+              id.includes('/@tanstack/react-query')
+            ) {
+              return 'vendor'
+            }
+          }
+        },
+      },
+    },
+  },
 }))

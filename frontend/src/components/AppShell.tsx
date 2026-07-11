@@ -223,7 +223,7 @@ export function AppShell({
         </div>
       </Layout.Sider>
       <Layout style={{ marginLeft: isMobile ? 0 : 216 }}>
-        <Layout.Content style={{ padding: 24, paddingTop: isMobile ? TOP_BAR_HEIGHT + 24 : 24, maxWidth: 1400, margin: '0 auto', width: '100%' }}>
+        <Layout.Content style={{ padding: 24, paddingTop: isMobile ? TOP_BAR_HEIGHT + 24 : 24, margin: '0 auto', width: '100%' }}>
           {children}
         </Layout.Content>
       </Layout>
