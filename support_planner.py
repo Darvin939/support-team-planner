@@ -46,7 +46,7 @@ _ROLE_RANK = {'user': 0, 'editor': 1, 'admin': 2}
 _ADMIN_ONLY_API_PREFIXES = ('/api/users',)
 
 # Мутирующие эндпоинты настроек, требующие роль не ниже editor (всё, кроме учётных записей).
-_EDITOR_API_PREFIXES = ('/api/teams', '/api/freeze-days', '/api/blocks', '/api/block-templates')
+_EDITOR_API_PREFIXES = ('/api/teams', '/api/freeze-days', '/api/blocks', '/api/block-templates', '/api/segments')
 
 
 def _required_rank(method: str, path: str) -> int:
@@ -124,6 +124,7 @@ class TaskIn(BaseModel):
     name: str = ""
     description: Optional[str] = None
     criticality: str = "medium"
+    segment_id: Optional[int] = None
     dependency_ids: Optional[List[int]] = None
 
 
@@ -136,6 +137,10 @@ class BlockIn(BaseModel):
     name: str = ""
 
 
+class SegmentIn(BaseModel):
+    name: str = ""
+
+
 class TemplateEntryIn(BaseModel):
     block_id: int
     shift_days: int = 0
@@ -143,6 +148,7 @@ class TemplateEntryIn(BaseModel):
 
 class BlockTemplateIn(BaseModel):
     name: str = ""
+    segment_id: Optional[int] = None
     entries: Optional[List[TemplateEntryIn]] = None
 
 
@@ -388,6 +394,7 @@ def get_tasks_api(team_id: int, offset: int = 0, limit: int = 20, search: str = 
     return {
         'tasks': [{'id': t['id'], 'name': t['name'], 'description': t['description'],
                    'criticality': t['criticality'], 'task_status': t['task_status'],
+                   'segment_id': t['segment_id'], 'segment_name': t['segment_name'],
                    'has_active_assignments': bool(t['has_active_assignments'])} for t in tasks],
         'total': total
     }
@@ -403,6 +410,8 @@ def save_task_api(request: Request, data: TaskIn):
         return JSONResponse({'error': 'Team ID and name required'}, status_code=400)
     if data.criticality not in ('low', 'medium', 'high'):
         return JSONResponse({'error': 'criticality must be low, medium or high'}, status_code=400)
+    if not data.segment_id or not any(s['id'] == data.segment_id for s in db.get_all_segments()):
+        return JSONResponse({'error': 'Указан несуществующий сегмент'}, status_code=400)
 
     if data.task_id:
         task = db.get_task_status(data.task_id)
@@ -410,6 +419,7 @@ def save_task_api(request: Request, data: TaskIn):
             return JSONResponse({'error': 'Нельзя редактировать завершённую или отменённую задачу'}, status_code=400)
 
     task_id = int(db.create_or_update_task(data.task_id, data.team_id, name, description, data.criticality,
+                                            segment_id=data.segment_id,
                                             changed_by=request.session.get('user_id')))
 
     if data.dependency_ids is not None:
@@ -543,10 +553,11 @@ def get_team_api(team_id: int):
 
 
 @app.get('/api/teams/{team_id}/blocks')
-def get_team_blocks_api(team_id: int):
+def get_team_blocks_api(team_id: int, segment_id: Optional[int] = None):
     """Уникальные блоки из разрешённых шаблонов команды — для ручного выбора блока
-    в модалке назначения (React); та же выборка, что раньше шла в Jinja-контекст /planning/{team_id}."""
-    return db.get_blocks_for_team(team_id)
+    в модалке назначения (React); та же выборка, что раньше шла в Jinja-контекст /planning/{team_id}.
+    segment_id, если передан, дополнительно сужает выборку до шаблонов конкретного сегмента."""
+    return db.get_blocks_for_team(team_id, segment_id=segment_id)
 
 
 @app.post('/api/teams')
@@ -773,9 +784,11 @@ def create_template_api(data: BlockTemplateIn):
     name = (data.name or '').strip()
     if not name:
         return JSONResponse({'error': 'Name required'}, status_code=400)
+    if not data.segment_id or not any(s['id'] == data.segment_id for s in db.get_all_segments()):
+        return JSONResponse({'error': 'Указан несуществующий сегмент'}, status_code=400)
     entries = [{'block_id': e.block_id, 'shift_days': e.shift_days} for e in (data.entries or [])]
     try:
-        tmpl_id = db.create_template(name, entries)
+        tmpl_id = db.create_template(name, data.segment_id, entries)
         return {'id': tmpl_id, 'success': True}
     except Exception as e:
         return JSONResponse({'error': str(e)}, status_code=400)
@@ -787,12 +800,14 @@ def update_template_api(template_id: int, data: BlockTemplateIn):
     name = (data.name or '').strip()
     if not name:
         return JSONResponse({'error': 'Name required'}, status_code=400)
+    if not data.segment_id or not any(s['id'] == data.segment_id for s in db.get_all_segments()):
+        return JSONResponse({'error': 'Указан несуществующий сегмент'}, status_code=400)
     t = db.get_template_by_id(template_id)
     if not t:
         return JSONResponse({'error': 'Template not found'}, status_code=404)
     entries = [{'block_id': e.block_id, 'shift_days': e.shift_days} for e in (data.entries or [])]
     try:
-        db.update_template(template_id, name, entries)
+        db.update_template(template_id, name, data.segment_id, entries)
         return {'success': True}
     except Exception as e:
         return JSONResponse({'error': str(e)}, status_code=400)
@@ -803,6 +818,50 @@ def delete_template_api(template_id: int):
     """Удалить шаблон блоков"""
     db.delete_template(template_id)
     return {'success': True}
+
+
+# === API для сегментов ===
+
+@app.get('/api/segments')
+def get_segments_api():
+    """Получить все сегменты"""
+    return db.get_all_segments()
+
+
+@app.post('/api/segments')
+def create_segment_api(data: SegmentIn):
+    """Создать сегмент"""
+    name = (data.name or '').strip()
+    if not name:
+        return JSONResponse({'error': 'Name required'}, status_code=400)
+    try:
+        segment_id = db.create_segment(name)
+        return {'id': segment_id, 'success': True}
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=400)
+
+
+@app.put('/api/segments/{segment_id}')
+def update_segment_api(segment_id: int, data: SegmentIn):
+    """Обновить сегмент"""
+    name = (data.name or '').strip()
+    if not name:
+        return JSONResponse({'error': 'Name required'}, status_code=400)
+    try:
+        db.update_segment(segment_id, name)
+        return {'success': True}
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=400)
+
+
+@app.delete('/api/segments/{segment_id}')
+def delete_segment_api(segment_id: int):
+    """Удалить сегмент"""
+    try:
+        db.delete_segment(segment_id)
+        return {'success': True}
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=400)
 
 
 if __name__ == '__main__':

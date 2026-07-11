@@ -9,6 +9,8 @@ export interface Task {
   description: string | null;
   criticality: 'high' | 'medium' | 'low';
   task_status: 'new' | 'done' | 'cancelled';
+  segment_id: number;
+  segment_name: string;
   has_active_assignments: boolean;
 }
 
@@ -120,10 +122,10 @@ export interface TeamBlock {
   name: string;
 }
 
-export function useTeamBlocks(teamId: number) {
+export function useTeamBlocks(teamId: number, segmentId?: number | null) {
   return useQuery<TeamBlock[]>({
-    queryKey: ['team-blocks', teamId],
-    queryFn: () => getJson(`/api/teams/${teamId}/blocks`),
+    queryKey: ['team-blocks', teamId, segmentId ?? null],
+    queryFn: () => getJson(`/api/teams/${teamId}/blocks${segmentId ? `?segment_id=${segmentId}` : ''}`),
     enabled: !!teamId,
   });
 }
@@ -137,6 +139,7 @@ export interface BlockTemplateEntry {
 export interface BlockTemplateWithBlocks {
   id: number;
   name: string;
+  segment_id: number;
   blocks: BlockTemplateEntry[];
 }
 

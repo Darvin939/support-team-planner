@@ -43,9 +43,15 @@ _SCHEMA = '''
         date DATE NOT NULL UNIQUE
     );
 
+    CREATE TABLE IF NOT EXISTS segments (
+        id   INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT    NOT NULL UNIQUE
+    );
+
     CREATE TABLE if NOT EXISTS tasks (
         id INTEGER PRIMARY key autoincrement,
         team_id INTEGER NOT NULL,
+        segment_id INTEGER NOT NULL REFERENCES segments(id),
         name text NOT NULL,
         description text,
         criticality text NOT NULL DEFAULT 'medium',
@@ -84,8 +90,9 @@ _SCHEMA = '''
     );
 
     CREATE TABLE IF NOT EXISTS block_templates (
-        id   INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT    NOT NULL UNIQUE
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        name       TEXT    NOT NULL UNIQUE,
+        segment_id INTEGER NOT NULL REFERENCES segments(id)
     );
 
     CREATE TABLE IF NOT EXISTS template_blocks (
@@ -191,6 +198,7 @@ class SQLiteBackend(DBBackend):
         self._migrate_employees_to_users(conn)
         self._migrate_criticality_to_priority(conn)
         self._migrate_add_criticality_column(conn)
+        self._migrate_add_segment_columns(conn)
         conn.execute('PRAGMA foreign_keys = ON;')
         conn.executescript(_SCHEMA)
         # Промежуточные статусы задачи (ready/in_progress) упразднены — у задачи остаётся только
@@ -367,3 +375,47 @@ class SQLiteBackend(DBBackend):
             return  # уже есть (либо никогда не удалялась, либо уже мигрировано)
 
         conn.execute("ALTER TABLE tasks ADD COLUMN criticality TEXT NOT NULL DEFAULT 'medium'")
+
+    _DEFAULT_SEGMENT_NAME = 'По умолчанию'
+
+    @staticmethod
+    def _migrate_add_segment_columns(conn) -> None:
+        """Бэкфилл segment_id на БД, созданных до появления сегментов: для каждой из block_templates
+        и tasks, если таблица уже существует и в ней ещё нет колонки segment_id, добавляем её как
+        NOT NULL DEFAULT <id сегмента по умолчанию> — SQLite применяет DEFAULT к уже существующим
+        строкам при ADD COLUMN NOT NULL, так что бэкфилл происходит тем же выражением.
+
+        Сегмент "По умолчанию" создаётся здесь же, но только если он реально понадобится для
+        бэкфилла хотя бы одной из этих таблиц — на совсем свежей БД (обе таблицы ещё не существуют)
+        и на уже мигрированной (колонка уже есть) сегмент по умолчанию не создаётся вовсе: заводить
+        первый сегмент в таком случае — дело пользователя через настройки, а не миграции."""
+        tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        tables_needing_backfill = []
+        for table in ('block_templates', 'tasks'):
+            if table not in tables:
+                continue  # совсем свежая БД — segment_id появится через _SCHEMA ниже
+            columns = {row[1] for row in conn.execute(f'PRAGMA table_info({table})').fetchall()}
+            if 'segment_id' not in columns:
+                tables_needing_backfill.append(table)
+
+        if not tables_needing_backfill:
+            return  # мигрировать нечего — либо свежая БД, либо уже мигрировано ранее
+
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS segments (
+                id   INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT    NOT NULL UNIQUE
+            )
+        ''')
+        conn.execute(
+            'INSERT OR IGNORE INTO segments (name) VALUES (?)', (SQLiteBackend._DEFAULT_SEGMENT_NAME,)
+        )
+        default_segment_id = conn.execute(
+            'SELECT id FROM segments WHERE name = ?', (SQLiteBackend._DEFAULT_SEGMENT_NAME,)
+        ).fetchone()[0]
+
+        for table in tables_needing_backfill:
+            conn.execute(
+                f'ALTER TABLE {table} ADD COLUMN segment_id INTEGER NOT NULL '
+                f'DEFAULT {int(default_segment_id)} REFERENCES segments(id)'
+            )

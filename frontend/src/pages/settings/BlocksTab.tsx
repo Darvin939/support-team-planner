@@ -1,8 +1,8 @@
 import {useState} from 'react';
 import {DeleteOutlined, EditOutlined} from '@ant-design/icons';
-import {Button, Card, Form, Input, InputNumber, List, message, Modal, Popconfirm, Select, Space} from 'antd';
+import {Button, Card, Form, Input, InputNumber, List, message, Modal, Popconfirm, Select, Space, Tag} from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
-import {type BlockTemplate, useBlocks, useBlockTemplates} from '../../hooks/useSettingsData';
+import {type BlockTemplate, useBlocks, useBlockTemplates, useSegments} from '../../hooks/useSettingsData';
 import {apiMutate} from '../../lib/apiMutate';
 
 interface TemplateEntryValue {
@@ -12,6 +12,7 @@ interface TemplateEntryValue {
 
 interface TemplateFormValues {
   name: string;
+  segment_id: number;
   entries: TemplateEntryValue[];
 }
 
@@ -72,6 +73,7 @@ function BlocksList() {
 function TemplatesList() {
   const { data: templates } = useBlockTemplates();
   const { data: blocks } = useBlocks();
+  const { data: segments } = useSegments();
   const queryClient = useQueryClient();
   const [modalTemplate, setModalTemplate] = useState<BlockTemplate | 'new' | null>(null);
   const [form] = Form.useForm<TemplateFormValues>();
@@ -99,10 +101,11 @@ function TemplatesList() {
   function openModal(tmpl: BlockTemplate | 'new') {
     setModalTemplate(tmpl);
     if (tmpl === 'new') {
-      form.setFieldsValue({ name: '', entries: [{ block_id: blocks?.[0]?.id ?? 0, shift_days: 0 }] });
+      form.setFieldsValue({ name: '', segment_id: segments?.[0]?.id, entries: [{ block_id: blocks?.[0]?.id ?? 0, shift_days: 0 }] });
     } else {
       form.setFieldsValue({
         name: tmpl.name,
+        segment_id: tmpl.segment_id,
         entries: tmpl.blocks.length ? tmpl.blocks.map((b) => ({ block_id: b.id, shift_days: b.shift_days })) : [{ block_id: blocks?.[0]?.id ?? 0, shift_days: 0 }],
       });
     }
@@ -120,7 +123,10 @@ function TemplatesList() {
         {templates?.map((tmpl) => (
           <Card key={tmpl.id} size="small">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <b>{tmpl.name}</b>
+              <Space>
+                <b>{tmpl.name}</b>
+                <Tag>{segments?.find((s) => s.id === tmpl.segment_id)?.name ?? '—'}</Tag>
+              </Space>
               <Space>
                 <Button size="small" onClick={() => openModal(tmpl)}>
                   <EditOutlined />
@@ -159,6 +165,10 @@ function TemplatesList() {
         <Form form={form} layout="vertical" onFinish={(v) => saveMutation.mutate(v)}>
           <Form.Item name="name" label="Название шаблона" rules={[{ required: true, message: 'Введите название шаблона' }]}>
             <Input placeholder="Название шаблона" />
+          </Form.Item>
+
+          <Form.Item name="segment_id" label="Сегмент" rules={[{ required: true, message: 'Выберите сегмент' }]}>
+            <Select placeholder="Выберите сегмент" options={segments?.map((s) => ({ value: s.id, label: s.name }))} />
           </Form.Item>
 
           <Form.Item label="Блоки шаблона">

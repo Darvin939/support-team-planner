@@ -1,6 +1,7 @@
 import {Tabs, Typography} from 'antd';
 import {TeamsTab} from './settings/TeamsTab';
 import {BlocksTab} from './settings/BlocksTab';
+import {SegmentsTab} from './settings/SegmentsTab';
 import {FreezeDaysTab} from './settings/FreezeDaysTab';
 import {UsersTab} from './settings/UsersTab';
 
@@ -18,6 +19,7 @@ export function SettingsPage() {
         items={[
           { key: 'teams', label: 'Команды', children: <TeamsTab /> },
           { key: 'blocks', label: 'Блоки и шаблоны', children: <BlocksTab /> },
+          { key: 'segments', label: 'Сегменты', children: <SegmentsTab /> },
           { key: 'freeze', label: 'Дни фриза', children: <FreezeDaysTab /> },
           { key: 'users', label: 'Пользователи', children: <UsersTab /> },
         ]}

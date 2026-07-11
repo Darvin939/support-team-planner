@@ -4,6 +4,7 @@ import {useMutation, useQueryClient} from '@tanstack/react-query';
 import type {Task} from '../../hooks/usePlanningData';
 import {useActiveTasksList} from '../../hooks/usePlanningData';
 import {useMe} from '../../hooks/useMe';
+import {useSegments} from '../../hooks/useSettingsData';
 import {CriticalityBadge, TaskStatusBadge} from '../../components/planningBadges';
 import {apiMutate} from '../../lib/apiMutate';
 import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';
@@ -13,6 +14,7 @@ interface TaskFormValues {
   name: string;
   description: string;
   criticality: string;
+  segment_id: number;
 }
 
 export function TaskModal({
@@ -36,6 +38,7 @@ export function TaskModal({
   const [depSearch, setDepSearch] = useState('');
   const [debouncedDepSearch, setDebouncedDepSearch] = useState('');
   const { data: activeTasks, isLoading: depsLoading } = useActiveTasksList(teamId, debouncedDepSearch, existingDepIds);
+  const { data: segments } = useSegments();
   const isTerminal = task ? task.task_status === 'done' || task.task_status === 'cancelled' : false;
   const { data: me } = useMe();
   const isUser = me?.role === 'user';
@@ -49,11 +52,12 @@ export function TaskModal({
       name: task?.name ?? '',
       description: task?.description ?? '',
       criticality: task?.criticality ?? 'medium',
+      segment_id: task?.segment_id ?? segments?.[0]?.id,
     });
     setDepIds(new Set(existingDepIds));
     setDepSearch('');
     setDebouncedDepSearch('');
-  }, [open, task, existingDepIds, form]);
+  }, [open, task, existingDepIds, form, segments]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedDepSearch(depSearch), 500);
@@ -68,6 +72,7 @@ export function TaskModal({
         name: values.name,
         description: values.description || null,
         criticality: values.criticality,
+        segment_id: values.segment_id,
         dependency_ids: [...depIds],
       }),
     onSuccess: () => {
@@ -135,7 +140,7 @@ export function TaskModal({
           <Form.Item name="description" label="Описание">
             <Input.TextArea rows={4} />
           </Form.Item>
-          <Form.Item name="criticality" label="Критичность">
+          <Form.Item name="criticality" label="Критичность" rules={[{ required: true, message: 'Выберите критичность' }]}>
             <Select
               options={[
                 { value: 'low', label: 'Низкая' },
@@ -143,6 +148,9 @@ export function TaskModal({
                 { value: 'high', label: 'Высокая' },
               ]}
             />
+          </Form.Item>
+          <Form.Item name="segment_id" label="Сегмент" rules={[{ required: true, message: 'Выберите сегмент' }]}>
+            <Select placeholder="Выберите сегмент" options={segments?.map((s) => ({ value: s.id, label: s.name }))} />
           </Form.Item>
           <Form.Item label="Зависит от">
             <Input.Search placeholder="Поиск..." value={depSearch} onChange={(e) => setDepSearch(e.target.value)} style={{ marginBottom: 8 }} allowClear />

@@ -32,7 +32,7 @@ import {
   useTasks,
   useTodayActive
 } from '../hooks/usePlanningData';
-import {useFreezeDays} from '../hooks/useSettingsData';
+import {useFreezeDays, useSegments} from '../hooks/useSettingsData';
 import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
 import {useIsMobile} from '../hooks/useIsMobile';
 import {StatGroupLabel, StatTile} from '../components/StatTile';
@@ -116,6 +116,8 @@ export function PlanningPage() {
   const [critFilter, setCritFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [taskStatusFilter, setTaskStatusFilter] = useState<string[]>([]);
+  const [segmentFilter, setSegmentFilter] = useState<number[]>([]);
+  const { data: segments } = useSegments();
   const [taskModal, setTaskModal] = useState<{ open: boolean; task: Task | null }>({ open: false, task: null });
   const [assignmentModal, setAssignmentModal] = useState<{ open: boolean; task: Task | null; date: string | null; assignment: Assignment | null }>({
     open: false,
@@ -295,13 +297,14 @@ export function PlanningPage() {
     return (taskData?.tasks ?? []).filter((t) => {
       if (critFilter.length && !critFilter.includes(t.criticality)) return false;
       if (taskStatusFilter.length && !taskStatusFilter.includes(t.task_status)) return false;
+      if (segmentFilter.length && !segmentFilter.includes(t.segment_id)) return false;
       if (statusFilter.length) {
         const taskAssignments = assignmentsByTask.get(t.id) ?? [];
         if (!taskAssignments.some((a) => statusFilter.includes(a.status))) return false;
       }
       return true;
     });
-  }, [taskData, critFilter, taskStatusFilter, statusFilter, assignmentsByTask]);
+  }, [taskData, critFilter, taskStatusFilter, segmentFilter, statusFilter, assignmentsByTask]);
 
   function handleTeamSelect(value: number) {
     localStorage.setItem(STORAGE_TEAM_ID, String(value));
@@ -558,6 +561,16 @@ export function PlanningPage() {
           </FilterField>
           <FilterField label="КРИТИЧНОСТЬ" isMobile={isMobile}>
             <Select mode="multiple" style={{ width: isMobile ? '100%' : 180 }} placeholder="Все" value={critFilter} onChange={setCritFilter} options={CRITICALITY_OPTIONS} />
+          </FilterField>
+          <FilterField label="СЕГМЕНТ" isMobile={isMobile}>
+            <Select
+              mode="multiple"
+              style={{ width: isMobile ? '100%' : 180 }}
+              placeholder="Все"
+              value={segmentFilter}
+              onChange={setSegmentFilter}
+              options={segments?.map((s) => ({ value: s.id, label: s.name }))}
+            />
           </FilterField>
           <FilterField label="СТАТУС" isMobile={isMobile}>
             <Select mode="multiple" style={{ width: isMobile ? '100%' : 180 }} placeholder="Все" value={statusFilter} onChange={setStatusFilter} options={ASSIGNMENT_STATUS_OPTIONS} />

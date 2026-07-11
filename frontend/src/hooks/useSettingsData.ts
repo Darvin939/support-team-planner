@@ -25,7 +25,13 @@ export interface BlockTemplateEntry {
 export interface BlockTemplate {
   id: number;
   name: string;
+  segment_id: number;
   blocks: BlockTemplateEntry[];
+}
+
+export interface Segment {
+  id: number;
+  name: string;
 }
 
 async function getJson<T>(url: string): Promise<T> {
@@ -48,4 +54,8 @@ export function useBlockTemplates() {
 
 export function useFreezeDays() {
   return useQuery<string[]>({ queryKey: ['freeze-days'], queryFn: () => getJson('/api/freeze-days') });
+}
+
+export function useSegments() {
+  return useQuery<Segment[]>({ queryKey: ['segments'], queryFn: () => getJson('/api/segments') });
 }

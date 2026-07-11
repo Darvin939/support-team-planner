@@ -1,4 +1,4 @@
-import {type CSSProperties, useEffect, useState} from 'react';
+import {type CSSProperties, useEffect, useMemo, useState} from 'react';
 import {
   Alert,
   Button,
@@ -227,9 +227,17 @@ export function AssignmentModal({
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   const { token } = theme.useToken();
-  const { data: teamBlocks } = useTeamBlocks(teamId);
+  const { data: teamBlocks } = useTeamBlocks(teamId, task?.segment_id);
   const { data: users } = useUsers();
-  const { data: templates } = useTeamTemplates(teamId);
+  const { data: allTeamTemplates } = useTeamTemplates(teamId);
+  // Шаблоны команды сужаются до сегмента задачи — назначение/автопланирование должно предлагать
+  // только шаблоны, относящиеся к тому же сегменту работ, что и сама задача (см. design.md).
+  // useMemo сохраняет стабильную ссылку на массив между рендерами (иначе .filter() создавал бы
+  // новый массив каждый раз, что зациклило бы recomputeSchedule-эффект ниже через его deps).
+  const templates = useMemo(
+    () => allTeamTemplates?.filter((t) => t.segment_id === task?.segment_id),
+    [allTeamTemplates, task?.segment_id]
+  );
 
   const [autoAssignEnabled, setAutoAssignEnabled] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);

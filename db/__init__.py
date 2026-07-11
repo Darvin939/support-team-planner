@@ -76,9 +76,11 @@ def get_team_by_id(conn, team_id):
 
 @with_db_connection(commit_on_success=False)
 def get_team_allowed_templates(conn, team_id):
-    """Получить шаблоны, разрешённые для команды, вместе с блоками и смещениями"""
+    """Получить шаблоны, разрешённые для команды, вместе с блоками, смещениями и сегментом шаблона
+    (segment_id включён в каждый шаблон, чтобы клиент мог сузить список до сегмента конкретной
+    задачи — см. AssignmentModal.tsx)"""
     tmpls = conn.execute(
-        '''SELECT bt.id, bt.name
+        '''SELECT bt.id, bt.name, bt.segment_id
            FROM team_templates tt
            JOIN block_templates bt ON tt.template_id = bt.id
            WHERE tt.team_id = ?
@@ -99,22 +101,28 @@ def get_team_allowed_templates(conn, team_id):
         result.append({
             'id': t['id'],
             'name': t['name'],
+            'segment_id': t['segment_id'],
             'blocks': [{'id': b['id'], 'name': b['name'], 'shift_days': b['shift_days']} for b in blocks]
         })
     return result
 
 
 @with_db_connection(commit_on_success=False)
-def get_blocks_for_team(conn, team_id):
-    """Получить уникальные блоки из разрешённых шаблонов команды"""
+def get_blocks_for_team(conn, team_id, segment_id=None):
+    """Получить уникальные блоки из разрешённых шаблонов команды, опционально ограниченные
+    шаблонами конкретного сегмента"""
+    segment_clause = 'AND bt.segment_id = ?' if segment_id is not None else ''
+    params = [team_id] + ([segment_id] if segment_id is not None else [])
     rows = conn.execute(
-        '''SELECT DISTINCT b.id, b.name
-           FROM team_templates tt
-           JOIN template_blocks tb ON tt.template_id = tb.template_id
-           JOIN blocks b ON tb.block_id = b.id
-           WHERE tt.team_id = ?
-           ORDER BY b.name ASC''',
-        (team_id,)
+        f'''SELECT DISTINCT b.id, b.name
+            FROM team_templates tt
+            JOIN block_templates bt ON tt.template_id = bt.id
+            JOIN template_blocks tb ON tt.template_id = tb.template_id
+            JOIN blocks b ON tb.block_id = b.id
+            WHERE tt.team_id = ?
+            {segment_clause}
+            ORDER BY b.name ASC''',
+        params
     ).fetchall()
     return [{'id': r['id'], 'name': r['name']} for r in rows]
 
@@ -155,6 +163,35 @@ def delete_team(conn, team_id):
     conn.execute('DELETE FROM teams WHERE id = ?', (team_id,))
 
 
+# === SEGMENTS CRUD ===
+@with_db_connection(commit_on_success=False)
+def get_all_segments(conn):
+    """Получить все сегменты"""
+    rows = conn.execute('SELECT id, name FROM segments ORDER BY name').fetchall()
+    return [{'id': r['id'], 'name': r['name']} for r in rows]
+
+
+@with_db_connection(commit_on_success=False)
+def create_segment(conn, name):
+    """Создать сегмент"""
+    cursor = conn.execute('INSERT INTO segments (name) VALUES (?)', (name.strip(),))
+    conn.commit()
+    return _backend.last_insert_id(cursor)
+
+
+@with_db_connection()
+def update_segment(conn, segment_id, name):
+    """Обновить сегмент"""
+    conn.execute('UPDATE segments SET name = ? WHERE id = ?', (name.strip(), segment_id))
+
+
+@with_db_connection()
+def delete_segment(conn, segment_id):
+    """Удалить сегмент. Падает с IntegrityError, если сегмент ещё используется в tasks/
+    block_templates (FK без ON DELETE) — маршрут превращает это в 400, как и для blocks/teams."""
+    conn.execute('DELETE FROM segments WHERE id = ?', (segment_id,))
+
+
 # === BLOCKS CRUD ===
 @with_db_connection(commit_on_success=False)
 def get_all_blocks(conn):
@@ -181,8 +218,8 @@ def delete_block(conn, block_id):
 # === BLOCK TEMPLATES CRUD ===
 @with_db_connection(commit_on_success=False)
 def get_all_templates(conn):
-    """Получить все шаблоны блоков с их блоками и смещениями"""
-    tmpls = conn.execute('SELECT id, name FROM block_templates ORDER BY name').fetchall()
+    """Получить все шаблоны блоков с их блоками, смещениями и сегментом"""
+    tmpls = conn.execute('SELECT id, name, segment_id FROM block_templates ORDER BY name').fetchall()
     result = []
     for t in tmpls:
         blocks = conn.execute(
@@ -196,6 +233,7 @@ def get_all_templates(conn):
         result.append({
             'id': t['id'],
             'name': t['name'],
+            'segment_id': t['segment_id'],
             'blocks': [{'id': b['id'], 'name': b['name'], 'shift_days': b['shift_days']} for b in blocks]
         })
     return result
@@ -203,8 +241,8 @@ def get_all_templates(conn):
 
 @with_db_connection(commit_on_success=False)
 def get_template_by_id(conn, template_id):
-    """Получить шаблон по ID с блоками"""
-    t = conn.execute('SELECT id, name FROM block_templates WHERE id = ?', (template_id,)).fetchone()
+    """Получить шаблон по ID с блоками и сегментом"""
+    t = conn.execute('SELECT id, name, segment_id FROM block_templates WHERE id = ?', (template_id,)).fetchone()
     if not t:
         return None
     blocks = conn.execute(
@@ -218,6 +256,7 @@ def get_template_by_id(conn, template_id):
     return {
         'id': t['id'],
         'name': t['name'],
+        'segment_id': t['segment_id'],
         'blocks': [{'id': b['id'], 'name': b['name'], 'shift_days': b['shift_days']} for b in blocks]
     }
 
@@ -238,9 +277,11 @@ def _set_template_blocks(conn, template_id, entries):
 
 
 @with_db_connection(commit_on_success=False)
-def create_template(conn, name, entries=None):
+def create_template(conn, name, segment_id, entries=None):
     """Создать шаблон блоков"""
-    cursor = conn.execute('INSERT INTO block_templates (name) VALUES (?)', (name.strip(),))
+    cursor = conn.execute(
+        'INSERT INTO block_templates (name, segment_id) VALUES (?, ?)', (name.strip(), segment_id)
+    )
     template_id = _backend.last_insert_id(cursor)
     _set_template_blocks(conn, template_id, entries)
     conn.commit()
@@ -248,9 +289,11 @@ def create_template(conn, name, entries=None):
 
 
 @with_db_connection()
-def update_template(conn, template_id, name, entries=None):
+def update_template(conn, template_id, name, segment_id, entries=None):
     """Обновить шаблон и его блоки"""
-    conn.execute('UPDATE block_templates SET name = ? WHERE id = ?', (name.strip(), template_id))
+    conn.execute(
+        'UPDATE block_templates SET name = ?, segment_id = ? WHERE id = ?', (name.strip(), segment_id, template_id)
+    )
     _set_template_blocks(conn, template_id, entries)
 
 
@@ -482,7 +525,7 @@ def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, show_compl
     if search:
         words = search.split()
         word_clauses = " AND ".join(
-            "(fuzzy_word_in(name, ?) OR fuzzy_word_in(description, ?))" for _ in words
+            "(fuzzy_word_in(tasks.name, ?) OR fuzzy_word_in(tasks.description, ?))" for _ in words
         )
         search_clause = f"AND ({word_clauses})"
         for word in words:
@@ -491,27 +534,29 @@ def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, show_compl
         search_clause = ""
     id_clause = ""
     if task_id:
-        id_clause = "AND id = ?"
+        id_clause = "AND tasks.id = ?"
         params.append(task_id)
     params += [limit, offset]
     # @formatter:off
     return conn.execute(
-        f'''SELECT id, name, description, criticality, task_status,
+        f'''SELECT tasks.id, tasks.name, tasks.description, tasks.criticality, tasks.task_status,
+                   tasks.segment_id, segments.name AS segment_name,
                    EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0
                           AND a.status != 'new') AS has_active_assignments
             FROM tasks
-            WHERE team_id = ?
-              AND is_deleted = 0
+            JOIN segments ON tasks.segment_id = segments.id
+            WHERE tasks.team_id = ?
+              AND tasks.is_deleted = 0
             {completed_clause}
             {search_clause}
             {id_clause}
-            ORDER BY CASE criticality
+            ORDER BY CASE tasks.criticality
                          WHEN 'high'   THEN 0
                          WHEN 'medium' THEN 1
                          WHEN 'low'    THEN 2
                          ELSE 3
                          END,
-                     priority DESC, id
+                     tasks.priority DESC, tasks.id
             LIMIT ? OFFSET ?''',
         params
     ).fetchall()
@@ -585,17 +630,19 @@ def task_has_active_assignments(conn, task_id):
 
 
 @with_db_connection(commit_on_success=False)
-def create_or_update_task(conn, task_id, team_id, name, description, criticality='medium', changed_by=None):
+def create_or_update_task(conn, task_id, team_id, name, description, criticality='medium', segment_id=None,
+                           changed_by=None):
     """Создать или обновить задачу. priority этой функцией напрямую не редактируется — им
     управляют reorder_team_tasks/move_task_to_edge — за исключением одного случая: если на UPDATE
     меняется criticality, задача пересчитывается в конец списка НОВОГО уровня критичности (как
     новая задача), т.к. её старое числовое значение priority больше ничего не значит относительно
     задач другого уровня. На CREATE новая задача всегда уходит в конец списка своего уровня
     критичности (наименьший приоритет внутри него)."""
-    existing = conn.execute('SELECT name, description, criticality, priority FROM tasks WHERE id = ?',
+    existing = conn.execute('SELECT name, description, criticality, priority, segment_id FROM tasks WHERE id = ?',
                              (task_id,)).fetchone()
     if existing:
-        for field, new_val in (('name', name), ('description', description), ('criticality', criticality)):
+        for field, new_val in (('name', name), ('description', description), ('criticality', criticality),
+                                ('segment_id', segment_id)):
             old_val = existing[field]
             if old_val != new_val:
                 _record_task_history(conn, task_id, 'update', field_name=field,
@@ -612,20 +659,23 @@ def create_or_update_task(conn, task_id, team_id, name, description, criticality
                SET name        = ?,
                    description = ?,
                    criticality = ?,
+                   segment_id  = ?,
                    priority    = ?
                WHERE id = ?''',
-            (name, description, criticality, new_priority, task_id)
+            (name, description, criticality, segment_id, new_priority, task_id)
         )
         conn.commit()
     else:
         new_priority = _priority_at_tier_end(conn, team_id, criticality)
         cursor = conn.execute(
-            'INSERT INTO tasks (team_id, name, description, criticality, priority) VALUES (?, ?, ?, ?, ?)',
-            (team_id, name, description, criticality, new_priority)
+            'INSERT INTO tasks (team_id, name, description, criticality, segment_id, priority) '
+            'VALUES (?, ?, ?, ?, ?, ?)',
+            (team_id, name, description, criticality, segment_id, new_priority)
         )
         task_id = _backend.last_insert_id(cursor)
         snapshot = json.dumps({'team_id': team_id, 'name': name, 'description': description,
-                                'criticality': criticality, 'priority': new_priority}, ensure_ascii=False)
+                                'criticality': criticality, 'segment_id': segment_id, 'priority': new_priority},
+                               ensure_ascii=False)
         _record_task_history(conn, task_id, 'create', new_value=snapshot, changed_by=changed_by)
         conn.commit()
     return task_id
