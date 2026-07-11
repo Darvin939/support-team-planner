@@ -3,6 +3,7 @@ import {Button, Checkbox, Form, Input, message, Modal, Popconfirm, Space} from '
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import type {Task} from '../../hooks/usePlanningData';
 import {useActiveTasksList} from '../../hooks/usePlanningData';
+import {useMe} from '../../hooks/useMe';
 import {TaskStatusBadge} from '../../components/planningBadges';
 import {apiMutate} from '../../lib/apiMutate';
 import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';
@@ -35,6 +36,9 @@ export function TaskModal({
   const [debouncedDepSearch, setDebouncedDepSearch] = useState('');
   const { data: activeTasks, isLoading: depsLoading } = useActiveTasksList(teamId, debouncedDepSearch, existingDepIds);
   const isTerminal = task ? task.task_status === 'done' || task.task_status === 'cancelled' : false;
+  const { data: me } = useMe();
+  const isUser = me?.role === 'user';
+  const canDelete = !!task && !isTerminal && !(isUser && task.has_active_assignments);
   const [historyOpen, setHistoryOpen] = useHistoryToggle(open, isTerminal);
   const isMobile = useIsMobile();
 
@@ -105,7 +109,7 @@ export function TaskModal({
       footer={
         <Space>
           {task && <HistoryToggleButton open={historyOpen} onClick={() => setHistoryOpen((v) => !v)} />}
-          {task && !isTerminal && (
+          {canDelete && (
             <Popconfirm title="Удалить всю работу со всеми назначениями?" onConfirm={() => deleteMutation.mutate()} okText="Удалить" cancelText="Отмена">
               <Button danger loading={deleteMutation.isPending}>
                 Удалить

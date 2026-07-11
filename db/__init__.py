@@ -496,7 +496,9 @@ def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, show_compl
     params += [limit, offset]
     # @formatter:off
     return conn.execute(
-        f'''SELECT id, name, description, task_status
+        f'''SELECT id, name, description, task_status,
+                   EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0
+                          AND a.status != 'new') AS has_active_assignments
             FROM tasks
             WHERE team_id = ?
               AND is_deleted = 0
@@ -551,6 +553,16 @@ def _record_assignment_history(conn, assignment_id, task_id, date_str, action, f
 def task_exists(conn, task_id):
     """Проверить существование (неудалённой) задачи"""
     return conn.execute('SELECT 1 FROM tasks WHERE id = ? AND is_deleted = 0', (task_id,)).fetchone()
+
+
+@with_db_connection(commit_on_success=False)
+def task_has_active_assignments(conn, task_id):
+    """Есть ли у задачи (неудалённые) назначения со статусом, отличным от 'new'"""
+    row = conn.execute(
+        "SELECT 1 FROM assignments WHERE task_id = ? AND is_deleted = 0 AND status != 'new' LIMIT 1",
+        (task_id,)
+    ).fetchone()
+    return row is not None
 
 
 @with_db_connection(commit_on_success=False)
@@ -681,9 +693,10 @@ def get_task_status(conn, task_id):
 
 @with_db_connection(commit_on_success=False)
 def get_task_status_by_assignment(conn, assignment_id):
-    """Получить статус задачи и признак её удаления по ID назначения"""
+    """Получить статус задачи, признак её удаления и статус самого назначения по ID назначения"""
     return conn.execute(
-        'SELECT t.task_status, t.is_deleted FROM assignments a JOIN tasks t ON a.task_id = t.id WHERE a.id = ?',
+        'SELECT t.task_status, t.is_deleted, a.status AS assignment_status '
+        'FROM assignments a JOIN tasks t ON a.task_id = t.id WHERE a.id = ?',
         (assignment_id,)
     ).fetchone()
 

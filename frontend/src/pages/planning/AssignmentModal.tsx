@@ -19,6 +19,7 @@ import dayjs from 'dayjs';
 import type {Assignment, Task} from '../../hooks/usePlanningData';
 import {type BlockTemplateEntry, useTeamBlocks, useTeamTemplates} from '../../hooks/usePlanningData';
 import {useUsers} from '../../hooks/useSettingsData';
+import {useMe} from '../../hooks/useMe';
 import {formatDisplayName} from '../../hooks/useUserNames';
 import {apiMutate} from '../../lib/apiMutate';
 import {computeAutoAssignDates, getAutoScheduleDateRange} from '../../lib/autoSchedule';
@@ -369,6 +370,9 @@ export function AssignmentModal({
 
   const autoAssignMissingTemplate = autoAssignEnabled && !selectedTemplateId;
   const isTerminal = task ? task.task_status === 'done' || task.task_status === 'cancelled' : false;
+  const { data: me } = useMe();
+  const isUser = me?.role === 'user';
+  const readOnly = isTerminal || (isUser && !!assignment && assignment.status !== 'new');
   const [historyOpen, setHistoryOpen] = useHistoryToggle(open, false);
   const isSaving = saveMutation.isPending || autoSaveMutation.isPending;
   const selectedTemplateBlocks = templates?.find((t) => t.id === selectedTemplateId)?.blocks ?? [];
@@ -393,14 +397,14 @@ export function AssignmentModal({
       footer={
         <Space>
           {assignment && <HistoryToggleButton open={historyOpen} onClick={() => setHistoryOpen((v) => !v)} />}
-          {assignment && !isTerminal && (
+          {assignment && !readOnly && (
             <Popconfirm title="Удалить эту запись?" onConfirm={() => deleteMutation.mutate()} okText="Удалить" cancelText="Отмена">
               <Button danger loading={deleteMutation.isPending}>
                 Удалить
               </Button>
             </Popconfirm>
           )}
-          {!isTerminal && (
+          {!readOnly && (
             <Button type="primary" onClick={() => form.submit()} loading={isSaving} disabled={autoAssignMissingTemplate}>
               {assignment ? 'Обновить' : 'Создать'}
             </Button>
@@ -409,7 +413,7 @@ export function AssignmentModal({
       }
     >
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
-      <Form form={form} layout="vertical" disabled={isTerminal} onFinish={(v) => (autoAssignEnabled ? autoSaveMutation.mutate(v) : saveMutation.mutate(v))} style={{ flex: 1, minWidth: 0 }}>
+      <Form form={form} layout="vertical" disabled={readOnly} onFinish={(v) => (autoAssignEnabled ? autoSaveMutation.mutate(v) : saveMutation.mutate(v))} style={{ flex: 1, minWidth: 0 }}>
         <Space.Compact block>
           <Form.Item name="date" label="Дата" style={{ flex: 1 }} rules={[{ required: true }]}>
             <DatePicker style={{ width: '100%' }} format={DISPLAY_DATE_FORMAT} minDate={dayjs('2000-01-01')} maxDate={dayjs('2099-12-31')} allowClear={false} />
@@ -481,7 +485,7 @@ export function AssignmentModal({
         )}
 
         <Form.Item name="status" label="Статус">
-          <Select disabled={autoAssignEnabled} options={STATUS_OPTIONS} />
+          <Select disabled={autoAssignEnabled || isUser} options={STATUS_OPTIONS} />
         </Form.Item>
 
         {!autoAssignEnabled && (

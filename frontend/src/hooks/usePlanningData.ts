@@ -8,6 +8,7 @@ export interface Task {
   name: string;
   description: string | null;
   task_status: 'new' | 'done' | 'cancelled';
+  has_active_assignments: boolean;
 }
 
 export interface Assignment {

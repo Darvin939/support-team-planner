@@ -22,6 +22,7 @@ import {
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import dayjs, {type Dayjs} from 'dayjs';
 import {useTeams} from '../hooks/useTeams';
+import {useMe} from '../hooks/useMe';
 import {
   type Assignment,
   type Task,
@@ -94,6 +95,8 @@ export function PlanningPage() {
   const location = useLocation();
   const jump = location.state as { jumpTaskId?: number; jumpDate?: string } | null;
   const { data: teams } = useTeams();
+  const { data: me } = useMe();
+  const isUser = me?.role === 'user';
   const { token } = theme.useToken();
   const teamId = teamIdParam ? Number(teamIdParam) : undefined;
   const isMobile = useIsMobile();
@@ -311,7 +314,7 @@ export function PlanningPage() {
         const cancelled = taskDeps.filter((d) => !d.dep_is_deleted && d.dep_status === 'cancelled');
         const pending = taskDeps.filter((d) => !d.dep_is_deleted && d.dep_status !== 'done' && d.dep_status !== 'cancelled');
         const isTerminal = task.task_status === 'done' || task.task_status === 'cancelled';
-        const transitions = VALID_TASK_TRANSITIONS[task.task_status] ?? [];
+        const transitions = isUser ? [] : (VALID_TASK_TRANSITIONS[task.task_status] ?? []);
         const menuItems: MenuProps['items'] = [
           ...(transitions.length > 0
             ? [
@@ -433,7 +436,8 @@ export function PlanningPage() {
           const assignment = assignmentByKey.get(`${task.id}-${dateStr}`);
           const isTerminal = task.task_status === 'done' || task.task_status === 'cancelled';
           if (!assignment) return null;
-          if (isTerminal) return <ScheduleChip assignment={assignment} draggable={false} />;
+          const locked = isUser && assignment.status !== 'new';
+          if (isTerminal || locked) return <ScheduleChip assignment={assignment} draggable={false} />;
           const statusItems: MenuProps['items'] = [
             {
               key: 'status-group',
@@ -466,7 +470,7 @@ export function PlanningPage() {
     });
 
     return [infoColumn, ...dateColumns];
-  }, [dates, assignmentByKey, depsByTask, today, token, freezeDays]);
+  }, [dates, assignmentByKey, depsByTask, today, token, freezeDays, isUser]);
 
   if (teamId === undefined) {
     return (

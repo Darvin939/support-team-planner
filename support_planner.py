@@ -333,6 +333,18 @@ def save_assignment_api(request: Request, data: AssignmentIn):
     if task and (task['task_status'] in ('done', 'cancelled') or task['is_deleted']):
         return JSONResponse({'error': 'Нельзя изменять назначения завершённой или отменённой задачи'}, status_code=400)
 
+    if request.state.role == 'user':
+        if data.status != 'new':
+            return JSONResponse(
+                {'error': 'Недостаточно прав: можно создавать и изменять назначения только со статусом «Новый»'},
+                status_code=403)
+        if data.assignment_id:
+            existing = db.get_task_status_by_assignment(data.assignment_id)
+            if existing and existing['assignment_status'] != 'new':
+                return JSONResponse(
+                    {'error': 'Недостаточно прав: нельзя изменять назначение в статусе, отличном от «Новый»'},
+                    status_code=403)
+
     changed_by = request.session.get('user_id')
     db.create_or_update_assignment(data.assignment_id, data.task_id, data.date, block, data.status, data.user_id,
                                    comment, time_spent, changed_by=changed_by)
@@ -345,6 +357,10 @@ def delete_assignment_api(request: Request, assignment_id: int):
     task = db.get_task_status_by_assignment(assignment_id)
     if task and (task['task_status'] in ('done', 'cancelled') or task['is_deleted']):
         return JSONResponse({'error': 'Нельзя изменять назначения завершённой или отменённой задачи'}, status_code=400)
+    if request.state.role == 'user' and task and task['assignment_status'] != 'new':
+        return JSONResponse(
+            {'error': 'Недостаточно прав: нельзя удалить назначение в статусе, отличном от «Новый»'},
+            status_code=403)
     db.delete_assignment(assignment_id, changed_by=request.session.get('user_id'))
     return {'success': True}
 
@@ -370,7 +386,8 @@ def get_tasks_api(team_id: int, offset: int = 0, limit: int = 20, search: str = 
     total = db.get_tasks_count_by_team(team_id, search=search_val, show_completed=show_completed)
     return {
         'tasks': [{'id': t['id'], 'name': t['name'], 'description': t['description'],
-                   'task_status': t['task_status']} for t in tasks],
+                   'task_status': t['task_status'],
+                   'has_active_assignments': bool(t['has_active_assignments'])} for t in tasks],
         'total': total
     }
 
@@ -422,6 +439,10 @@ def delete_task_api(request: Request, task_id: int):
     task = db.get_task_status(task_id)
     if task and (task['task_status'] in ('done', 'cancelled') or task['is_deleted']):
         return JSONResponse({'error': 'Нельзя удалить завершённую или отменённую задачу'}, status_code=400)
+    if request.state.role == 'user' and db.task_has_active_assignments(task_id):
+        return JSONResponse(
+            {'error': 'Недостаточно прав: нельзя удалить работу, у которой есть назначения в статусе, отличном от «Новый»'},
+            status_code=403)
     db.delete_task(task_id, changed_by=request.session.get('user_id'))
     return {'success': True}
 
@@ -432,6 +453,8 @@ def update_task_status_api(request: Request, task_id: int, data: TaskStatusIn):
     task = db.get_task_status(task_id)
     if not task:
         return JSONResponse({'error': 'Task not found'}, status_code=404)
+    if request.state.role == 'user':
+        return JSONResponse({'error': 'Недостаточно прав для изменения статуса задачи'}, status_code=403)
     current_status = task['task_status']
     allowed = VALID_TASK_TRANSITIONS.get(current_status, set())
     if data.status not in allowed:
