@@ -37,7 +37,7 @@ import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
 import {useIsMobile} from '../hooks/useIsMobile';
 import {StatGroupLabel, StatTile} from '../components/StatTile';
 import {FilterField, FilterGrid} from '../components/FilterGrid';
-import {CriticalityBadge, DepBadge, ScheduleChip, TaskStatusBadge} from '../components/planningBadges';
+import {CriticalityBadge, DepBadge, ScheduleChip} from '../components/planningBadges';
 import {TaskModal} from './planning/TaskModal';
 import {AssignmentModal} from './planning/AssignmentModal';
 import {useAssignmentDrag} from './planning/useAssignmentDrag';
@@ -317,6 +317,15 @@ export function PlanningPage() {
       key: 'name',
       fixed: 'left',
       width: 400,
+      onCell: (task) => {
+        if (task.task_status === 'done') {
+          return { style: { background: `color-mix(in srgb, ${token.colorSuccess} 16%, ${token.colorBgContainer})` } };
+        }
+        if (task.task_status === 'cancelled') {
+          return { style: { background: `color-mix(in srgb, ${token.colorError} 16%, ${token.colorBgContainer})` } };
+        }
+        return {};
+      },
       render: (_, task) => {
         const taskDeps = depsByTask.get(task.id) ?? [];
         const deleted = taskDeps.filter((d) => d.dep_is_deleted);
@@ -372,7 +381,7 @@ export function PlanningPage() {
             trigger={['contextMenu']}
             menu={{ items: menuItems, onClick: ({ key }) => handleMenuClick(key) }}
           >
-          <div>
+          <div title={isTerminal ? TASK_STATUS_LABELS[task.task_status] : undefined}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <Button
                 type="text"
@@ -398,7 +407,6 @@ export function PlanningPage() {
               <span style={{ fontWeight: 500 }} data-task-row-name>{task.name}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4, flexWrap: 'wrap' }}>
-              <TaskStatusBadge value={task.task_status} />
               {deleted.length > 0 && <DepBadge kind="deleted" names={deleted.map((d) => d.dep_name)} />}
               {cancelled.length > 0 && <DepBadge kind="cancelled" names={cancelled.map((d) => d.dep_name)} />}
               {pending.length > 0 && <DepBadge kind="pending" names={pending.map((d) => d.dep_name)} />}
