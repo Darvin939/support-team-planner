@@ -123,6 +123,7 @@ class TaskIn(BaseModel):
     team_id: Optional[int] = None
     name: str = ""
     description: Optional[str] = None
+    criticality: str = "medium"
     dependency_ids: Optional[List[int]] = None
 
 
@@ -386,7 +387,7 @@ def get_tasks_api(team_id: int, offset: int = 0, limit: int = 20, search: str = 
     total = db.get_tasks_count_by_team(team_id, search=search_val, show_completed=show_completed)
     return {
         'tasks': [{'id': t['id'], 'name': t['name'], 'description': t['description'],
-                   'task_status': t['task_status'],
+                   'criticality': t['criticality'], 'task_status': t['task_status'],
                    'has_active_assignments': bool(t['has_active_assignments'])} for t in tasks],
         'total': total
     }
@@ -400,13 +401,15 @@ def save_task_api(request: Request, data: TaskIn):
 
     if not data.team_id or not name:
         return JSONResponse({'error': 'Team ID and name required'}, status_code=400)
+    if data.criticality not in ('low', 'medium', 'high'):
+        return JSONResponse({'error': 'criticality must be low, medium or high'}, status_code=400)
 
     if data.task_id:
         task = db.get_task_status(data.task_id)
         if task and (task['task_status'] in ('done', 'cancelled') or task['is_deleted']):
             return JSONResponse({'error': 'Нельзя редактировать завершённую или отменённую задачу'}, status_code=400)
 
-    task_id = int(db.create_or_update_task(data.task_id, data.team_id, name, description,
+    task_id = int(db.create_or_update_task(data.task_id, data.team_id, name, description, data.criticality,
                                             changed_by=request.session.get('user_id')))
 
     if data.dependency_ids is not None:
@@ -430,7 +433,8 @@ def get_active_tasks_list(team_id: int, search: str = "", limit: int = 50, inclu
     search_val = search.strip() or None
     parsed_include_ids = [int(x) for x in include_ids.split(',') if x.strip()] if include_ids else None
     rows = db.get_active_tasks_flat(team_id, search=search_val, limit=limit, include_ids=parsed_include_ids)
-    return [{'id': r['id'], 'name': r['name'], 'task_status': r['task_status']} for r in rows]
+    return [{'id': r['id'], 'name': r['name'], 'task_status': r['task_status'],
+             'criticality': r['criticality']} for r in rows]
 
 
 @app.delete('/api/task/{task_id}')
@@ -477,13 +481,13 @@ def reorder_tasks_api(request: Request, team_id: int, data: TaskReorderIn):
 
 @app.patch('/api/task/{task_id}/priority')
 def move_task_priority_api(request: Request, task_id: int, data: TaskPriorityIn):
-    """Переместить задачу в начало/конец списка всей команды (контекстное меню)"""
+    """Переместить задачу в начало/конец списка её уровня критичности (контекстное меню)"""
     if data.position not in ('start', 'end'):
         return JSONResponse({'error': 'position must be start or end'}, status_code=400)
     try:
         db.move_task_to_edge(task_id, data.position, changed_by=request.session.get('user_id'))
     except ValueError as e:
-        return JSONResponse({'error': str(e)}, status_code=404)
+        return JSONResponse({'error': str(e)}, status_code=400)
     return {'success': True}
 
 
@@ -708,6 +712,7 @@ def get_active_assignments_api(team_id: int, start_date: Optional[str] = None, e
             'id': a['id'],
             'task_id': a['task_id'],
             'task_name': a['task_name'],
+            'criticality': a['criticality'],
             'date': a['date'],
             'block': a['block'],
             'status': a['status'],
@@ -721,6 +726,7 @@ def get_active_assignments_api(team_id: int, start_date: Optional[str] = None, e
         'total': stats['total'],
         'stats': {
             'status': {'new': stats['status_new'], 'planned': stats['status_planned']},
+            'criticality': {'high': stats['crit_high'], 'medium': stats['crit_medium'], 'low': stats['crit_low']},
         },
     }
 

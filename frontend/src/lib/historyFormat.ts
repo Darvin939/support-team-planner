@@ -1,11 +1,13 @@
 export const HISTORY_FIELD_LABELS: Record<string, string> = {
-  name: 'Название', description: 'Описание', priority: 'Приоритет', task_status: 'Статус',
+  name: 'Название', description: 'Описание', criticality: 'Критичность', priority: 'Приоритет', task_status: 'Статус',
   date: 'Дата', block: 'Блок', status: 'Статус',
   // employee_id — старое имя поля, всё ещё встречается в исторических записях, созданных до
   // переименования employees -> users; user_id — новые записи. Оба должны отображаться одинаково.
   employee_id: 'Исполнитель', user_id: 'Исполнитель',
   comment: 'Комментарий', is_psi: 'ПСИ', time_spent: 'Время выполнения', is_deleted: 'Удаление',
 };
+
+export const CRITICALITY_LABELS: Record<string, string> = { high: 'Высокая', medium: 'Средняя', low: 'Низкая' };
 
 export const TASK_STATUS_LABELS: Record<string, string> = {
   new: 'Новый', ready: 'К планированию', in_progress: 'В работе', done: 'Выполнено', cancelled: 'Отменено',
@@ -42,6 +44,7 @@ export function formatChangedBy(entry: HistoryEntry): string {
 export function formatHistoryValue(field: string, value: string | null, getUserName: (id: string) => string): string {
   if (field === 'is_deleted') return value === '1' ? 'Да' : 'Нет';
   if (value === null || value === undefined || value === '') return '—';
+  if (field === 'criticality') return CRITICALITY_LABELS[value] || value;
   if (field === 'task_status') return TASK_STATUS_LABELS[value] || value;
   if (field === 'status') return ASSIGNMENT_STATUS_LABELS[value] || value;
   if (field === 'employee_id' || field === 'user_id') return getUserName(value);

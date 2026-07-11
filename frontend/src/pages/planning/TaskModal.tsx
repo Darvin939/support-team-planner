@@ -1,10 +1,10 @@
 import {useEffect, useState} from 'react';
-import {Button, Checkbox, Form, Input, message, Modal, Popconfirm, Space} from 'antd';
+import {Button, Checkbox, Form, Input, message, Modal, Popconfirm, Select, Space} from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import type {Task} from '../../hooks/usePlanningData';
 import {useActiveTasksList} from '../../hooks/usePlanningData';
 import {useMe} from '../../hooks/useMe';
-import {TaskStatusBadge} from '../../components/planningBadges';
+import {CriticalityBadge, TaskStatusBadge} from '../../components/planningBadges';
 import {apiMutate} from '../../lib/apiMutate';
 import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';
 import {useIsMobile} from '../../hooks/useIsMobile';
@@ -12,6 +12,7 @@ import {useIsMobile} from '../../hooks/useIsMobile';
 interface TaskFormValues {
   name: string;
   description: string;
+  criticality: string;
 }
 
 export function TaskModal({
@@ -47,6 +48,7 @@ export function TaskModal({
     form.setFieldsValue({
       name: task?.name ?? '',
       description: task?.description ?? '',
+      criticality: task?.criticality ?? 'medium',
     });
     setDepIds(new Set(existingDepIds));
     setDepSearch('');
@@ -65,6 +67,7 @@ export function TaskModal({
         team_id: teamId,
         name: values.name,
         description: values.description || null,
+        criticality: values.criticality,
         dependency_ids: [...depIds],
       }),
     onSuccess: () => {
@@ -132,6 +135,15 @@ export function TaskModal({
           <Form.Item name="description" label="Описание">
             <Input.TextArea rows={4} />
           </Form.Item>
+          <Form.Item name="criticality" label="Критичность">
+            <Select
+              options={[
+                { value: 'low', label: 'Низкая' },
+                { value: 'medium', label: 'Средняя' },
+                { value: 'high', label: 'Высокая' },
+              ]}
+            />
+          </Form.Item>
           <Form.Item label="Зависит от">
             <Input.Search placeholder="Поиск..." value={depSearch} onChange={(e) => setDepSearch(e.target.value)} style={{ marginBottom: 8 }} allowClear />
             <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid rgba(128,128,128,0.3)', borderRadius: 6, padding: '4px 8px' }}>
@@ -142,6 +154,7 @@ export function TaskModal({
                 <div key={t.id} style={{ padding: '4px 0' }}>
                   <Checkbox checked={depIds.has(t.id)} onChange={() => toggleDep(t.id)}>
                     <Space size={6}>
+                      <CriticalityBadge value={t.criticality} />
                       <TaskStatusBadge value={t.task_status} />
                       {t.name}
                     </Space>

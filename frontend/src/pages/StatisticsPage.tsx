@@ -9,6 +9,7 @@ import {useIsMobile} from '../hooks/useIsMobile';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT} from '../lib/dateFormats';
 import {StatGroupLabel, StatTile} from '../components/StatTile';
 import {FilterField, FilterGrid} from '../components/FilterGrid';
+import {CriticalityBadge} from '../components/planningBadges';
 
 const STORAGE_STATS_TEAMS = 'statsSelectedTeams';
 const DEFAULT_STATS_PAGE_SIZE = 20;
@@ -18,6 +19,7 @@ interface ActiveAssignment {
   id: number;
   task_name: string;
   team_name: string | null;
+  criticality: 'high' | 'medium' | 'low';
   date: string;
   block: string | null;
   status: 'new' | 'planned' | 'rollback' | 'success';
@@ -30,6 +32,7 @@ interface ActiveAssignmentsResponse {
   total: number;
   stats: {
     status: { new: number; planned: number };
+    criticality: { high: number; medium: number; low: number };
   };
 }
 
@@ -54,6 +57,7 @@ function buildColumns(showDate: boolean): TableColumnsType<ActiveAssignment> {
   const cols: TableColumnsType<ActiveAssignment> = [
     { title: 'Работа', dataIndex: 'task_name', key: 'task_name' },
     { title: 'Команда', dataIndex: 'team_name', key: 'team_name' },
+    { title: 'Крит.', dataIndex: 'criticality', key: 'criticality', render: (v) => <CriticalityBadge value={v} /> },
   ];
   if (showDate) cols.push({ title: 'Дата', dataIndex: 'date', key: 'date' });
   cols.push(
@@ -87,6 +91,7 @@ function StatsSection({
   const items = response?.items ?? [];
   const total = response?.total ?? 0;
   const statusCounts = response?.stats.status ?? { new: 0, planned: 0 };
+  const critCounts = response?.stats.criticality ?? { high: 0, medium: 0, low: 0 };
 
   return (
     <Card style={{ marginBottom: 16 }}>
@@ -98,6 +103,10 @@ function StatsSection({
         <StatGroupLabel>Статус</StatGroupLabel>
         <StatTile label="Новый" value={statusCounts.new} accent="#1668dc" />
         <StatTile label="Запланировано" value={statusCounts.planned} accent="#d89614" />
+        <StatGroupLabel>Критичность</StatGroupLabel>
+        <StatTile label="Высокая" value={critCounts.high} accent="#d32029" />
+        <StatTile label="Средняя" value={critCounts.medium} accent="#d89614" />
+        <StatTile label="Низкая" value={critCounts.low} accent="#49aa19" />
       </Space>
       {total > 0 ? (
         <>

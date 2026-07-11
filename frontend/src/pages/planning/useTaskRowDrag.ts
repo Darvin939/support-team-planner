@@ -91,10 +91,17 @@ export function useTaskRowDrag(options: { onDrop: (newOrder: number[]) => void; 
         const rows = Array.from(
           document.querySelectorAll<HTMLElement>('[data-planning-grid] .ant-table-tbody tr[data-task-row-id]')
         );
-        state.originalOrder = rows.map((r) => Number(r.dataset.taskRowId));
-
         const draggedRow = rows.find((r) => Number(r.dataset.taskRowId) === state.taskId) ?? null;
-        state.otherRows = rows
+        // Приоритет можно менять только внутри одного уровня критичности — сужаем набор строк,
+        // среди которых вообще возможна вставка, до строк того же уровня, что у перетаскиваемой
+        // задачи (data-task-row-criticality проставляется PlanningPage.tsx через onRow). Так
+        // индикатор вставки физически не появится за границей уровня, и newOrder никогда не
+        // содержит id из другого уровня.
+        const criticality = draggedRow?.dataset.taskRowCriticality;
+        const tierRows = criticality === undefined ? rows : rows.filter((r) => r.dataset.taskRowCriticality === criticality);
+        state.originalOrder = tierRows.map((r) => Number(r.dataset.taskRowId));
+
+        state.otherRows = tierRows
           .filter((r) => r !== draggedRow)
           .map((el) => {
             const rect = el.getBoundingClientRect();

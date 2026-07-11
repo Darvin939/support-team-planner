@@ -48,6 +48,7 @@ _SCHEMA = '''
         team_id INTEGER NOT NULL,
         name text NOT NULL,
         description text,
+        criticality text NOT NULL DEFAULT 'medium',
         priority INTEGER NOT NULL DEFAULT 0,
         task_status TEXT NOT NULL DEFAULT 'new',
         is_deleted INTEGER NOT NULL DEFAULT 0,
@@ -189,6 +190,7 @@ class SQLiteBackend(DBBackend):
     def init_schema(self, conn) -> None:
         self._migrate_employees_to_users(conn)
         self._migrate_criticality_to_priority(conn)
+        self._migrate_add_criticality_column(conn)
         conn.execute('PRAGMA foreign_keys = ON;')
         conn.executescript(_SCHEMA)
         # Промежуточные статусы задачи (ready/in_progress) упразднены — у задачи остаётся только
@@ -348,3 +350,20 @@ class SQLiteBackend(DBBackend):
             for row in rows:
                 conn.execute('UPDATE tasks SET priority = ? WHERE id = ?', (priority, row['id']))
                 priority -= SQLiteBackend._PRIORITY_GAP
+
+    @staticmethod
+    def _migrate_add_criticality_column(conn) -> None:
+        """Возвращает tasks.criticality на БД, созданных в промежутке, пока критичность была
+        упразднена (после однократного переноса в _migrate_criticality_to_priority ниже колонка в
+        схеме отсутствовала вовсе) — у таких БД есть priority, но нет criticality. БД старше этого
+        промежутка уже имеют criticality (она никогда физически не удалялась), а свежие БД получают
+        её через _SCHEMA. try/except не нужен: колонка уже проверяется через PRAGMA перед ALTER."""
+        tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        if 'tasks' not in tables:
+            return  # совсем свежая БД — criticality появится через _SCHEMA ниже
+
+        columns = {row[1] for row in conn.execute('PRAGMA table_info(tasks)').fetchall()}
+        if 'criticality' in columns:
+            return  # уже есть (либо никогда не удалялась, либо уже мигрировано)
+
+        conn.execute("ALTER TABLE tasks ADD COLUMN criticality TEXT NOT NULL DEFAULT 'medium'")

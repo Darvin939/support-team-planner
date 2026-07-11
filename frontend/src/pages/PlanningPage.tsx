@@ -37,7 +37,7 @@ import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
 import {useIsMobile} from '../hooks/useIsMobile';
 import {StatGroupLabel, StatTile} from '../components/StatTile';
 import {FilterField, FilterGrid} from '../components/FilterGrid';
-import {DepBadge, ScheduleChip, TaskStatusBadge} from '../components/planningBadges';
+import {CriticalityBadge, DepBadge, ScheduleChip, TaskStatusBadge} from '../components/planningBadges';
 import {TaskModal} from './planning/TaskModal';
 import {AssignmentModal} from './planning/AssignmentModal';
 import {useAssignmentDrag} from './planning/useAssignmentDrag';
@@ -69,6 +69,11 @@ const TASK_STATUS_OPTIONS = [
   { value: 'new', label: 'Новый' },
   { value: 'done', label: 'Выполнено' },
   { value: 'cancelled', label: 'Отменено' },
+];
+const CRITICALITY_OPTIONS = [
+  { value: 'low', label: 'Низкая' },
+  { value: 'medium', label: 'Средняя' },
+  { value: 'high', label: 'Высокая' },
 ];
 
 function dateRange(from: Dayjs, to: Dayjs): Dayjs[] {
@@ -107,6 +112,7 @@ export function PlanningPage() {
   const [showCompleted, setShowCompleted] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [critFilter, setCritFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [taskStatusFilter, setTaskStatusFilter] = useState<string[]>([]);
   const [taskModal, setTaskModal] = useState<{ open: boolean; task: Task | null }>({ open: false, task: null });
@@ -286,6 +292,7 @@ export function PlanningPage() {
 
   const filteredTasks = useMemo(() => {
     return (taskData?.tasks ?? []).filter((t) => {
+      if (critFilter.length && !critFilter.includes(t.criticality)) return false;
       if (taskStatusFilter.length && !taskStatusFilter.includes(t.task_status)) return false;
       if (statusFilter.length) {
         const taskAssignments = assignmentsByTask.get(t.id) ?? [];
@@ -293,7 +300,7 @@ export function PlanningPage() {
       }
       return true;
     });
-  }, [taskData, taskStatusFilter, statusFilter, assignmentsByTask]);
+  }, [taskData, critFilter, taskStatusFilter, statusFilter, assignmentsByTask]);
 
   function handleTeamSelect(value: number) {
     localStorage.setItem(STORAGE_TEAM_ID, String(value));
@@ -332,15 +339,19 @@ export function PlanningPage() {
                 },
               ]
             : []),
-          {
-            key: 'priority-group',
-            type: 'group',
-            label: 'Приоритет',
-            children: [
-              { key: 'start', label: 'В начало списка' },
-              { key: 'end', label: 'В конец списка' },
-            ],
-          },
+          ...(isTerminal
+            ? []
+            : [
+                {
+                  key: 'priority-group',
+                  type: 'group' as const,
+                  label: 'Приоритет',
+                  children: [
+                    { key: 'start', label: 'В начало уровня критичности' },
+                    { key: 'end', label: 'В конец уровня критичности' },
+                  ],
+                },
+              ]),
         ];
         function handleMenuClick(key: string) {
           if (key === 'start' || key === 'end') {
@@ -366,11 +377,12 @@ export function PlanningPage() {
               <Button
                 type="text"
                 size="small"
-                style={{ cursor: 'grab' }}
-                data-task-row-handle="true"
+                disabled={isTerminal}
+                style={{ cursor: isTerminal ? 'default' : 'grab' }}
+                data-task-row-handle={isTerminal ? undefined : 'true'}
                 data-task-row-id={task.id}
                 onMouseDown={(e) => e.preventDefault()}
-                title="Перетащить для изменения приоритета"
+                title={isTerminal ? 'Работа завершена — приоритет менять нельзя' : 'Перетащить для изменения приоритета'}
               >
                 <HolderOutlined />
               </Button>
@@ -382,6 +394,7 @@ export function PlanningPage() {
               >
                 {isTerminal ? <InfoCircleOutlined /> : <EditOutlined />}
               </Button>
+              <CriticalityBadge value={task.criticality} />
               <span style={{ fontWeight: 500 }} data-task-row-name>{task.name}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4, flexWrap: 'wrap' }}>
@@ -489,8 +502,10 @@ export function PlanningPage() {
   }
 
   const statusCounts = { new: 0, planned: 0 };
+  const critCounts = { high: 0, medium: 0, low: 0 };
   (todayActive ?? []).forEach((a) => {
     if (a.status in statusCounts) statusCounts[a.status as keyof typeof statusCounts]++;
+    if (a.criticality in critCounts) critCounts[a.criticality as keyof typeof critCounts]++;
   });
 
   return (
@@ -532,6 +547,9 @@ export function PlanningPage() {
               }}
             />
           </FilterField>
+          <FilterField label="КРИТИЧНОСТЬ" isMobile={isMobile}>
+            <Select mode="multiple" style={{ width: isMobile ? '100%' : 180 }} placeholder="Все" value={critFilter} onChange={setCritFilter} options={CRITICALITY_OPTIONS} />
+          </FilterField>
           <FilterField label="СТАТУС" isMobile={isMobile}>
             <Select mode="multiple" style={{ width: isMobile ? '100%' : 180 }} placeholder="Все" value={statusFilter} onChange={setStatusFilter} options={ASSIGNMENT_STATUS_OPTIONS} />
           </FilterField>
@@ -559,6 +577,10 @@ export function PlanningPage() {
         <StatGroupLabel>Статус</StatGroupLabel>
         <StatTile label="Новый" value={statusCounts.new} accent="#1668dc" />
         <StatTile label="Запланировано" value={statusCounts.planned} accent="#d89614" />
+        <StatGroupLabel>Критичность</StatGroupLabel>
+        <StatTile label="Высокая" value={critCounts.high} accent="#d32029" />
+        <StatTile label="Средняя" value={critCounts.medium} accent="#d89614" />
+        <StatTile label="Низкая" value={critCounts.low} accent="#49aa19" />
       </Space>
 
       <Card>
@@ -583,7 +605,7 @@ export function PlanningPage() {
               size="small"
               scroll={{ x: 'max-content' }}
               sticky={{ offsetHeader: isMobile ? TOP_BAR_HEIGHT : 0 }}
-              onRow={(task) => ({ 'data-task-row-id': task.id }) as HTMLAttributes<HTMLElement>}
+              onRow={(task) => ({ 'data-task-row-id': task.id, 'data-task-row-criticality': task.criticality }) as HTMLAttributes<HTMLElement>}
             />
           </div>
         )}

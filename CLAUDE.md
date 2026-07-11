@@ -5,9 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 Support Team Planner — a FastAPI web app (Russian UI) for scheduling support team tasks. Teams have tasks with
-a manually-ordered priority; tasks get assigned to dates with users, statuses, and optional deployment blocks
-(with dependency tracking and fuzzy search). Every task/assignment edit is logged to an audit history, and the whole
-app sits behind a lightweight per-user login.
+criticality levels and a manually-ordered priority within each level; tasks get assigned to dates with users,
+statuses, and optional deployment blocks (with dependency tracking and fuzzy search). Every task/assignment edit
+is logged to an audit history, and the whole app sits behind a lightweight per-user login.
 
 ## Commands
 
@@ -179,7 +179,7 @@ statically. `frontend/src/` layout:
 - `components/` — shared UI: `AppShell`/`AuthenticatedLayout` (sidebar, role-gated nav via `GET /api/me`,
   all nav clicks are plain client-side `navigate()` — every route is React now, so there's no split between
   migrated/legacy paths), `MyAccountModal.tsx` (self-service login/password change, see Domain Concepts),
-  `planningBadges.tsx` (status/dependency/schedule badges shared across
+  `planningBadges.tsx` (criticality/status/dependency/schedule badges shared across
   Planning and Journal), `StatTile.tsx`.
 - `hooks/` — one thin TanStack Query wrapper per data domain: `usePlanningData.ts`, `useSettingsData.ts`,
   `useTeams.ts`, `useMe.ts`, `useUserNames.ts`.
@@ -237,13 +237,24 @@ Two separate status machines coexist — do not confuse them:
   assignment/task edits. Changing task status requires `editor`+ (see the route-level restrictions above) — a
   plain `user` never sees these transitions offered in the UI (`PlanningPage.tsx` short-circuits to an empty
   transitions list when `isUser`).
-- **Priority**: `tasks.priority` — an integer, higher = more important; the sole, fully-manual sort key for a
-  team's task list (`ORDER BY priority DESC, id`; task status no longer affects order). New tasks are appended to
-  the end (`MIN(priority) - _PRIORITY_GAP`). Reordered via drag-and-drop within the currently loaded page
-  (`PATCH /api/tasks/{team_id}/reorder`, `db.reorder_team_tasks` — permutes only the already-owned priority values
-  of that page's tasks, so it can never encroach on another page's range, driven by `useTaskRowDrag.ts` — see
-  above) or via a right-click context menu's "move to start/end of the whole team's list"
-  (`PATCH /api/task/{task_id}/priority`, `db.move_task_to_edge`).
+- **Criticality & priority**: two-level ordering. `tasks.criticality` (`high`/`medium`/`low`, default `medium`) is
+  the primary grouping tier; `tasks.priority` is a fully-manual integer sort key that only orders tasks *within*
+  their own criticality tier. Sort key everywhere a task list is built is
+  `(criticality: high→medium→low, priority DESC, id)` (`get_tasks_by_team`, `get_active_tasks_flat`,
+  `get_active_assignments_in_period`). Priority can never be changed across a criticality boundary — that's the
+  whole point of the tier: `reorder_team_tasks` (drag-and-drop reorder of the currently loaded page,
+  `PATCH /api/tasks/{team_id}/reorder`) raises if the submitted `task_ids` don't all share one criticality, and
+  `useTaskRowDrag.ts` enforces the same constraint client-side (it only considers rows sharing the dragged row's
+  `data-task-row-criticality` when building drop targets, so the indicator never appears across a tier boundary).
+  A right-click context menu's "в начало/конец уровня критичности" (`PATCH /api/task/{task_id}/priority`,
+  `db.move_task_to_edge`) moves a task to the edge of its own tier, not the whole team's list. New tasks are
+  appended to the end of their tier (`db._priority_at_tier_end`, `MIN(priority) - _PRIORITY_GAP` scoped to
+  `(team_id, criticality)`); editing an existing task's criticality via the Task modal re-appends it to the end of
+  the *new* tier the same way (its old `priority` number is meaningless relative to a different tier's values).
+  DB back-compat: `criticality` was briefly dropped from the schema in favor of a criticality-less `priority`-only
+  model, then reinstated — `SQLiteBackend._migrate_add_criticality_column` backfills the column (default
+  `'medium'`) on any DB created during that window that has `priority` but not `criticality`; older DBs never lost
+  the column in the first place since SQLite can't drop columns.
 - **Task dependencies**: arbitrary DAG between tasks within a team; cycle creation is rejected at the API level (
   `POST /api/task` returns 400 if `has_dependency_cycle` detects one)
 - **Freeze days**: dates when no changes are deployed; can be added individually, as ranges, or by full-month
