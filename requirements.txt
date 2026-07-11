@@ -2,7 +2,6 @@ fastapi
 uvicorn[standard]
 pydantic
 starlette
-python-multipart
 requests
 python-dotenv
 urllib3
