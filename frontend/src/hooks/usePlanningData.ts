@@ -192,7 +192,10 @@ export function useAddTaskDependency() {
   return useMutation({
     mutationFn: (vars: { task_id: number; depends_on_task_id: number }) =>
       apiMutate('/api/task-dependency', 'POST', vars),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dependency-graph'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dependency-graph'] });
+      queryClient.invalidateQueries({ queryKey: ['task-deps'] });
+    },
   });
 }
 
@@ -201,7 +204,10 @@ export function useRemoveTaskDependency() {
   return useMutation({
     mutationFn: (vars: { task_id: number; depends_on_task_id: number }) =>
       apiMutate('/api/task-dependency', 'DELETE', vars),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dependency-graph'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dependency-graph'] });
+      queryClient.invalidateQueries({ queryKey: ['task-deps'] });
+    },
   });
 }
 
