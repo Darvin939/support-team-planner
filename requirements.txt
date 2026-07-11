@@ -1,6 +1,9 @@
 fastapi
 uvicorn[standard]
 pydantic
-# PostgreSQL backend (опционально, нужен только при использовании PostgresBackend)
-psycopg2-binary
 starlette
+python-multipart
+requests
+python-dotenv
+urllib3
+atexit
