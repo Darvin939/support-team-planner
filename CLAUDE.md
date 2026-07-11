@@ -14,10 +14,15 @@ is logged to an audit history, and the whole app sits behind a lightweight per-u
 ```bash
 pip install -r requirements.txt   # Install dependencies
 python support_planner.py         # Run dev server on http://localhost:5093 (HTTP, unless Vault certs are available — see SSL/TLS below)
+python seed_demo_data.py          # One-off: fill a fresh database.db with demo teams/segments/blocks/tasks/assignments
 ```
 
 There is currently no runnable test suite — `tests/` contains only stale `__pycache__` bytecode with no tracked
 `.py` sources (`python -m pytest tests/ -v` collects 0 items). No linter or formatter is configured either.
+
+An `openspec/` directory (schema `spec-driven`, see `openspec/config.yaml`) holds spec-driven change proposals
+under `openspec/changes/` (e.g. `add-work-segments`, `dependency-visualization`) — used with the `openspec-*`/`opsx:*`
+skills for planning nontrivial features before implementation, not part of the running app itself.
 
 **Frontend (React + Ant Design, `frontend/`):** the full Jinja2/vanilla-JS frontend migration is complete — every
 page (`/login`, `/planning`, `/planning/{team_id}`, `/statistics`, `/journal`, `/journal/{team_id}`, `/settings`)
@@ -51,11 +56,13 @@ returns JSON (`{success: true}` / `{"error": "..."}`) instead of a redirect or a
 page, matching the rest of the app's `/api/*` convention — the React login page does the
 `window.location.href = '/planning'` navigation itself on success.
 
-`requirements.txt` currently lists `fastapi`, `uvicorn[standard]`, `pydantic`, `starlette`, `python-multipart`,
-`requests`, `python-dotenv`, `urllib3`. **Known gap:** the login feature also needs `itsdangerous` (used
-internally by `starlette.middleware.sessions.SessionMiddleware` to sign the session cookie) — it isn't declared
-in `requirements.txt`, so a fresh `pip install -r requirements.txt` will raise `AssertionError` on first login
-unless it's installed separately (it's a transitive dep of some `starlette`/`fastapi` extras, but not guaranteed).
+`requirements.txt` currently lists `fastapi`, `uvicorn[standard]`, `pydantic`, `starlette`, `requests`,
+`python-dotenv`, `urllib3`. **Known gaps, both undeclared:** the login feature needs `itsdangerous` (used
+internally by `starlette.middleware.sessions.SessionMiddleware` to sign the session cookie), and the `/login`
+form (`Form(...)` params in `support_planner.py`) needs `python-multipart` for Starlette's form parsing — neither
+is in `requirements.txt`, so a fresh `pip install -r requirements.txt` will raise `AssertionError` on first login
+unless both are installed separately (they're transitive deps of some `starlette`/`fastapi` extras, but not
+guaranteed).
 
 **SSL/TLS via Vault (`ssl_context.py`):** on startup, `support_planner.py`'s `__main__` block calls `get_cert()`,
 which authenticates to a HashiCorp Vault instance via AppRole (`VAULT_ADDR`, `VAULT_TENANT`, `VAULT_KV_PATH`,
@@ -164,7 +171,12 @@ statically. `frontend/src/` layout:
     - `TaskModal.tsx` / `AssignmentModal.tsx` — CRUD modals, each embedding a `HistoryPanel` (see Domain Concepts
       below) and a footer toggle button to show/hide it. `AssignmentModal.tsx`'s assignee dropdown filters
       `users` to `is_assignee === true`, but keeps an already-assigned user selectable on that record even if their
-      flag was later unset, so editing an existing assignment never looks broken.
+      flag was later unset, so editing an existing assignment never looks broken. `TaskModal.tsx` also requires
+      picking a segment (see Domain Concepts), which narrows the block templates `AssignmentModal.tsx` offers.
+    - `DependencyGraphModal.tsx` — renders a team's task-dependency DAG (`GET /api/tasks/{team_id}/dependency-graph`,
+      optionally rooted at one `task_id`) for visual inspection, separate from the dependency *editing* UI in
+      `TaskModal.tsx`. Unlike the hand-rolled drag-and-drop hooks above, this one is built on `@xyflow/react`
+      (React Flow) — the only graph-rendering dependency in the frontend.
     - `HistoryPanel.tsx` — collapsible paginated history list + `useHistoryToggle` (resets closed, or auto-opens,
       every time the owning modal transitions to open) shared by both modals.
     - `useAssignmentDrag.ts` — custom mouse-event-driven drag-and-drop for rescheduling an assignment to a
@@ -176,16 +188,24 @@ statically. `frontend/src/` layout:
       Domain Concepts below) instead of assignment cells. Both this hook and `useAssignmentDrag.ts` guard
       `if (e.button !== 0) return;` so dragging only starts on a left-click, not e.g. a right-click that's meant
       to open the context menu.
+    - `useAutoScheduleDragScroll.ts` / `useTableDragScroll.ts` — edge auto-scroll helpers backing the drag hooks
+      above; `cellTint.ts` / `scrollUtils.ts` are supporting pure helpers (cell background tinting, scroll math).
+      `pages/settings/` splits the Settings page into one tab component per domain: `TeamsTab.tsx`, `BlocksTab.tsx`,
+      `SegmentsTab.tsx`, `FreezeDaysTab.tsx`, `UsersTab.tsx` — `SettingsPage.tsx` itself is just an antd `Tabs` shell
+      that persists the active tab key to localStorage.
 - `components/` — shared UI: `AppShell`/`AuthenticatedLayout` (sidebar, role-gated nav via `GET /api/me`,
   all nav clicks are plain client-side `navigate()` — every route is React now, so there's no split between
   migrated/legacy paths), `MyAccountModal.tsx` (self-service login/password change, see Domain Concepts),
   `planningBadges.tsx` (criticality/status/dependency/schedule badges shared across
-  Planning and Journal), `StatTile.tsx`.
+  Planning and Journal), `FilterGrid.tsx` (shared filter-row layout for Planning/Statistics/Journal),
+  `OverdueNotifications.tsx`, `StatTile.tsx`.
 - `hooks/` — one thin TanStack Query wrapper per data domain: `usePlanningData.ts`, `useSettingsData.ts`,
-  `useTeams.ts`, `useMe.ts`, `useUserNames.ts`.
+  `useTeams.ts`, `useMe.ts`, `useUserNames.ts`, plus `useDateRangeFilter.ts` (shared date-range + localStorage
+  persistence logic) and `useIsMobile.ts`.
 - `lib/` — pure helpers: `apiMutate.ts` (shared POST/PUT/PATCH/DELETE fetch wrapper), `autoSchedule.ts`
   (freeze-day-aware auto-scheduling date math, ported from the original block-template scheduling logic),
-  `historyFormat.ts` (change-history field labels/formatting, shared by the Journal page and `HistoryPanel`).
+  `historyFormat.ts` (change-history field labels/formatting, shared by the Journal page and `HistoryPanel`),
+  `dateFormats.ts`, `layout.ts`, `linkify.tsx` (renders plain-text URLs in task/assignment descriptions as links).
 - `theme.ts` — antd `ConfigProvider` tokens (dark/light `ThemeConfig`s), seeded from `@ant-design/colors`'
   official palette rather than hand-picked values, plus the sidebar "chrome" colors.
 
@@ -199,6 +219,8 @@ SQLite only (`database.db`, gitignored, auto-created); `PRAGMA foreign_keys = ON
   date)
 - `teams` N↔N `block_templates` via `team_templates` — a team's allowed templates determine which blocks it can
   auto-schedule against
+- `segments` — a reference entity that `tasks.segment_id` and `block_templates.segment_id` both required-FK into
+  (see Domain Concepts); narrows which block templates apply to a given task on top of the team scoping above
 - `tasks` 1→N `assignments` (cascade delete at the schema level), unique on `(task_id, date)` **where
   `is_deleted = 0`** (a partial unique index — a soft-deleted assignment doesn't block re-creating one on the same
   date)
@@ -256,7 +278,17 @@ Two separate status machines coexist — do not confuse them:
   `'medium'`) on any DB created during that window that has `priority` but not `criticality`; older DBs never lost
   the column in the first place since SQLite can't drop columns.
 - **Task dependencies**: arbitrary DAG between tasks within a team; cycle creation is rejected at the API level (
-  `POST /api/task` returns 400 if `has_dependency_cycle` detects one)
+  `POST /api/task` returns 400 if `has_dependency_cycle` detects one). Editing dependencies is
+  `POST`/`DELETE /api/task-dependency`; visual inspection of the whole graph (or the subgraph rooted at one task)
+  is a separate read endpoint, `GET /api/tasks/{team_id}/dependency-graph`, rendered by
+  `frontend/src/pages/planning/DependencyGraphModal.tsx`.
+- **Segments**: a required reference entity (`segments` table, CRUD via `/api/segments`, managed in the
+  Settings "Сегменты" tab) that every task and every block template belongs to (`tasks.segment_id`,
+  `block_templates.segment_id`, both required FKs). The block templates offered when creating an assignment or
+  auto-scheduling for a task are the *intersection* of the task's team-allowed templates (`team_templates`) and
+  the templates whose `segment_id` matches the task's — segments narrow an otherwise team-wide template list down
+  to the ones relevant to that task's line of work. The Planning task list also has a segment filter alongside
+  criticality/status.
 - **Freeze days**: dates when no changes are deployed; can be added individually, as ranges, or by full-month
   replacement (`set_freeze_days_for_month`)
 - **Blocks / block templates**: a block is a named deployment stage with a `schedule_offset`; block templates group

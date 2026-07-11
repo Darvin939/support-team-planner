@@ -236,7 +236,7 @@ def main():
 
                 time_spent = None
                 if status in ('success', 'rollback'):
-                    time_spent = f'{random.choice([1, 2, 3, 4, 6, 8])}ч'
+                    time_spent = f'{random.choice([1, 2, 3, 4, 6, 8]):02d}:00'
 
                 db.create_or_update_assignment(
                     None, task_id, date_str, block, status, user_id, comment,
