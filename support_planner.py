@@ -24,10 +24,19 @@ if os.path.isdir(_REACT_DIST):
     app.mount("/react-assets", StaticFiles(directory=_REACT_DIST), name="react-assets")
 
 
+_react_index_html: Optional[str] = None
+
+
 def _serve_react_index() -> str:
-    """Отдать собранный React SPA (frontend/dist/index.html) для уже перенесённых страниц."""
-    with open(os.path.join(_REACT_DIST, 'index.html'), encoding='utf-8') as f:
-        return f.read()
+    """Отдать собранный React SPA (frontend/dist/index.html) для уже перенесённых страниц —
+    index.html читается с диска не более одного раза за жизнь процесса и дальше кэшируется в
+    памяти, т.к. это билд-артефакт, не меняющийся, пока сервер запущен (без перезапуска процесса
+    сборку заново всё равно не подхватить)."""
+    global _react_index_html
+    if _react_index_html is None:
+        with open(os.path.join(_REACT_DIST, 'index.html'), encoding='utf-8') as f:
+            _react_index_html = f.read()
+    return _react_index_html
 
 _SESSION_SECRET_KEY = os.environ.get('SESSION_SECRET_KEY')
 if not _SESSION_SECRET_KEY:
