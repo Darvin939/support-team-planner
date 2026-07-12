@@ -226,6 +226,12 @@ VALID_TASK_TRANSITIONS = {
 }
 
 
+def _task_is_locked(task) -> bool:
+    """Задача в терминальном статусе (выполнено/отменено) или мягко удалена — блокирует
+    редактирование/удаление самой задачи и её назначений."""
+    return task['task_status'] in ('done', 'cancelled') or task['is_deleted']
+
+
 # === Роуты ===
 
 @app.get('/', response_class=HTMLResponse)
@@ -368,7 +374,7 @@ def save_assignment_api(request: Request, data: AssignmentIn):
         return JSONResponse({'error': 'Task not found'}, status_code=404)
 
     task = db.get_task_status(data.task_id)
-    if task and (task['task_status'] in ('done', 'cancelled') or task['is_deleted']):
+    if task and _task_is_locked(task):
         return JSONResponse({'error': 'Нельзя изменять назначения завершённой или отменённой задачи'}, status_code=400)
 
     if request.state.role == 'user':
@@ -393,7 +399,7 @@ def save_assignment_api(request: Request, data: AssignmentIn):
 def delete_assignment_api(request: Request, assignment_id: int):
     """API для удаления назначения"""
     task = db.get_task_status_by_assignment(assignment_id)
-    if task and (task['task_status'] in ('done', 'cancelled') or task['is_deleted']):
+    if task and _task_is_locked(task):
         return JSONResponse({'error': 'Нельзя изменять назначения завершённой или отменённой задачи'}, status_code=400)
     if request.state.role == 'user' and task and task['assignment_status'] != 'new':
         return JSONResponse(
@@ -448,7 +454,7 @@ def save_task_api(request: Request, data: TaskIn):
         if not db.task_exists(data.task_id):
             return JSONResponse({'error': 'Задача не найдена'}, status_code=404)
         task = db.get_task_status(data.task_id)
-        if task and (task['task_status'] in ('done', 'cancelled') or task['is_deleted']):
+        if task and _task_is_locked(task):
             return JSONResponse({'error': 'Нельзя редактировать завершённую или отменённую задачу'}, status_code=400)
 
     task_id = int(db.create_or_update_task(data.task_id, data.team_id, name, description, data.criticality,
@@ -542,7 +548,7 @@ def get_active_tasks_list(team_id: int, search: str = "", limit: int = 50, inclu
 def delete_task_api(request: Request, task_id: int):
     """API для удаления задачи"""
     task = db.get_task_status(task_id)
-    if task and (task['task_status'] in ('done', 'cancelled') or task['is_deleted']):
+    if task and _task_is_locked(task):
         return JSONResponse({'error': 'Нельзя удалить завершённую или отменённую задачу'}, status_code=400)
     if request.state.role == 'user' and db.task_has_active_assignments(task_id):
         return JSONResponse(
