@@ -10,6 +10,12 @@ _backend: DBBackend = SQLiteBackend()
 _PRIORITY_GAP = 1000
 
 
+class IntegrityConstraintError(Exception):
+    """Обёртка над ошибкой нарушения констрейнта БД (дубль уникального имени, попытка удалить
+    запись, на которую ещё ссылаются другие) с уже готовым для показа пользователю сообщением."""
+    pass
+
+
 def get_db_connection():
     conn = _backend.connect()
     _backend.setup_connection(conn)
@@ -143,7 +149,10 @@ def _set_team_templates(conn, team_id, template_ids):
 @with_db_connection(commit_on_success=False)
 def create_team(conn, name, template_ids=None):
     """Создать команду"""
-    cursor = conn.execute('INSERT INTO teams (name) VALUES (?)', (name,))
+    try:
+        cursor = conn.execute('INSERT INTO teams (name) VALUES (?)', (name,))
+    except _backend.duplicate_error:
+        raise IntegrityConstraintError('Команда с таким названием уже существует')
     team_id = _backend.last_insert_id(cursor)
     _set_team_templates(conn, team_id, template_ids)
     conn.commit()
@@ -153,13 +162,18 @@ def create_team(conn, name, template_ids=None):
 @with_db_connection()
 def update_team(conn, team_id, name, template_ids=None):
     """Обновить команду и её разрешённые шаблоны"""
-    conn.execute('UPDATE teams SET name = ? WHERE id = ?', (name, team_id))
+    try:
+        conn.execute('UPDATE teams SET name = ? WHERE id = ?', (name, team_id))
+    except _backend.duplicate_error:
+        raise IntegrityConstraintError('Команда с таким названием уже существует')
     _set_team_templates(conn, team_id, template_ids)
 
 
 @with_db_connection()
 def delete_team(conn, team_id):
-    """Удалить команду (шаблоны и задачи удаляются каскадно)"""
+    """Удалить команду (шаблоны и задачи удаляются каскадно — team_templates.team_id и tasks.team_id
+    оба ON DELETE CASCADE, поэтому в отличие от delete_segment здесь физически не может возникнуть
+    нарушение внешнего ключа)"""
     conn.execute('DELETE FROM teams WHERE id = ?', (team_id,))
 
 
@@ -174,7 +188,10 @@ def get_all_segments(conn):
 @with_db_connection(commit_on_success=False)
 def create_segment(conn, name):
     """Создать сегмент"""
-    cursor = conn.execute('INSERT INTO segments (name) VALUES (?)', (name.strip(),))
+    try:
+        cursor = conn.execute('INSERT INTO segments (name) VALUES (?)', (name.strip(),))
+    except _backend.duplicate_error:
+        raise IntegrityConstraintError('Сегмент с таким названием уже существует')
     conn.commit()
     return _backend.last_insert_id(cursor)
 
@@ -182,14 +199,20 @@ def create_segment(conn, name):
 @with_db_connection()
 def update_segment(conn, segment_id, name):
     """Обновить сегмент"""
-    conn.execute('UPDATE segments SET name = ? WHERE id = ?', (name.strip(), segment_id))
+    try:
+        conn.execute('UPDATE segments SET name = ? WHERE id = ?', (name.strip(), segment_id))
+    except _backend.duplicate_error:
+        raise IntegrityConstraintError('Сегмент с таким названием уже существует')
 
 
 @with_db_connection()
 def delete_segment(conn, segment_id):
-    """Удалить сегмент. Падает с IntegrityError, если сегмент ещё используется в tasks/
+    """Удалить сегмент. Падает с IntegrityConstraintError, если сегмент ещё используется в tasks/
     block_templates (FK без ON DELETE) — маршрут превращает это в 400, как и для blocks/teams."""
-    conn.execute('DELETE FROM segments WHERE id = ?', (segment_id,))
+    try:
+        conn.execute('DELETE FROM segments WHERE id = ?', (segment_id,))
+    except _backend.duplicate_error:
+        raise IntegrityConstraintError('Нельзя удалить сегмент: он используется в задачах или шаблонах блоков')
 
 
 # === BLOCKS CRUD ===
@@ -204,14 +227,18 @@ def get_all_blocks(conn):
 def create_block(conn, name):
     """Создать блок"""
     name = name.strip().upper()
-    cursor = conn.execute('INSERT INTO blocks (name) VALUES (?)', (name,))
+    try:
+        cursor = conn.execute('INSERT INTO blocks (name) VALUES (?)', (name,))
+    except _backend.duplicate_error:
+        raise IntegrityConstraintError('Блок с таким названием уже существует')
     conn.commit()
     return _backend.last_insert_id(cursor)
 
 
 @with_db_connection()
 def delete_block(conn, block_id):
-    """Удалить блок"""
+    """Удалить блок (template_blocks.block_id — ON DELETE CASCADE, поэтому удаление автоматически
+    убирает блок из всех шаблонов; физически не может нарушить внешний ключ)"""
     conn.execute('DELETE FROM blocks WHERE id = ?', (block_id,))
 
 
@@ -279,9 +306,12 @@ def _set_template_blocks(conn, template_id, entries):
 @with_db_connection(commit_on_success=False)
 def create_template(conn, name, segment_id, entries=None):
     """Создать шаблон блоков"""
-    cursor = conn.execute(
-        'INSERT INTO block_templates (name, segment_id) VALUES (?, ?)', (name.strip(), segment_id)
-    )
+    try:
+        cursor = conn.execute(
+            'INSERT INTO block_templates (name, segment_id) VALUES (?, ?)', (name.strip(), segment_id)
+        )
+    except _backend.duplicate_error:
+        raise IntegrityConstraintError('Шаблон с таким названием уже существует')
     template_id = _backend.last_insert_id(cursor)
     _set_template_blocks(conn, template_id, entries)
     conn.commit()
@@ -291,15 +321,19 @@ def create_template(conn, name, segment_id, entries=None):
 @with_db_connection()
 def update_template(conn, template_id, name, segment_id, entries=None):
     """Обновить шаблон и его блоки"""
-    conn.execute(
-        'UPDATE block_templates SET name = ?, segment_id = ? WHERE id = ?', (name.strip(), segment_id, template_id)
-    )
+    try:
+        conn.execute(
+            'UPDATE block_templates SET name = ?, segment_id = ? WHERE id = ?', (name.strip(), segment_id, template_id)
+        )
+    except _backend.duplicate_error:
+        raise IntegrityConstraintError('Шаблон с таким названием уже существует')
     _set_template_blocks(conn, template_id, entries)
 
 
 @with_db_connection()
 def delete_template(conn, template_id):
-    """Удалить шаблон (записи template_blocks удаляются каскадно)"""
+    """Удалить шаблон (записи template_blocks и team_templates удаляются каскадно — оба ON DELETE
+    CASCADE на template_id, поэтому физически не может нарушить внешний ключ)"""
     conn.execute('DELETE FROM block_templates WHERE id = ?', (template_id,))
 
 

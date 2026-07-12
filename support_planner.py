@@ -630,7 +630,7 @@ def create_team_api(data: TeamIn):
     try:
         team_id = db.create_team(name, data.template_ids or [])
         return {'id': team_id, 'success': True}
-    except Exception as e:
+    except db.IntegrityConstraintError as e:
         return JSONResponse({'error': str(e)}, status_code=400)
 
 
@@ -644,7 +644,7 @@ def update_team_api(team_id: int, data: TeamIn):
     try:
         db.update_team(team_id, name, data.template_ids or [])
         return {'success': True}
-    except Exception as e:
+    except db.IntegrityConstraintError as e:
         return JSONResponse({'error': str(e)}, status_code=400)
 
 
@@ -819,7 +819,7 @@ def create_block_api(data: BlockIn):
     try:
         block_id = db.create_block(name)
         return {'id': block_id, 'success': True}
-    except Exception as e:
+    except db.IntegrityConstraintError as e:
         return JSONResponse({'error': str(e)}, status_code=400)
 
 
@@ -850,7 +850,7 @@ def create_template_api(data: BlockTemplateIn):
     try:
         tmpl_id = db.create_template(name, data.segment_id, entries)
         return {'id': tmpl_id, 'success': True}
-    except Exception as e:
+    except db.IntegrityConstraintError as e:
         return JSONResponse({'error': str(e)}, status_code=400)
 
 
@@ -869,7 +869,7 @@ def update_template_api(template_id: int, data: BlockTemplateIn):
     try:
         db.update_template(template_id, name, data.segment_id, entries)
         return {'success': True}
-    except Exception as e:
+    except db.IntegrityConstraintError as e:
         return JSONResponse({'error': str(e)}, status_code=400)
 
 
@@ -897,7 +897,7 @@ def create_segment_api(data: SegmentIn):
     try:
         segment_id = db.create_segment(name)
         return {'id': segment_id, 'success': True}
-    except Exception as e:
+    except db.IntegrityConstraintError as e:
         return JSONResponse({'error': str(e)}, status_code=400)
 
 
@@ -910,7 +910,7 @@ def update_segment_api(segment_id: int, data: SegmentIn):
     try:
         db.update_segment(segment_id, name)
         return {'success': True}
-    except Exception as e:
+    except db.IntegrityConstraintError as e:
         return JSONResponse({'error': str(e)}, status_code=400)
 
 
@@ -920,7 +920,7 @@ def delete_segment_api(segment_id: int):
     try:
         db.delete_segment(segment_id)
         return {'success': True}
-    except Exception as e:
+    except db.IntegrityConstraintError as e:
         return JSONResponse({'error': str(e)}, status_code=400)
 
 
