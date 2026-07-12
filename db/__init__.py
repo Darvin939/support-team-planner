@@ -161,7 +161,7 @@ def _set_team_templates(conn, team_id, template_ids):
             pass
 
 
-@with_db_connection(commit_on_success=False)
+@with_db_connection()
 def create_team(conn, name, template_ids=None):
     """Создать команду"""
     try:
@@ -170,7 +170,6 @@ def create_team(conn, name, template_ids=None):
         raise IntegrityConstraintError('Команда с таким названием уже существует')
     team_id = _backend.last_insert_id(cursor)
     _set_team_templates(conn, team_id, template_ids)
-    conn.commit()
     return team_id
 
 
@@ -200,14 +199,13 @@ def get_all_segments(conn):
     return [{'id': r['id'], 'name': r['name']} for r in rows]
 
 
-@with_db_connection(commit_on_success=False)
+@with_db_connection()
 def create_segment(conn, name):
     """Создать сегмент"""
     try:
         cursor = conn.execute('INSERT INTO segments (name) VALUES (?)', (name.strip(),))
     except _backend.duplicate_error:
         raise IntegrityConstraintError('Сегмент с таким названием уже существует')
-    conn.commit()
     return _backend.last_insert_id(cursor)
 
 
@@ -238,7 +236,7 @@ def get_all_blocks(conn):
     return [{'id': r['id'], 'name': r['name']} for r in rows]
 
 
-@with_db_connection(commit_on_success=False)
+@with_db_connection()
 def create_block(conn, name):
     """Создать блок"""
     name = name.strip().upper()
@@ -246,7 +244,6 @@ def create_block(conn, name):
         cursor = conn.execute('INSERT INTO blocks (name) VALUES (?)', (name,))
     except _backend.duplicate_error:
         raise IntegrityConstraintError('Блок с таким названием уже существует')
-    conn.commit()
     return _backend.last_insert_id(cursor)
 
 
@@ -316,7 +313,7 @@ def _set_template_blocks(conn, template_id, entries):
         )
 
 
-@with_db_connection(commit_on_success=False)
+@with_db_connection()
 def create_template(conn, name, segment_id, entries=None):
     """Создать шаблон блоков"""
     try:
@@ -327,7 +324,6 @@ def create_template(conn, name, segment_id, entries=None):
         raise IntegrityConstraintError('Шаблон с таким названием уже существует')
     template_id = _backend.last_insert_id(cursor)
     _set_template_blocks(conn, template_id, entries)
-    conn.commit()
     return template_id
 
 
@@ -676,7 +672,7 @@ def task_has_active_assignments(conn, task_id):
     return row is not None
 
 
-@with_db_connection(commit_on_success=False)
+@with_db_connection()
 def create_or_update_task(conn, task_id, team_id, name, description, criticality='medium', segment_id=None,
                            changed_by=None):
     """Создать или обновить задачу. priority этой функцией напрямую не редактируется — им
@@ -711,7 +707,6 @@ def create_or_update_task(conn, task_id, team_id, name, description, criticality
                WHERE id = ?''',
             (name, description, criticality, segment_id, new_priority, task_id)
         )
-        conn.commit()
     else:
         new_priority = _priority_at_tier_end(conn, team_id, criticality)
         cursor = conn.execute(
@@ -724,7 +719,6 @@ def create_or_update_task(conn, task_id, team_id, name, description, criticality
                                 'criticality': criticality, 'segment_id': segment_id, 'priority': new_priority},
                                ensure_ascii=False)
         _record_task_history(conn, task_id, 'create', new_value=snapshot, changed_by=changed_by)
-        conn.commit()
     return task_id
 
 
