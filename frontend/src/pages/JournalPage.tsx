@@ -2,10 +2,11 @@ import {useEffect, useState} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
 import {Card, DatePicker, Empty, Input, Modal, Pagination, Select, Spin, Tag, Typography} from 'antd';
 import {useQuery} from '@tanstack/react-query';
-import dayjs, {type Dayjs} from 'dayjs';
+import dayjs from 'dayjs';
 import {useTeams} from '../hooks/useTeams';
 import {useUserNames, useUserOptions} from '../hooks/useUserNames';
 import {useIsMobile} from '../hooks/useIsMobile';
+import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
 import {FilterField, FilterGrid} from '../components/FilterGrid';
 import {formatChangedBy, formatHistoryText, type HistoryEntry} from '../lib/historyFormat';
 import {apiGet} from '../lib/apiMutate';
@@ -14,8 +15,6 @@ import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT} from '../lib/dateFormats';
 const JOURNAL_PAGE_SIZE = 20;
 const HISTORY_PAGE_SIZE = 10;
 const STORAGE_TEAM_ID = 'selectedTeamId';
-const STORAGE_DATE_FROM = 'journalDateFrom';
-const STORAGE_DATE_TO = 'journalDateTo';
 
 interface JournalItem extends HistoryEntry {
   task_id: number;
@@ -102,10 +101,11 @@ export function JournalPage() {
   const getUserName = useUserNames();
 
   const [search, setSearch] = useState('');
-  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(() => {
-    const from = localStorage.getItem(STORAGE_DATE_FROM);
-    const to = localStorage.getItem(STORAGE_DATE_TO);
-    return from && to ? [dayjs(from), dayjs(to)] : null;
+  const [dateRange, handleDateRangeChange] = useDateRangeFilter(null, {
+    storageKeyFrom: 'journalDateFrom',
+    storageKeyTo: 'journalDateTo',
+    maxPeriodDays: Infinity,
+    onChange: () => setOffset(0),
   });
   const [changedByUserId, setChangedByUserId] = useState<number | null>(null);
 
@@ -123,21 +123,6 @@ export function JournalPage() {
 
   function handleSearchChange(value: string) {
     setSearch(value);
-    setOffset(0);
-  }
-
-  function handleDateRangeChange(dates: [Dayjs | null, Dayjs | null] | null) {
-    if (!dates || !dates[0] || !dates[1]) {
-      setDateRange(null);
-      localStorage.removeItem(STORAGE_DATE_FROM);
-      localStorage.removeItem(STORAGE_DATE_TO);
-      setOffset(0);
-      return;
-    }
-    const [from, to] = dates;
-    setDateRange([from, to]);
-    localStorage.setItem(STORAGE_DATE_FROM, from.format(API_DATE_FORMAT));
-    localStorage.setItem(STORAGE_DATE_TO, to.format(API_DATE_FORMAT));
     setOffset(0);
   }
 

@@ -51,9 +51,6 @@ def with_db_connection(default_return=None, raise_on_error=True, commit_on_succe
                     conn.commit()
                 return result
             except _backend.db_error:
-                # Откат нужен независимо от того, общее это соединение или своё: на общем
-                # соединении незакоммиченная транзакция иначе осталась бы висеть и попала бы
-                # в commit() следующего вызова в рамках того же запроса.
                 conn.rollback()
                 if raise_on_error:
                     raise

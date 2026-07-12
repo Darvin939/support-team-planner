@@ -152,7 +152,7 @@ export function StatisticsPage() {
     }
   });
 
-  const [range, handleRangeChange] = useDateRangeFilter(() => [dayjs().subtract(7, 'day'), dayjs()]);
+  const [range, handleRangeChange] = useDateRangeFilter(() => [dayjs().subtract(14, 'day'), dayjs().add(14, 'day')]);
   const [pageSize, setPageSize] = useState(DEFAULT_STATS_PAGE_SIZE);
   const [todayOffset, setTodayOffset] = useState(0);
   const [periodOffset, setPeriodOffset] = useState(0);
@@ -222,7 +222,7 @@ export function StatisticsPage() {
               format={DISPLAY_DATE_FORMAT}
               minDate={dayjs('2000-01-01')}
               maxDate={dayjs('2099-12-31')}
-              allowClear={false}
+              allowClear
               style={isMobile ? { width: '100%' } : undefined}
             />
           </FilterField>

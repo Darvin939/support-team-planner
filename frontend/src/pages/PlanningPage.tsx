@@ -95,7 +95,7 @@ export function PlanningPage() {
   const teamId = teamIdParam ? Number(teamIdParam) : undefined;
   const isMobile = useIsMobile();
 
-  const [range, handleRangeChange] = useDateRangeFilter(() => [dayjs().subtract(7, 'day'), dayjs().add(30, 'day')]);
+  const [range, handleRangeChange] = useDateRangeFilter(() => [dayjs().subtract(14, 'day'), dayjs().add(14, 'day')]);
   const [search, setSearch] = useState('');
   const [showCompleted, setShowCompleted] = useState(false);
   const [page, setPage] = useState(1);
@@ -402,7 +402,7 @@ export function PlanningPage() {
               format={DISPLAY_DATE_FORMAT}
               minDate={dayjs('2000-01-01')}
               maxDate={dayjs('2099-12-31')}
-              allowClear={false}
+              allowClear
               style={isMobile ? { width: '100%' } : undefined}
             />
           </FilterField>

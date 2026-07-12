@@ -17,12 +17,15 @@ python support_planner.py         # Run dev server on http://localhost:5093 (HTT
 python seed_demo_data.py          # One-off: fill a fresh database.db with demo teams/segments/blocks/tasks/assignments
 ```
 
-There is currently no runnable test suite — `tests/` contains only stale `__pycache__` bytecode with no tracked
-`.py` sources (`python -m pytest tests/ -v` collects 0 items). No linter or formatter is configured either.
+There is no `tests/` directory and no Python test suite, linter, or formatter configured (no `pyproject.toml`,
+`ruff.toml`, `.flake8`, etc.) — a stale `plugins/`/`tests/` bytecode leftover was cleaned up (see `95fbf65`) and
+both are now gitignored/absent, not merely empty.
 
 An `openspec/` directory (schema `spec-driven`, see `openspec/config.yaml`) holds spec-driven change proposals
-under `openspec/changes/` (e.g. `add-work-segments`, `dependency-visualization`) — used with the `openspec-*`/`opsx:*`
-skills for planning nontrivial features before implementation, not part of the running app itself.
+under `openspec/changes/` — used with the `openspec-*`/`opsx:*` skills for planning nontrivial features before
+implementation, not part of the running app itself. All changes so far have been implemented and moved to
+`openspec/changes/archive/`; an active `openspec/changes/<name>/` directory only exists while a change is in
+flight.
 
 **Frontend (React + Ant Design, `frontend/`):** the full Jinja2/vanilla-JS frontend migration is complete — every
 page (`/login`, `/planning`, `/planning/{team_id}`, `/statistics`, `/journal`, `/journal/{team_id}`, `/settings`)
@@ -47,6 +50,7 @@ separate FastAPI static mount is needed for them.
 cd frontend && npm install   # Install frontend dependencies (first time only)
 npm run dev                  # Vite dev server (proxies /api, /login, /logout to :5093 — run support_planner.py too)
 npm run build                # Production build -> frontend/dist/, served by FastAPI at /react-assets/*
+npm run lint                  # oxlint — the only linter configured anywhere in this repo (frontend only; no Python linter/formatter)
 ```
 
 The login page is a plain логин+пароль form (no user picker, no public user-listing
@@ -155,10 +159,6 @@ FastAPI app split across a handful of modules:
       `ALTER TABLE employees ADD COLUMN login TEXT` step (from the earlier логин/пароль login feature) still runs
       first, wrapped in try/except since SQLite has no `IF NOT EXISTS` for that.
 - **`utils.py`** — Single helper: `format_user_name()` for "Фамилия И.О." formatting.
-
-`plugins/` and part of `tests/` currently contain only stale, untracked `__pycache__` bytecode with no matching
-`.py` source on disk — leftover cruft from past work, not live functionality. Don't rely on anything in either
-directory being real without first checking whether the source file actually exists.
 
 Frontend is React + TypeScript + Vite (antd v6, TanStack Query, React Router), built to `frontend/dist/` and served
 statically. `frontend/src/` layout:
