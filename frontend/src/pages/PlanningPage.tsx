@@ -56,12 +56,14 @@ import {linkify} from '../lib/linkify';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT} from '../lib/dateFormats';
 import {ASSIGNMENT_STATUS_LABELS, TASK_STATUS_LABELS} from '../lib/historyFormat';
 import {NAME_COLUMN_WIDTH} from '../lib/layout';
+import taskTransitionsJson from '../data/taskTransitions.json';
 
 const DependencyGraphModal = lazy(() => import('./planning/DependencyGraphModal').then((m) => ({ default: m.DependencyGraphModal })));
 
-const VALID_TASK_TRANSITIONS: Record<string, string[]> = {
-  new: ['done', 'cancelled'],
-};
+// Единственный источник истины — frontend/src/data/taskTransitions.json, тот же файл читает и
+// support_planner.py, чтобы правила переходов статуса задачи не могли разойтись между бэкендом и
+// фронтендом (см. openspec/changes/shared-task-transitions-source).
+const VALID_TASK_TRANSITIONS: Record<string, string[]> = taskTransitionsJson;
 
 const STORAGE_TEAM_ID = 'selectedTeamId';
 const DEFAULT_PAGE_SIZE = 20;

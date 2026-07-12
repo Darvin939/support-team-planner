@@ -1,3 +1,4 @@
+import json
 import os
 from datetime import date, timedelta
 from typing import Optional, List, Union
@@ -221,9 +222,12 @@ class TaskPriorityIn(BaseModel):
     position: str
 
 
-VALID_TASK_TRANSITIONS = {
-    'new': {'done', 'cancelled'},
-}
+# Единственный источник истины — frontend/src/data/taskTransitions.json, читается и фронтендом
+# (PlanningPage.tsx), и бэкендом, чтобы правила переходов статуса задачи не могли разойтись между
+# ними (см. openspec/changes/shared-task-transitions-source).
+with open(os.path.join(os.path.dirname(__file__), 'frontend', 'src', 'data', 'taskTransitions.json'),
+          encoding='utf-8') as _f:
+    VALID_TASK_TRANSITIONS = {k: set(v) for k, v in json.load(_f).items()}
 
 
 def _task_is_locked(task) -> bool:
