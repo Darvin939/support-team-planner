@@ -101,6 +101,7 @@ export function JournalPage() {
   const getUserName = useUserNames();
 
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [dateRange, handleDateRangeChange] = useDateRangeFilter(null, {
     storageKeyFrom: 'journalDateFrom',
     storageKeyTo: 'journalDateTo',
@@ -121,10 +122,14 @@ export function JournalPage() {
     setOffset(0);
   }, [teamId]);
 
-  function handleSearchChange(value: string) {
-    setSearch(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 500);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
     setOffset(0);
-  }
+  }, [debouncedSearch]);
 
   function handleChangedByChange(value: number | undefined) {
     setChangedByUserId(value ?? null);
@@ -132,7 +137,7 @@ export function JournalPage() {
   }
 
   const filters: JournalFilters = {
-    search,
+    search: debouncedSearch,
     dateFrom: dateRange ? dateRange[0].format(API_DATE_FORMAT) : null,
     dateTo: dateRange ? dateRange[1].format(API_DATE_FORMAT) : null,
     changedByUserId,
@@ -170,15 +175,6 @@ export function JournalPage() {
               Фильтры
             </Typography.Title>
             <FilterGrid isMobile={isMobile}>
-              <FilterField label="ПОИСК ПО РАБОТЕ" isMobile={isMobile}>
-                <Input.Search
-                  style={{ width: isMobile ? '100%' : 220 }}
-                  placeholder="Введите текст..."
-                  allowClear
-                  value={search}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                />
-              </FilterField>
               <FilterField label="ПЕРИОД" isMobile={isMobile} mobileSpan={2}>
                 <DatePicker.RangePicker
                   value={dateRange}
@@ -188,6 +184,15 @@ export function JournalPage() {
                   maxDate={dayjs('2099-12-31')}
                   allowClear
                   style={isMobile ? { width: '100%' } : undefined}
+                />
+              </FilterField>
+              <FilterField label="ПОИСК ПО РАБОТЕ" isMobile={isMobile}>
+                <Input.Search
+                  style={{ width: isMobile ? '100%' : 220 }}
+                  placeholder="Введите текст..."
+                  allowClear
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
                 />
               </FilterField>
               <FilterField label="АВТОР ИЗМЕНЕНИЯ" isMobile={isMobile}>

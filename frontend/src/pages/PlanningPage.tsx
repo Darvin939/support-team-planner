@@ -97,6 +97,7 @@ export function PlanningPage() {
 
   const [range, handleRangeChange] = useDateRangeFilter(() => [dayjs().subtract(14, 'day'), dayjs().add(14, 'day')]);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showCompleted, setShowCompleted] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -160,13 +161,21 @@ export function PlanningPage() {
     if (saved && saved !== '0') navigate(`/planning/${saved}`, { replace: true });
   }, [teamId, navigate]);
 
-  useEffect(() => setPage(1), [teamId, search, showCompleted]);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 500);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    pendingCenterRef.current = true;
+    setPage(1);
+  }, [teamId, debouncedSearch, showCompleted]);
 
   const dateFrom = range[0].format(API_DATE_FORMAT);
   const dateTo = range[1].format(API_DATE_FORMAT);
   const today = dayjs().format(API_DATE_FORMAT);
 
-  const { data: taskData } = useTasks(teamId ?? 0, (page - 1) * pageSize, pageSize, search, showCompleted);
+  const { data: taskData } = useTasks(teamId ?? 0, (page - 1) * pageSize, pageSize, debouncedSearch, showCompleted);
   const taskIds = useMemo(() => taskData?.tasks.map((t) => t.id) ?? [], [taskData]);
   // Зависимость, на которую перешли по клику, может отсутствовать в текущей загруженной странице
   // (пагинация/фильтры) — подмешиваем её id в запрос зависимостей, чтобы модалка задачи открылась
@@ -412,10 +421,7 @@ export function PlanningPage() {
               placeholder="Введите текст..."
               allowClear
               value={search}
-              onChange={(e) => {
-                pendingCenterRef.current = true;
-                setSearch(e.target.value);
-              }}
+              onChange={(e) => setSearch(e.target.value)}
             />
           </FilterField>
           <FilterField label="КРИТИЧНОСТЬ" isMobile={isMobile}>
