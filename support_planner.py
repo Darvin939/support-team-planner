@@ -232,6 +232,11 @@ def _task_is_locked(task) -> bool:
     return task['task_status'] in ('done', 'cancelled') or task['is_deleted']
 
 
+def _parse_int_csv(value: Optional[str]) -> Optional[List[int]]:
+    """Распарсить query-параметр вида '1,2,3' в список int; None/пусто -> None (без фильтрации)."""
+    return [int(x) for x in value.split(',') if x.strip()] if value else None
+
+
 # === Роуты ===
 
 @app.get('/', response_class=HTMLResponse)
@@ -337,7 +342,7 @@ def get_assignments_api(team_id: int, start_date: Optional[str] = None, end_date
         today = date.today()
         start_date = start_date or (today - timedelta(days=30)).strftime('%Y-%m-%d')
         end_date = end_date or (today + timedelta(days=60)).strftime('%Y-%m-%d')
-    parsed_task_ids = [int(x) for x in task_ids.split(',') if x.strip()] if task_ids else None
+    parsed_task_ids = _parse_int_csv(task_ids)
     assignments = db.get_assignments_by_team_in_period(team_id, start_date, end_date, task_ids=parsed_task_ids)
 
     result = []
@@ -471,7 +476,7 @@ def save_task_api(request: Request, data: TaskIn):
 
 @app.get('/api/tasks/{team_id}/deps')
 def get_team_deps(team_id: int, task_ids: Optional[str] = None):
-    parsed_task_ids = [int(x) for x in task_ids.split(',') if x.strip()] if task_ids else None
+    parsed_task_ids = _parse_int_csv(task_ids)
     rows = db.get_all_deps_for_team(team_id, task_ids=parsed_task_ids)
     return [{'task_id': r['task_id'], 'dep_id': r['dep_id'], 'dep_name': r['dep_name'],
              'dep_status': r['dep_status'], 'dep_is_deleted': bool(r['dep_is_deleted']),
@@ -538,7 +543,7 @@ def remove_task_dependency_api(data: TaskDependencyIn):
 @app.get('/api/tasks/{team_id}/active-list')
 def get_active_tasks_list(team_id: int, search: str = "", limit: int = 50, include_ids: Optional[str] = None):
     search_val = search.strip() or None
-    parsed_include_ids = [int(x) for x in include_ids.split(',') if x.strip()] if include_ids else None
+    parsed_include_ids = _parse_int_csv(include_ids)
     rows = db.get_active_tasks_flat(team_id, search=search_val, limit=limit, include_ids=parsed_include_ids)
     return [{'id': r['id'], 'name': r['name'], 'task_status': r['task_status'],
              'criticality': r['criticality']} for r in rows]
@@ -806,7 +811,7 @@ def get_active_assignments_api(team_id: int, start_date: Optional[str] = None, e
     start_date = start_date or today_str
     end_date = end_date or today_str
 
-    parsed_team_ids = [int(x) for x in team_ids.split(',') if x.strip()] if team_ids else None
+    parsed_team_ids = _parse_int_csv(team_ids)
     assignments = db.get_active_assignments_in_period(team_id, start_date, end_date, team_ids=parsed_team_ids,
                                                        offset=offset, limit=limit)
     stats = db.get_active_assignments_stats(team_id, start_date, end_date, team_ids=parsed_team_ids)
