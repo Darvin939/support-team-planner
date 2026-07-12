@@ -1,3 +1,4 @@
+import contextvars
 import json
 from datetime import datetime, timedelta
 from functools import wraps
@@ -8,6 +9,22 @@ from db.sqlite import SQLiteBackend
 _backend: DBBackend = SQLiteBackend()
 
 _PRIORITY_GAP = 1000
+
+# Соединение, общее для всех db.*-вызовов в пределах одного HTTP-запроса (см. request-scoped
+# middleware в support_planner.py) — по умолчанию None, т.е. вне запроса (импорт модуля,
+# seed_demo_data.py) with_db_connection продолжает открывать и закрывать своё соединение на
+# каждый вызов, как и раньше.
+_request_conn: 'contextvars.ContextVar' = contextvars.ContextVar('request_conn', default=None)
+
+
+def set_request_connection(conn):
+    """Установить соединение, общее для текущего запроса. Возвращает Token для clear_request_connection."""
+    return _request_conn.set(conn)
+
+
+def clear_request_connection(token):
+    """Снять соединение, общее для текущего запроса (вызывается в finally у request-scoped middleware)."""
+    _request_conn.reset(token)
 
 
 class IntegrityConstraintError(Exception):
@@ -26,18 +43,24 @@ def with_db_connection(default_return=None, raise_on_error=True, commit_on_succe
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            conn = get_db_connection()
+            shared_conn = _request_conn.get()
+            conn = shared_conn if shared_conn is not None else get_db_connection()
             try:
                 result = func(conn, *args, **kwargs)
                 if commit_on_success:
                     conn.commit()
                 return result
             except _backend.db_error:
+                # Откат нужен независимо от того, общее это соединение или своё: на общем
+                # соединении незакоммиченная транзакция иначе осталась бы висеть и попала бы
+                # в commit() следующего вызова в рамках того же запроса.
+                conn.rollback()
                 if raise_on_error:
                     raise
                 return default_return
             finally:
-                conn.close()
+                if shared_conn is None:
+                    conn.close()
 
         return wrapper
 

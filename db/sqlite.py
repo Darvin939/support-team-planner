@@ -175,7 +175,14 @@ def _fuzzy_word_in(text, word):
 class SQLiteBackend(DBBackend):
 
     def connect(self):
-        conn = sqlite3.connect(DB_PATH)
+        # check_same_thread=False: с request-scoped переиспользованием соединения (db_connection_
+        # per_request в support_planner.py) одно и то же соединение открывается в потоке event loop
+        # (внутри @app.middleware('http')), а затем используется синхронными роут-хендлерами,
+        # которые FastAPI выполняет в отдельном потоке пула (anyio.to_thread.run_sync) — sqlite3 по
+        # умолчанию запрещает такое межпоточное использование одного объекта соединения. Безопасно
+        # здесь, поскольку соединение никогда не используется из двух потоков ОДНОВРЕМЕННО — только
+        # последовательно в рамках одного запроса (мидлварь -> require_login -> роут -> мидлварь).
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         return conn
 

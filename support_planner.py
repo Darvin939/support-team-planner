@@ -66,7 +66,10 @@ def _required_rank(method: str, path: str) -> int:
 # Starlette's add_middleware() prepends to the middleware stack, so the middleware added
 # LAST runs FIRST. require_login must run only after SessionMiddleware has populated
 # request.session, so it's registered (via @app.middleware) before add_middleware(SessionMiddleware)
-# below is called.
+# below is called. db_connection_per_request (registered further down, between this function and
+# add_middleware(SessionMiddleware)) must run BEFORE require_login so that require_login's own
+# db.user_exists call also reuses the request-scoped connection — giving the execution order
+# SessionMiddleware -> db_connection_per_request -> require_login -> route.
 @app.middleware('http')
 async def require_login(request: Request, call_next):
     path = request.url.path
@@ -94,6 +97,25 @@ async def require_login(request: Request, call_next):
         return RedirectResponse(url='/planning', status_code=302)
 
     return await call_next(request)
+
+
+# Открывает одно SQLite-соединение на весь HTTP-запрос и кладёт его в contextvar
+# (db.set_request_connection), чтобы все db.*-вызовы в рамках запроса — включая db.user_exists
+# внутри require_login выше — переиспользовали его вместо connect()/close() на каждый вызов DAO
+# (см. db.with_db_connection). Регистрируется здесь совершенно намеренно: ПОСЛЕ require_login и
+# ДО add_middleware(SessionMiddleware) ниже, чтобы попасть между ними в цепочке выполнения
+# (см. комментарий над require_login). /react-assets/* пропускается — статике соединение не нужно.
+@app.middleware('http')
+async def db_connection_per_request(request: Request, call_next):
+    if request.url.path.startswith('/react-assets/'):
+        return await call_next(request)
+    conn = db.get_db_connection()
+    token = db.set_request_connection(conn)
+    try:
+        return await call_next(request)
+    finally:
+        db.clear_request_connection(token)
+        conn.close()
 
 
 app.add_middleware(
