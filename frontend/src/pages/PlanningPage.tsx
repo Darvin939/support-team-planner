@@ -1,24 +1,14 @@
 import {type HTMLAttributes, lazy, Suspense, useEffect, useMemo, useRef, useState} from 'react';
 import {useLocation, useNavigate, useParams} from 'react-router-dom';
-import {
-  ApartmentOutlined,
-  CheckOutlined,
-  CloseOutlined,
-  EditOutlined,
-  HolderOutlined,
-  InfoCircleOutlined
-} from '@ant-design/icons';
-import type {MenuProps, TableColumnsType} from 'antd';
+import {ApartmentOutlined} from '@ant-design/icons';
 import {
   Button,
   Card,
   Checkbox,
   DatePicker,
-  Dropdown,
   Empty,
   Input,
   message,
-  Modal,
   Pagination,
   Select,
   Space,
@@ -44,26 +34,18 @@ import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
 import {useIsMobile} from '../hooks/useIsMobile';
 import {StatGroupLabel, StatTile} from '../components/StatTile';
 import {FilterField, FilterGrid} from '../components/FilterGrid';
-import {CriticalityBadge, DepBadge, type DepBadgeEntry, ScheduleChip} from '../components/planningBadges';
+import {type DepBadgeEntry} from '../components/planningBadges';
 import {TaskModal} from './planning/TaskModal';
 import {AssignmentModal} from './planning/AssignmentModal';
 import {useAssignmentDrag} from './planning/useAssignmentDrag';
 import {useTableDragScroll} from './planning/useTableDragScroll';
 import {useTaskRowDrag} from './planning/useTaskRowDrag';
-import {getCellTint, getHeaderTint} from './planning/cellTint';
+import {ASSIGNMENT_STATUS_OPTIONS, usePlanningColumns} from './planning/usePlanningColumns';
 import {apiMutate} from '../lib/apiMutate';
-import {linkify} from '../lib/linkify';
-import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT} from '../lib/dateFormats';
-import {ASSIGNMENT_STATUS_LABELS, TASK_STATUS_LABELS} from '../lib/historyFormat';
-import {NAME_COLUMN_WIDTH} from '../lib/layout';
-import taskTransitionsJson from '../data/taskTransitions.json';
+import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT} from '../lib/dateFormats';
+import {TASK_STATUS_LABELS} from '../lib/historyFormat';
 
 const DependencyGraphModal = lazy(() => import('./planning/DependencyGraphModal').then((m) => ({ default: m.DependencyGraphModal })));
-
-// Единственный источник истины — frontend/src/data/taskTransitions.json, тот же файл читает и
-// support_planner.py, чтобы правила переходов статуса задачи не могли разойтись между бэкендом и
-// фронтендом (см. openspec/changes/shared-task-transitions-source).
-const VALID_TASK_TRANSITIONS: Record<string, string[]> = taskTransitionsJson;
 
 const STORAGE_TEAM_ID = 'selectedTeamId';
 const DEFAULT_PAGE_SIZE = 20;
@@ -71,12 +53,6 @@ const PAGE_SIZE_OPTIONS = ['10', '20', '50', '100'];
 // Must match TOP_BAR_HEIGHT in components/AppShell.tsx (mobile fixed top bar height).
 const TOP_BAR_HEIGHT = 56;
 
-const ASSIGNMENT_STATUS_OPTIONS = [
-  { value: 'new', label: 'Новый' },
-  { value: 'planned', label: 'Запланировано' },
-  { value: 'rollback', label: 'Откат' },
-  { value: 'success', label: 'Успешно' },
-];
 const TASK_STATUS_OPTIONS = [
   { value: 'new', label: 'Новый' },
   { value: 'done', label: 'Выполнено' },
@@ -363,213 +339,24 @@ export function PlanningPage() {
 
   const dates = useMemo(() => dateRange(range[0], range[1]), [range]);
 
-  const columns: TableColumnsType<Task> = useMemo(() => {
-    const infoColumn: TableColumnsType<Task>[number] = {
-      title: 'Работа',
-      dataIndex: 'name',
-      key: 'name',
-      fixed: 'left',
-      width: NAME_COLUMN_WIDTH,
-      onCell: (task) => {
-        if (task.task_status === 'done') {
-          return { style: { background: `color-mix(in srgb, ${token.colorSuccess} 16%, ${token.colorBgContainer})` } };
-        }
-        if (task.task_status === 'cancelled') {
-          return { style: { background: `color-mix(in srgb, ${token.colorError} 16%, ${token.colorBgContainer})` } };
-        }
-        return {};
-      },
-      render: (_, task) => {
-        const taskDeps = depsByTask.get(task.id) ?? [];
-        const deleted = taskDeps.filter((d) => d.dep_is_deleted);
-        const cancelled = taskDeps.filter((d) => !d.dep_is_deleted && d.dep_status === 'cancelled');
-        const pending = taskDeps.filter((d) => !d.dep_is_deleted && d.dep_status !== 'done' && d.dep_status !== 'cancelled');
-        const done = taskDeps.filter((d) => !d.dep_is_deleted && d.dep_status === 'done');
-        const toDepEntry = (d: (typeof taskDeps)[number]): DepBadgeEntry => ({
-          id: d.dep_id,
-          name: d.dep_name,
-          status: d.dep_status,
-          criticality: d.dep_criticality,
-          segmentName: d.dep_segment_name,
-          isDeleted: !!d.dep_is_deleted,
-        });
-        const isTerminal = task.task_status === 'done' || task.task_status === 'cancelled';
-        const transitions = isUser ? [] : (VALID_TASK_TRANSITIONS[task.task_status] ?? []);
-        const menuItems: MenuProps['items'] = [
-          ...(transitions.length > 0
-            ? [
-                {
-                  key: 'status-group',
-                  type: 'group' as const,
-                  label: 'Статус',
-                  children: transitions.map((s) => ({
-                    key: s,
-                    label: TASK_STATUS_LABELS[s] ?? s,
-                    icon: s === 'done' ? <CheckOutlined /> : <CloseOutlined />,
-                  })),
-                },
-              ]
-            : []),
-          ...(isTerminal
-            ? []
-            : [
-                {
-                  key: 'priority-group',
-                  type: 'group' as const,
-                  label: 'Приоритет',
-                  children: [
-                    { key: 'start', label: 'В начало уровня критичности' },
-                    { key: 'end', label: 'В конец уровня критичности' },
-                  ],
-                },
-              ]),
-          {
-            key: 'graph-group',
-            type: 'group' as const,
-            label: 'Граф',
-            children: [{ key: 'graph', label: 'Граф зависимостей по этой работе', icon: <ApartmentOutlined /> }],
-          },
-        ];
-        function handleMenuClick(key: string) {
-          if (key === 'start' || key === 'end') {
-            priorityMutation.mutate({ taskId: task.id, position: key });
-            return;
-          }
-          if (key === 'graph') {
-            setGraphModal({ open: true, taskId: task.id });
-            return;
-          }
-          if (key === 'done' || key === 'cancelled') {
-            Modal.confirm({
-              title: `Перевести работу в статус «${TASK_STATUS_LABELS[key]}»?`,
-              okText: 'Перевести',
-              cancelText: 'Отмена',
-              onOk: () => statusMutation.mutate({ taskId: task.id, status: key }),
-            });
-          }
-        }
-        return (
-          <Dropdown
-            trigger={['contextMenu']}
-            menu={{ items: menuItems, onClick: ({ key }) => handleMenuClick(key) }}
-          >
-          <div title={isTerminal ? TASK_STATUS_LABELS[task.task_status] : undefined} style={{ maxWidth: NAME_COLUMN_WIDTH }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Button
-                type="text"
-                size="small"
-                disabled={isTerminal}
-                style={{ cursor: isTerminal ? 'default' : 'grab' }}
-                data-task-row-handle={isTerminal ? undefined : 'true'}
-                data-task-row-id={task.id}
-                onMouseDown={(e) => e.preventDefault()}
-                title={isTerminal ? 'Работа завершена — приоритет менять нельзя' : 'Перетащить для изменения приоритета'}
-              >
-                <HolderOutlined />
-              </Button>
-              <Button
-                type="text"
-                size="small"
-                onClick={() => setTaskModal({ open: true, task })}
-                title={isTerminal ? 'Просмотр' : 'Редактировать'}
-              >
-                {isTerminal ? <InfoCircleOutlined /> : <EditOutlined />}
-              </Button>
-              <CriticalityBadge value={task.criticality} />
-              <span style={{ fontWeight: 500, minWidth: 0, overflowWrap: 'anywhere' }} data-task-row-name>{task.name}</span>
-            </div>
-            {taskDeps.length > 0 &&
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4, flexWrap: 'wrap' }}>
-                <span>Связи:</span>
-                {deleted.length > 0 && <DepBadge kind="deleted" deps={deleted.map(toDepEntry)} onNavigate={handleDepNavigate} />}
-                {cancelled.length > 0 && <DepBadge kind="cancelled" deps={cancelled.map(toDepEntry)} onNavigate={handleDepNavigate} />}
-                {pending.length > 0 && <DepBadge kind="pending" deps={pending.map(toDepEntry)} onNavigate={handleDepNavigate} />}
-                {done.length > 0 && <DepBadge kind="done" deps={done.map(toDepEntry)} onNavigate={handleDepNavigate} />}
-              </div>
-            }
-            {task.description && (
-              <div
-                style={{ marginTop: 4, padding: '5px 8px', border: `1px solid ${token.colorBorder}`, borderRadius: 2, background: token.colorFillTertiary, fontSize: '0.85rem', color: token.colorTextSecondary, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
-              >
-                {linkify(task.description)}
-              </div>
-            )}
-          </div>
-          </Dropdown>
-        );
-      },
-    };
-
-    const dateColumns: TableColumnsType<Task> = dates.map((d) => {
-      const dateStr = d.format(API_DATE_FORMAT);
-      const isWeekend = d.day() === 0 || d.day() === 6;
-      const isToday = dateStr === today;
-      const isFreeze = freezeDays.has(dateStr);
-      const headerTint = getHeaderTint(token, { isToday, isFreeze, isWeekend });
-      const cellTint = getCellTint(token, { isToday, isFreeze, isWeekend });
-      return {
-        title: d.format(DISPLAY_DATE_SHORT_FORMAT),
-        key: dateStr,
-        width: 96,
-        onHeaderCell: () => ({
-          style: { ...headerTint, fontFamily: "'JetBrains Mono Variable', monospace" },
-        }),
-        onCell: (task) => ({
-          'data-schedule-cell': true,
-          'data-task-id': task.id,
-          'data-date': dateStr,
-          style: {
-            ...cellTint,
-            padding: 3,
-            borderLeft: `1px solid ${token.colorBorder}`,
-            cursor: task.task_status === 'done' || task.task_status === 'cancelled' ? 'not-allowed' : 'pointer',
-          },
-          onClick: () => {
-            if (chipDragSuppressRef.current || panSuppressRef.current) return;
-            if (task.task_status === 'done' || task.task_status === 'cancelled') return;
-            const assignment = assignmentByKey.get(`${task.id}-${dateStr}`) ?? null;
-            setAssignmentModal({ open: true, task, date: dateStr, assignment });
-          },
-        }),
-        render: (_, task) => {
-          const assignment = assignmentByKey.get(`${task.id}-${dateStr}`);
-          const isTerminal = task.task_status === 'done' || task.task_status === 'cancelled';
-          if (!assignment) return null;
-          const locked = isUser && assignment.status !== 'new';
-          if (isTerminal || locked) return <ScheduleChip assignment={assignment} draggable={false} />;
-          const statusItems: MenuProps['items'] = [
-            {
-              key: 'status-group',
-              type: 'group',
-              label: 'Статус',
-              children: ASSIGNMENT_STATUS_OPTIONS.filter((o) => o.value !== assignment.status).map((o) => ({
-                key: o.value,
-                label: ASSIGNMENT_STATUS_LABELS[o.value] ?? o.label
-              }))
-            }
-          ];
-          return (
-            <Dropdown
-              trigger={['contextMenu']}
-              menu={{
-                items: statusItems,
-                onClick: ({ key, domEvent }) => {
-                  domEvent.stopPropagation();
-                  assignmentStatusMutation.mutate({ assignmentId: assignment.id, status: key });
-                },
-              }}
-            >
-              <div>
-                <ScheduleChip assignment={assignment} draggable />
-              </div>
-            </Dropdown>
-          );
-        },
-      };
-    });
-
-    return [infoColumn, ...dateColumns];
-  }, [dates, assignmentByKey, depsByTask, today, token, freezeDays, isUser]);
+  const columns = usePlanningColumns({
+    dates,
+    assignmentByKey,
+    depsByTask,
+    today,
+    token,
+    freezeDays,
+    isUser,
+    chipDragSuppressRef,
+    panSuppressRef,
+    priorityMutation,
+    statusMutation,
+    assignmentStatusMutation,
+    setGraphModal,
+    setTaskModal,
+    setAssignmentModal,
+    onDepNavigate: handleDepNavigate,
+  });
 
   if (teamId === undefined) {
     return (
