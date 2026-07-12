@@ -188,6 +188,13 @@ class SQLiteBackend(DBBackend):
 
     def setup_connection(self, conn) -> None:
         conn.execute('PRAGMA foreign_keys = ON;')
+        # WAL: читатели не блокируются на время записи (важно теперь, когда одно соединение
+        # держится на весь HTTP-запрос — см. db_connection_per_request в support_planner.py).
+        # synchronous=NORMAL — рекомендуемая для WAL пара: при падении ОС (не приложения) можно
+        # потерять самый последний коммит, но сам файл БД повредиться не может; полный fsync на
+        # каждую запись (FULL) для внутреннего инструмента планирования избыточен.
+        conn.execute('PRAGMA journal_mode=WAL;')
+        conn.execute('PRAGMA synchronous=NORMAL;')
         conn.create_function('fuzzy_word_in', 2, _fuzzy_word_in)
 
     def last_insert_id(self, cursor) -> int:
