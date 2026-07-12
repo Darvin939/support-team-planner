@@ -1,5 +1,5 @@
 import {useEffect, useRef} from 'react';
-import {findScrollableAncestor} from './scrollUtils';
+import {copyFontStyle, DRAG_START_THRESHOLD_PX, findScrollableAncestor} from './scrollUtils';
 
 const SCROLL_ZONE = 60;
 const MAX_SPEED = 10;
@@ -102,7 +102,7 @@ export function useAssignmentDrag(options: {
       const dx = e.pageX - state.startX;
       const dy = e.pageY - state.startY;
 
-      if (!state.dragStarted && Math.sqrt(dx * dx + dy * dy) > 5) {
+      if (!state.dragStarted && Math.sqrt(dx * dx + dy * dy) > DRAG_START_THRESHOLD_PX) {
         state.dragStarted = true;
 
         const stickyCol = state.sourceCell.closest('tr')?.querySelector('td:first-child') as HTMLElement | null;
@@ -114,12 +114,8 @@ export function useAssignmentDrag(options: {
 
         const ghost = state.sourceChip.cloneNode(true) as HTMLElement;
         ghost.classList.add('assignment-drag-ghost');
-        const cs = getComputedStyle(state.sourceChip);
         ghost.style.width = `${state.sourceChip.getBoundingClientRect().width}px`;
-        ghost.style.fontFamily = cs.fontFamily;
-        ghost.style.fontSize = cs.fontSize;
-        ghost.style.fontWeight = cs.fontWeight;
-        ghost.style.color = cs.color;
+        copyFontStyle(ghost, state.sourceChip);
         document.body.appendChild(ghost);
         state.ghostOffsetX = ghost.offsetWidth / 2;
         state.ghostOffsetY = ghost.offsetHeight / 2;

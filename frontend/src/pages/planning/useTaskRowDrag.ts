@@ -1,4 +1,5 @@
 import {useEffect, useRef} from 'react';
+import {copyFontStyle, DRAG_START_THRESHOLD_PX} from './scrollUtils';
 
 interface RowInfo {
   id: number;
@@ -85,7 +86,7 @@ export function useTaskRowDrag(options: { onDrop: (newOrder: number[]) => void; 
       const dx = e.pageX - state.startX;
       const dy = e.pageY - state.startY;
 
-      if (!state.dragStarted && Math.sqrt(dx * dx + dy * dy) > 5) {
+      if (!state.dragStarted && Math.sqrt(dx * dx + dy * dy) > DRAG_START_THRESHOLD_PX) {
         state.dragStarted = true;
 
         const rows = Array.from(
@@ -115,11 +116,7 @@ export function useTaskRowDrag(options: { onDrop: (newOrder: number[]) => void; 
         ghost.textContent = nameEl?.textContent ?? '';
         ghost.style.borderColor = optionsRef.current.color;
         if (sourceForStyle) {
-          const cs = getComputedStyle(sourceForStyle);
-          ghost.style.fontFamily = cs.fontFamily;
-          ghost.style.fontSize = cs.fontSize;
-          ghost.style.fontWeight = cs.fontWeight;
-          ghost.style.color = cs.color;
+          copyFontStyle(ghost, sourceForStyle);
         }
         document.body.appendChild(ghost);
         state.ghostOffsetY = ghost.offsetHeight / 2;
