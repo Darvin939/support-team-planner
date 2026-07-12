@@ -119,19 +119,11 @@ def get_team_allowed_templates(conn, team_id):
 
     result = []
     for t in tmpls:
-        blocks = conn.execute(
-            '''SELECT b.id, b.name, tb.schedule_offset AS shift_days
-               FROM template_blocks tb
-               JOIN blocks b ON tb.block_id = b.id
-               WHERE tb.template_id = ?
-               ORDER BY tb.schedule_offset ASC, b.name ASC''',
-            (t['id'],)
-        ).fetchall()
         result.append({
             'id': t['id'],
             'name': t['name'],
             'segment_id': t['segment_id'],
-            'blocks': [{'id': b['id'], 'name': b['name'], 'shift_days': b['shift_days']} for b in blocks]
+            'blocks': _get_template_blocks(conn, t['id'])
         })
     return result
 
@@ -266,25 +258,31 @@ def delete_block(conn, block_id):
 
 
 # === BLOCK TEMPLATES CRUD ===
+def _get_template_blocks(conn, template_id):
+    """Блоки шаблона (id, name, shift_days), упорядоченные по смещению и имени — общий запрос для
+    get_all_templates/get_template_by_id/get_team_allowed_templates."""
+    blocks = conn.execute(
+        '''SELECT b.id, b.name, tb.schedule_offset AS shift_days
+           FROM template_blocks tb
+           JOIN blocks b ON tb.block_id = b.id
+           WHERE tb.template_id = ?
+           ORDER BY tb.schedule_offset ASC, b.name ASC''',
+        (template_id,)
+    ).fetchall()
+    return [{'id': b['id'], 'name': b['name'], 'shift_days': b['shift_days']} for b in blocks]
+
+
 @with_db_connection(commit_on_success=False)
 def get_all_templates(conn):
     """Получить все шаблоны блоков с их блоками, смещениями и сегментом"""
     tmpls = conn.execute('SELECT id, name, segment_id FROM block_templates ORDER BY name').fetchall()
     result = []
     for t in tmpls:
-        blocks = conn.execute(
-            '''SELECT b.id, b.name, tb.schedule_offset AS shift_days
-               FROM template_blocks tb
-               JOIN blocks b ON tb.block_id = b.id
-               WHERE tb.template_id = ?
-               ORDER BY tb.schedule_offset ASC, b.name ASC''',
-            (t['id'],)
-        ).fetchall()
         result.append({
             'id': t['id'],
             'name': t['name'],
             'segment_id': t['segment_id'],
-            'blocks': [{'id': b['id'], 'name': b['name'], 'shift_days': b['shift_days']} for b in blocks]
+            'blocks': _get_template_blocks(conn, t['id'])
         })
     return result
 
@@ -295,19 +293,11 @@ def get_template_by_id(conn, template_id):
     t = conn.execute('SELECT id, name, segment_id FROM block_templates WHERE id = ?', (template_id,)).fetchone()
     if not t:
         return None
-    blocks = conn.execute(
-        '''SELECT b.id, b.name, tb.schedule_offset AS shift_days
-           FROM template_blocks tb
-           JOIN blocks b ON tb.block_id = b.id
-           WHERE tb.template_id = ?
-           ORDER BY tb.schedule_offset ASC, b.name ASC''',
-        (template_id,)
-    ).fetchall()
     return {
         'id': t['id'],
         'name': t['name'],
         'segment_id': t['segment_id'],
-        'blocks': [{'id': b['id'], 'name': b['name'], 'shift_days': b['shift_days']} for b in blocks]
+        'blocks': _get_template_blocks(conn, template_id)
     }
 
 
