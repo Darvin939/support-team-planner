@@ -3,6 +3,7 @@ import {DeleteOutlined, EditOutlined} from '@ant-design/icons';
 import {Button, Card, Form, Input, InputNumber, List, message, Modal, Popconfirm, Select, Space, Tag} from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import {type BlockTemplate, useBlocks, useBlockTemplates, useSegments} from '../../hooks/useSettingsData';
+import {useCrudMutations} from '../../hooks/useCrudMutations';
 import {apiMutate} from '../../lib/apiMutate';
 
 interface TemplateEntryValue {
@@ -74,28 +75,14 @@ function TemplatesList() {
   const { data: templates } = useBlockTemplates();
   const { data: blocks } = useBlocks();
   const { data: segments } = useSegments();
-  const queryClient = useQueryClient();
   const [modalTemplate, setModalTemplate] = useState<BlockTemplate | 'new' | null>(null);
   const [form] = Form.useForm<TemplateFormValues>();
 
-  const saveMutation = useMutation({
-    mutationFn: async (values: TemplateFormValues) => {
-      const isNew = modalTemplate === 'new';
-      const url = isNew ? '/api/block-templates' : `/api/block-templates/${(modalTemplate as BlockTemplate).id}`;
-      return apiMutate(url, isNew ? 'POST' : 'PUT', values);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['block-templates'] });
-      message.success('Сохранено');
-      setModalTemplate(null);
-    },
-    onError: (e: Error) => message.error(e.message),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (templateId: number) => apiMutate(`/api/block-templates/${templateId}`, 'DELETE'),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['block-templates'] }),
-    onError: (e: Error) => message.error(e.message),
+  const { saveMutation, deleteMutation } = useCrudMutations<BlockTemplate, TemplateFormValues>({
+    queryKey: ['block-templates'],
+    baseUrl: '/api/block-templates',
+    modalEntity: modalTemplate,
+    onSaveSuccess: () => setModalTemplate(null),
   });
 
   function openModal(tmpl: BlockTemplate | 'new') {

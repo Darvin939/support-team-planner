@@ -1,10 +1,9 @@
 import {useState} from 'react';
 import {DeleteOutlined, EditOutlined} from '@ant-design/icons';
-import {Button, Card, Checkbox, Form, Input, message, Modal, Popconfirm, Space, Tag} from 'antd';
-import {useMutation, useQueryClient} from '@tanstack/react-query';
+import {Button, Card, Checkbox, Form, Input, Modal, Popconfirm, Space, Tag} from 'antd';
 import {type Team, useTeams} from '../../hooks/useTeams';
 import {useBlockTemplates} from '../../hooks/useSettingsData';
-import {apiMutate} from '../../lib/apiMutate';
+import {useCrudMutations} from '../../hooks/useCrudMutations';
 
 interface TeamFormValues {
   name: string;
@@ -14,31 +13,15 @@ interface TeamFormValues {
 export function TeamsTab() {
   const { data: teams } = useTeams();
   const { data: templates } = useBlockTemplates();
-  const queryClient = useQueryClient();
   const [modalTeam, setModalTeam] = useState<Team | 'new' | null>(null);
   const [form] = Form.useForm<TeamFormValues>();
 
-  const saveMutation = useMutation({
-    mutationFn: async (values: TeamFormValues) => {
-      const isNew = modalTeam === 'new';
-      const url = isNew ? '/api/teams' : `/api/teams/${(modalTeam as Team).id}`;
-      return apiMutate(url, isNew ? 'POST' : 'PUT', values);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['teams'] });
-      message.success('Сохранено');
-      setModalTeam(null);
-    },
-    onError: (e: Error) => message.error(e.message),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (teamId: number) => apiMutate(`/api/teams/${teamId}`, 'DELETE'),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['teams'] });
-      message.success('Команда удалена');
-    },
-    onError: (e: Error) => message.error(e.message),
+  const { saveMutation, deleteMutation } = useCrudMutations<Team, TeamFormValues>({
+    queryKey: ['teams'],
+    baseUrl: '/api/teams',
+    modalEntity: modalTeam,
+    onSaveSuccess: () => setModalTeam(null),
+    deleteSuccessMessage: 'Команда удалена',
   });
 
   function openModal(team: Team | 'new') {

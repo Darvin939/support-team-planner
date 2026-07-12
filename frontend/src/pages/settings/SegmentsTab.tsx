@@ -1,9 +1,8 @@
 import {useState} from 'react';
 import {DeleteOutlined, EditOutlined} from '@ant-design/icons';
-import {Button, Card, Form, Input, List, message, Modal, Popconfirm, Space} from 'antd';
-import {useMutation, useQueryClient} from '@tanstack/react-query';
+import {Button, Card, Form, Input, List, Modal, Popconfirm, Space} from 'antd';
 import {type Segment, useSegments} from '../../hooks/useSettingsData';
-import {apiMutate} from '../../lib/apiMutate';
+import {useCrudMutations} from '../../hooks/useCrudMutations';
 
 interface SegmentFormValues {
   name: string;
@@ -11,31 +10,15 @@ interface SegmentFormValues {
 
 export function SegmentsTab() {
   const { data: segments } = useSegments();
-  const queryClient = useQueryClient();
   const [modalSegment, setModalSegment] = useState<Segment | 'new' | null>(null);
   const [form] = Form.useForm<SegmentFormValues>();
 
-  const saveMutation = useMutation({
-    mutationFn: async (values: SegmentFormValues) => {
-      const isNew = modalSegment === 'new';
-      const url = isNew ? '/api/segments' : `/api/segments/${(modalSegment as Segment).id}`;
-      return apiMutate(url, isNew ? 'POST' : 'PUT', values);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['segments'] });
-      message.success('Сохранено');
-      setModalSegment(null);
-    },
-    onError: (e: Error) => message.error(e.message),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (segmentId: number) => apiMutate(`/api/segments/${segmentId}`, 'DELETE'),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['segments'] });
-      message.success('Сегмент удалён');
-    },
-    onError: (e: Error) => message.error(e.message),
+  const { saveMutation, deleteMutation } = useCrudMutations<Segment, SegmentFormValues>({
+    queryKey: ['segments'],
+    baseUrl: '/api/segments',
+    modalEntity: modalSegment,
+    onSaveSuccess: () => setModalSegment(null),
+    deleteSuccessMessage: 'Сегмент удалён',
   });
 
   function openModal(segment: Segment | 'new') {

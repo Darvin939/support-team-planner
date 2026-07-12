@@ -1,10 +1,9 @@
 import {useState} from 'react';
 import {DeleteOutlined, EditOutlined, LockOutlined} from '@ant-design/icons';
-import {Button, Form, Input, List, message, Modal, Popconfirm, Select, Space, Switch, Tag, Tooltip} from 'antd';
-import {useMutation, useQueryClient} from '@tanstack/react-query';
+import {Button, Form, Input, List, Modal, Popconfirm, Select, Space, Switch, Tag, Tooltip} from 'antd';
 import {type User, useUsers} from '../../hooks/useSettingsData';
 import {useMe} from '../../hooks/useMe';
-import {apiMutate} from '../../lib/apiMutate';
+import {useCrudMutations} from '../../hooks/useCrudMutations';
 
 interface UserFormValues {
   last_name: string | null;
@@ -26,31 +25,15 @@ export function UsersTab() {
   const { data: users } = useUsers();
   const { data: me } = useMe();
   const isAdmin = me?.role === 'admin';
-  const queryClient = useQueryClient();
   const [modalUser, setModalUser] = useState<User | 'new' | null>(null);
   const [form] = Form.useForm<UserFormValues>();
 
-  const saveMutation = useMutation({
-    mutationFn: async (values: UserFormValues) => {
-      const isNew = modalUser === 'new';
-      const url = isNew ? '/api/users' : `/api/users/${(modalUser as User).id}`;
-      return apiMutate(url, isNew ? 'POST' : 'PUT', { ...values, password: values.password || null });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      message.success('Сохранено');
-      setModalUser(null);
-    },
-    onError: (e: Error) => message.error(e.message),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (userId: number) => apiMutate(`/api/users/${userId}`, 'DELETE'),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      message.success('Пользователь удалён');
-    },
-    onError: (e: Error) => message.error(e.message),
+  const { saveMutation, deleteMutation } = useCrudMutations<User, UserFormValues>({
+    queryKey: ['users'],
+    baseUrl: '/api/users',
+    modalEntity: modalUser,
+    onSaveSuccess: () => setModalUser(null),
+    deleteSuccessMessage: 'Пользователь удалён',
   });
 
   const isEditingProtected = modalUser !== 'new' && modalUser !== null && modalUser.is_protected;
@@ -124,7 +107,7 @@ export function UsersTab() {
         okText={modalUser === 'new' ? 'Создать' : 'Обновить'}
         confirmLoading={saveMutation.isPending}
       >
-        <Form form={form} layout="vertical" onFinish={(v) => saveMutation.mutate(v)}>
+        <Form form={form} layout="vertical" onFinish={(v) => saveMutation.mutate({ ...v, password: v.password || null })}>
           {isEditingProtected && (
             <Tag icon={<LockOutlined />} color="default" style={{ marginBottom: 16 }}>
               Для администратора по умолчанию можно изменить только логин и пароль
