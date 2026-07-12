@@ -574,21 +574,29 @@ def set_freeze_days_for_month(conn, year, month, days):
 
 
 # === TASKS CRUD ===
+def _fuzzy_search_clause(search, name_col='name', description_col='description'):
+    """Строит WHERE-фрагмент и параметры для нечёткого поиска задач по словам: каждое слово
+    должно совпасть (через fuzzy_word_in) с name ИЛИ description. Пустой search -> ("", []).
+    name_col/description_col позволяют квалифицировать колонки при JOIN (см. get_tasks_by_team)."""
+    if not search:
+        return "", []
+    words = search.split()
+    word_clauses = " AND ".join(
+        f"(fuzzy_word_in({name_col}, ?) OR fuzzy_word_in({description_col}, ?))" for _ in words
+    )
+    params = []
+    for word in words:
+        params += [word, word]
+    return f"AND ({word_clauses})", params
+
+
 @with_db_connection(commit_on_success=False)
 def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, show_completed=False, task_id=None):
     """Получить задачи команды с пагинацией и поиском"""
     completed_clause = "" if show_completed else "AND task_status NOT IN ('done', 'cancelled')"
     params = [team_id]
-    if search:
-        words = search.split()
-        word_clauses = " AND ".join(
-            "(fuzzy_word_in(tasks.name, ?) OR fuzzy_word_in(tasks.description, ?))" for _ in words
-        )
-        search_clause = f"AND ({word_clauses})"
-        for word in words:
-            params += [word, word]
-    else:
-        search_clause = ""
+    search_clause, search_params = _fuzzy_search_clause(search, 'tasks.name', 'tasks.description')
+    params += search_params
     id_clause = ""
     if task_id:
         id_clause = "AND tasks.id = ?"
@@ -625,16 +633,8 @@ def get_tasks_count_by_team(conn, team_id, search=None, show_completed=False):
     """Получить общее количество задач команды (с учётом поиска)"""
     completed_clause = "" if show_completed else "AND task_status NOT IN ('done', 'cancelled')"
     params = [team_id]
-    if search:
-        words = search.split()
-        word_clauses = " AND ".join(
-            "(fuzzy_word_in(name, ?) OR fuzzy_word_in(description, ?))" for _ in words
-        )
-        search_clause = f"AND ({word_clauses})"
-        for word in words:
-            params += [word, word]
-    else:
-        search_clause = ""
+    search_clause, search_params = _fuzzy_search_clause(search)
+    params += search_params
     return conn.execute(
         f"SELECT COUNT(*) FROM tasks WHERE team_id = ? AND is_deleted = 0 {completed_clause} {search_clause}",
         params
@@ -1037,16 +1037,8 @@ def get_dependency_graph_for_team(conn, team_id, task_id=None):
 @with_db_connection(commit_on_success=False)
 def get_active_tasks_flat(conn, team_id, search=None, limit=50, include_ids=None):
     params = [team_id]
-    if search:
-        words = search.split()
-        word_clauses = " AND ".join(
-            "(fuzzy_word_in(name, ?) OR fuzzy_word_in(description, ?))" for _ in words
-        )
-        search_clause = f"AND ({word_clauses})"
-        for word in words:
-            params += [word, word]
-    else:
-        search_clause = ""
+    search_clause, search_params = _fuzzy_search_clause(search)
+    params += search_params
     params.append(limit)
 
     include_clause = ""
