@@ -1,4 +1,5 @@
 import {useQuery} from '@tanstack/react-query';
+import {apiGet} from '../lib/apiMutate';
 
 export interface Team {
   id: number;
@@ -9,10 +10,6 @@ export interface Team {
 export function useTeams() {
   return useQuery<Team[]>({
     queryKey: ['teams'],
-    queryFn: async () => {
-      const r = await fetch('/api/teams', { credentials: 'same-origin' });
-      if (!r.ok) throw new Error(`GET /api/teams -> ${r.status}`);
-      return r.json();
-    },
+    queryFn: () => apiGet('/api/teams'),
   });
 }

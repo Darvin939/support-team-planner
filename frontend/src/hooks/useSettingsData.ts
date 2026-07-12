@@ -1,4 +1,5 @@
 import {useQuery} from '@tanstack/react-query';
+import {apiGet} from '../lib/apiMutate';
 
 export interface User {
   id: number;
@@ -34,28 +35,22 @@ export interface Segment {
   name: string;
 }
 
-async function getJson<T>(url: string): Promise<T> {
-  const r = await fetch(url, { credentials: 'same-origin' });
-  if (!r.ok) throw new Error(`GET ${url} -> ${r.status}`);
-  return r.json();
-}
-
 export function useUsers() {
-  return useQuery<User[]>({ queryKey: ['users'], queryFn: () => getJson('/api/users') });
+  return useQuery<User[]>({ queryKey: ['users'], queryFn: () => apiGet('/api/users') });
 }
 
 export function useBlocks() {
-  return useQuery<Block[]>({ queryKey: ['blocks'], queryFn: () => getJson('/api/blocks') });
+  return useQuery<Block[]>({ queryKey: ['blocks'], queryFn: () => apiGet('/api/blocks') });
 }
 
 export function useBlockTemplates() {
-  return useQuery<BlockTemplate[]>({ queryKey: ['block-templates'], queryFn: () => getJson('/api/block-templates') });
+  return useQuery<BlockTemplate[]>({ queryKey: ['block-templates'], queryFn: () => apiGet('/api/block-templates') });
 }
 
 export function useFreezeDays() {
-  return useQuery<string[]>({ queryKey: ['freeze-days'], queryFn: () => getJson('/api/freeze-days') });
+  return useQuery<string[]>({ queryKey: ['freeze-days'], queryFn: () => apiGet('/api/freeze-days') });
 }
 
 export function useSegments() {
-  return useQuery<Segment[]>({ queryKey: ['segments'], queryFn: () => getJson('/api/segments') });
+  return useQuery<Segment[]>({ queryKey: ['segments'], queryFn: () => apiGet('/api/segments') });
 }

@@ -6,6 +6,7 @@ import dayjs from 'dayjs';
 import {useTeams} from '../hooks/useTeams';
 import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
 import {useIsMobile} from '../hooks/useIsMobile';
+import {apiGet} from '../lib/apiMutate';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT} from '../lib/dateFormats';
 import {StatGroupLabel, StatTile} from '../components/StatTile';
 import {FilterField, FilterGrid} from '../components/FilterGrid';
@@ -42,14 +43,9 @@ const STATUS_LABEL: Record<string, string> = { new: 'Новый', planned: 'За
 function useActiveAssignments(from: string, to: string, teamIds: number[], offset: number, limit: number) {
   return useQuery<ActiveAssignmentsResponse>({
     queryKey: ['active-assignments', from, to, teamIds, offset, limit],
-    queryFn: async () => {
+    queryFn: () => {
       const teamParam = teamIds.length ? `&team_ids=${teamIds.join(',')}` : '';
-      const r = await fetch(
-        `/api/active-assignments/0?start_date=${from}&end_date=${to}${teamParam}&offset=${offset}&limit=${limit}`,
-        { credentials: 'same-origin' }
-      );
-      if (!r.ok) throw new Error(`GET /api/active-assignments -> ${r.status}`);
-      return r.json();
+      return apiGet(`/api/active-assignments/0?start_date=${from}&end_date=${to}${teamParam}&offset=${offset}&limit=${limit}`);
     },
   });
 }

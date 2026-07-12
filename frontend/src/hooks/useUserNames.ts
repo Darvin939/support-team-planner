@@ -1,4 +1,5 @@
 import {useQuery} from '@tanstack/react-query';
+import {apiGet} from '../lib/apiMutate';
 
 export interface User {
   id: number;
@@ -17,11 +18,7 @@ export function formatDisplayName(u: Pick<User, 'last_name' | 'first_name' | 'mi
 function useUsersQuery() {
   return useQuery<User[]>({
     queryKey: ['users'],
-    queryFn: async () => {
-      const r = await fetch('/api/users', { credentials: 'same-origin' });
-      if (!r.ok) throw new Error(`GET /api/users -> ${r.status}`);
-      return r.json();
-    },
+    queryFn: () => apiGet('/api/users'),
     staleTime: 5 * 60 * 1000,
   });
 }

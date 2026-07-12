@@ -17,3 +17,12 @@ export async function apiMutate(url: string, method: 'POST' | 'PUT' | 'PATCH' | 
   if (!r.ok) throw new Error(data.error || `${method} ${url} -> ${r.status}`);
   return data;
 }
+
+/** GET helper — returns the parsed JSON body and throws with the server's `error` message on a
+ * non-2xx response, mirroring apiMutate's error-message preference (server message first). */
+export async function apiGet<T>(url: string): Promise<T> {
+  const r = await fetch(url, { credentials: 'same-origin' });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error((data as ApiResult).error || `GET ${url} -> ${r.status}`);
+  return data as T;
+}

@@ -8,6 +8,7 @@ import {useUserNames, useUserOptions} from '../hooks/useUserNames';
 import {useIsMobile} from '../hooks/useIsMobile';
 import {FilterField, FilterGrid} from '../components/FilterGrid';
 import {formatChangedBy, formatHistoryText, type HistoryEntry} from '../lib/historyFormat';
+import {apiGet} from '../lib/apiMutate';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT} from '../lib/dateFormats';
 
 const JOURNAL_PAGE_SIZE = 20;
@@ -31,15 +32,13 @@ function useJournal(teamId: number | undefined, offset: number, filters: Journal
   return useQuery<{ items: JournalItem[]; total: number }>({
     queryKey: ['journal', teamId, offset, filters],
     enabled: teamId !== undefined,
-    queryFn: async () => {
+    queryFn: () => {
       const params = new URLSearchParams({ offset: String(offset), limit: String(JOURNAL_PAGE_SIZE) });
       if (filters.search) params.set('search', filters.search);
       if (filters.dateFrom) params.set('date_from', filters.dateFrom);
       if (filters.dateTo) params.set('date_to', filters.dateTo);
       if (filters.changedByUserId) params.set('changed_by_user_id', String(filters.changedByUserId));
-      const r = await fetch(`/api/journal/${teamId}?${params}`, { credentials: 'same-origin' });
-      if (!r.ok) throw new Error(`GET /api/journal -> ${r.status}`);
-      return r.json();
+      return apiGet(`/api/journal/${teamId}?${params}`);
     },
   });
 }
@@ -48,11 +47,7 @@ function useTaskHistory(taskId: number | null, offset: number) {
   return useQuery<{ history: HistoryEntry[]; total: number }>({
     queryKey: ['task-history', taskId, offset],
     enabled: taskId !== null,
-    queryFn: async () => {
-      const r = await fetch(`/api/task/${taskId}/history?offset=${offset}&limit=${HISTORY_PAGE_SIZE}`, { credentials: 'same-origin' });
-      if (!r.ok) throw new Error(`GET /api/task/history -> ${r.status}`);
-      return r.json();
-    },
+    queryFn: () => apiGet(`/api/task/${taskId}/history?offset=${offset}&limit=${HISTORY_PAGE_SIZE}`),
   });
 }
 

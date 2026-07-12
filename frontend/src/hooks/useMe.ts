@@ -1,4 +1,5 @@
 import {useQuery} from '@tanstack/react-query';
+import {apiGet} from '../lib/apiMutate';
 
 export interface Me {
   user_id: number;
@@ -11,11 +12,7 @@ export interface Me {
 export function useMe() {
   return useQuery<Me>({
     queryKey: ['me'],
-    queryFn: async () => {
-      const r = await fetch('/api/me', { credentials: 'same-origin' });
-      if (!r.ok) throw new Error(`GET /api/me -> ${r.status}`);
-      return r.json();
-    },
+    queryFn: () => apiGet('/api/me'),
     retry: false,
   });
 }

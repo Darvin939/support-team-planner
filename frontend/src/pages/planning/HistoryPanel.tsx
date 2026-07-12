@@ -4,6 +4,7 @@ import {useQuery} from '@tanstack/react-query';
 import {formatChangedBy, formatHistoryText, type HistoryEntry} from '../../lib/historyFormat';
 import {useUserNames} from '../../hooks/useUserNames';
 import {useIsMobile} from '../../hooks/useIsMobile';
+import {apiGet} from '../../lib/apiMutate';
 
 const HISTORY_PAGE_SIZE = 10;
 
@@ -34,11 +35,9 @@ export function HistoryPanel({ kind, entityId, open }: { kind: 'task' | 'assignm
   const { data, isLoading } = useQuery<{ history: HistoryEntry[]; total: number }>({
     queryKey: ['entity-history', kind, entityId, offset],
     enabled: open && entityId !== null,
-    queryFn: async () => {
+    queryFn: () => {
       const url = kind === 'task' ? `/api/task/${entityId}/history` : `/api/assignment/${entityId}/history`;
-      const r = await fetch(`${url}?offset=${offset}&limit=${HISTORY_PAGE_SIZE}`, { credentials: 'same-origin' });
-      if (!r.ok) throw new Error(`GET history -> ${r.status}`);
-      return r.json();
+      return apiGet(`${url}?offset=${offset}&limit=${HISTORY_PAGE_SIZE}`);
     },
   });
 
