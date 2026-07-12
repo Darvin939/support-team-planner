@@ -414,6 +414,8 @@ def save_task_api(request: Request, data: TaskIn):
         return JSONResponse({'error': 'Указан несуществующий сегмент'}, status_code=400)
 
     if data.task_id:
+        if not db.task_exists(data.task_id):
+            return JSONResponse({'error': 'Задача не найдена'}, status_code=404)
         task = db.get_task_status(data.task_id)
         if task and (task['task_status'] in ('done', 'cancelled') or task['is_deleted']):
             return JSONResponse({'error': 'Нельзя редактировать завершённую или отменённую задачу'}, status_code=400)
