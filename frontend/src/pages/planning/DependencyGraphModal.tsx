@@ -40,6 +40,7 @@ interface GraphNodeData extends Record<string, unknown> {
   task_status: string;
   criticality: string;
   segment_name: string;
+  isFocal: boolean;
   onHandlePointerDown: () => void;
 }
 
@@ -88,7 +89,9 @@ function TaskGraphNode({ id, data, selected }: { id: string; data: GraphNodeData
         borderRadius: 14,
         border: `1.5px solid ${borderColor}`,
         background: token.colorBgContainer,
-        boxShadow: token.boxShadowTertiary,
+        boxShadow: data.isFocal
+          ? `0 0 0 3px ${token.colorPrimaryBg}, 0 0 0 1.5px ${token.colorPrimary}, ${token.boxShadowTertiary}`
+          : token.boxShadowTertiary,
         cursor: 'pointer',
       }}
     >
@@ -199,7 +202,8 @@ function layout(
   nodes: DependencyGraphNode[],
   edges: { task_id: number; dep_id: number }[],
   onDeleteEdge: (taskId: number, depId: number) => void,
-  onHandlePointerDown: () => void
+  onHandlePointerDown: () => void,
+  focalTaskId?: number
 ) {
   const g = new dagre.graphlib.Graph();
   g.setGraph({ rankdir: 'LR', nodesep: 56, ranksep: 130, ranker: 'longest-path' });
@@ -222,6 +226,7 @@ function layout(
         task_status: n.task_status,
         criticality: n.criticality,
         segment_name: n.segment_name,
+        isFocal: n.id === focalTaskId,
         onHandlePointerDown,
       },
     };
@@ -290,8 +295,8 @@ export function DependencyGraphModal({
 
   const { rfNodes, rfEdges } = useMemo(() => {
     if (!data) return { rfNodes: [], rfEdges: [] };
-    return layout(data.nodes, data.edges, handleDeleteEdge, suppressNodeClickUntilMouseUp);
-  }, [data, handleDeleteEdge, suppressNodeClickUntilMouseUp]);
+    return layout(data.nodes, data.edges, handleDeleteEdge, suppressNodeClickUntilMouseUp, taskId);
+  }, [data, handleDeleteEdge, suppressNodeClickUntilMouseUp, taskId]);
 
   // useNodesState/useEdgesState (not the raw layout() output passed straight through) is required
   // for @xyflow/react to apply its own selection/interaction changes — passing plain arrays with no
