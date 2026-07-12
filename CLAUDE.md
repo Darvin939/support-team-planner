@@ -56,13 +56,10 @@ returns JSON (`{success: true}` / `{"error": "..."}`) instead of a redirect or a
 page, matching the rest of the app's `/api/*` convention — the React login page does the
 `window.location.href = '/planning'` navigation itself on success.
 
-`requirements.txt` currently lists `fastapi`, `uvicorn[standard]`, `pydantic`, `starlette`, `requests`,
-`python-dotenv`, `urllib3`. **Known gaps, both undeclared:** the login feature needs `itsdangerous` (used
-internally by `starlette.middleware.sessions.SessionMiddleware` to sign the session cookie), and the `/login`
-form (`Form(...)` params in `support_planner.py`) needs `python-multipart` for Starlette's form parsing — neither
-is in `requirements.txt`, so a fresh `pip install -r requirements.txt` will raise `AssertionError` on first login
-unless both are installed separately (they're transitive deps of some `starlette`/`fastapi` extras, but not
-guaranteed).
+`requirements.txt` lists `fastapi`, `uvicorn[standard]`, `pydantic`, `starlette`, `requests`, `python-dotenv`,
+`urllib3`, `itsdangerous` (used internally by `starlette.middleware.sessions.SessionMiddleware` to sign the
+session cookie), and `python-multipart` (needed by Starlette's form parser for the `/login` route's
+`Form(...)` params) — a fresh `pip install -r requirements.txt` is sufficient for login to work.
 
 **SSL/TLS via Vault (`ssl_context.py`):** on startup, `support_planner.py`'s `__main__` block calls `get_cert()`,
 which authenticates to a HashiCorp Vault instance via AppRole (`VAULT_ADDR`, `VAULT_TENANT`, `VAULT_KV_PATH`,

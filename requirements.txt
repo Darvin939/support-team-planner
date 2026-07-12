@@ -5,3 +5,5 @@ starlette
 requests
 python-dotenv
 urllib3
+itsdangerous
+python-multipart
