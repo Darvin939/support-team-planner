@@ -7,15 +7,21 @@ export interface TemplateBlock {
   shift_days: number;
 }
 
-/** Даты блоков шаблона от базовой даты — с обходом дней фриза день за днём (сдвиг
- * накапливается, чтобы несколько блоков подряд на днях фриза не съехали на одну дату). */
+/** Пятница и суббота исключаются из автоназначения наравне с днями фриза. */
+function isExcludedAutoAssignDay(d: dayjs.Dayjs, freezeDays: Set<string>): boolean {
+  const dow = d.day();
+  return dow === 5 || dow === 6 || freezeDays.has(d.format(API_DATE_FORMAT));
+}
+
+/** Даты блоков шаблона от базовой даты — с обходом дней фриза, пятниц и суббот день за днём
+ * (сдвиг накапливается, чтобы несколько блоков подряд на исключённых днях не съехали на одну дату). */
 export function computeAutoAssignDates(baseDateStr: string, blocks: TemplateBlock[], freezeDays: Set<string>): Record<number, string> {
   const sorted = [...blocks].sort((a, b) => a.shift_days - b.shift_days);
   let offset = 0;
   const result: Record<number, string> = {};
   sorted.forEach((block) => {
     let d = dayjs(baseDateStr).add(block.shift_days + offset, 'day');
-    while (freezeDays.has(d.format(API_DATE_FORMAT))) {
+    while (isExcludedAutoAssignDay(d, freezeDays)) {
       d = d.add(1, 'day');
       offset += 1;
     }
