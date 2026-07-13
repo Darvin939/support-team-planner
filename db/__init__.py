@@ -963,14 +963,19 @@ def get_dependency_graph_for_team(conn, team_id, task_id=None):
     """Граф зависимостей для визуализации — в отличие от get_all_deps_for_team не ограничен
     списком уже загруженных task_ids.
 
-    Без task_id: все не удалённые задачи команды, состоящие хотя бы в одной связи (изолированные
-    задачи без единой зависимости исключаются, чтобы общий граф команды не превращался в "паутину"
-    из несвязанных узлов).
+    Без task_id: все не удалённые задачи команды, состоящие хотя бы в одной видимой связи
+    (изолированные задачи без единой зависимости исключаются, чтобы общий граф команды не
+    превращался в "паутину" из несвязанных узлов).
 
     С task_id: только связная компонента конкретной задачи (её предки и потомки по цепочке
     зависимостей в обе стороны) — сама задача включается всегда, даже если у неё нет ни одной
-    связи."""
+    связи.
+
+    В обоих случаях связь между двумя задачами, уже находящимися в терминальном статусе
+    (done/cancelled), не возвращается — обе стороны завершены, и такая связь не несёт полезной
+    информации для текущего планирования."""
     # @formatter:off
+    terminal_edge_filter = "NOT (src.task_status IN ('done', 'cancelled') AND dep.task_status IN ('done', 'cancelled'))"
     if task_id is not None:
         component_ids = _dependency_component_ids(conn, task_id)
         placeholders = ','.join('?' * len(component_ids))
@@ -989,28 +994,30 @@ def get_dependency_graph_for_team(conn, team_id, task_id=None):
                 JOIN tasks src ON td.task_id            = src.id
                 JOIN tasks dep ON td.depends_on_task_id = dep.id
                 WHERE src.team_id = ? AND src.is_deleted = 0 AND dep.is_deleted = 0
-                  AND td.task_id IN ({placeholders}) AND td.depends_on_task_id IN ({placeholders})''',
+                  AND td.task_id IN ({placeholders}) AND td.depends_on_task_id IN ({placeholders})
+                  AND {terminal_edge_filter}''',
             (team_id, *params, *params)
         ).fetchall()
     else:
+        edges = conn.execute(
+            f'''SELECT td.task_id, td.depends_on_task_id AS dep_id
+                FROM task_dependencies td
+                JOIN tasks src ON td.task_id            = src.id
+                JOIN tasks dep ON td.depends_on_task_id = dep.id
+                WHERE src.team_id = ? AND src.is_deleted = 0 AND dep.is_deleted = 0
+                  AND {terminal_edge_filter}''',
+            (team_id,)
+        ).fetchall()
+        node_ids = {e['task_id'] for e in edges} | {e['dep_id'] for e in edges}
+        placeholders = ','.join('?' * len(node_ids)) if node_ids else 'NULL'
         nodes = conn.execute(
-            '''SELECT t.id, t.name, t.description, t.task_status, t.criticality,
+            f'''SELECT t.id, t.name, t.description, t.task_status, t.criticality,
                       t.segment_id, seg.name AS segment_name
                FROM tasks t
                JOIN segments seg ON t.segment_id = seg.id
-               WHERE t.team_id = ? AND t.is_deleted = 0
-                 AND t.id IN (SELECT task_id FROM task_dependencies
-                              UNION SELECT depends_on_task_id FROM task_dependencies)''',
-            (team_id,)
-        ).fetchall()
-        edges = conn.execute(
-            '''SELECT td.task_id, td.depends_on_task_id AS dep_id
-               FROM task_dependencies td
-               JOIN tasks src ON td.task_id            = src.id
-               JOIN tasks dep ON td.depends_on_task_id = dep.id
-               WHERE src.team_id = ? AND src.is_deleted = 0 AND dep.is_deleted = 0''',
-            (team_id,)
-        ).fetchall()
+               WHERE t.team_id = ? AND t.is_deleted = 0 AND t.id IN ({placeholders})''',
+            (team_id, *node_ids)
+        ).fetchall() if node_ids else []
     # @formatter:on
     return {'nodes': nodes, 'edges': edges}
 

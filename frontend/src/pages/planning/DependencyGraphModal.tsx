@@ -144,8 +144,6 @@ function TaskGraphNode({ id, data, selected }: { id: string; data: GraphNodeData
 
 const nodeTypes = { task: TaskGraphNode };
 
-const TERMINAL_STATUSES = new Set(['done', 'cancelled']);
-
 interface DependencyEdgeData extends Record<string, unknown> {
   onDelete: (taskId: number, depId: number) => void;
   taskId: number;
@@ -207,21 +205,13 @@ function layout(
   onHandlePointerDown: () => void,
   focalTaskId?: number
 ) {
-  const statusById = new Map(nodes.map((n) => [n.id, n.task_status]));
-  // Связь между двумя задачами, обе из которых уже в терминальном статусе (done/cancelled),
-  // больше не несёт полезной информации — обе стороны завершены, зависимость не влияет на
-  // текущую работу, поэтому такие рёбра скрываются из графа целиком (включая раскладку dagre).
-  const visibleEdges = edges.filter(
-    (e) => !(TERMINAL_STATUSES.has(statusById.get(e.dep_id) ?? '') && TERMINAL_STATUSES.has(statusById.get(e.task_id) ?? ''))
-  );
-
   const g = new dagre.graphlib.Graph();
   g.setGraph({ rankdir: 'LR', nodesep: 56, ranksep: 130, ranker: 'longest-path' });
   g.setDefaultEdgeLabel(() => ({}));
   nodes.forEach((n) => g.setNode(String(n.id), { width: NODE_WIDTH, height: NODE_HEIGHT }));
   // Ребро "task зависит от dep" рисуем dep -> task, чтобы граф читался слева направо в
   // порядке выполнения (сначала зависимость, потом зависящая от неё задача).
-  visibleEdges.forEach((e) => g.setEdge(String(e.dep_id), String(e.task_id)));
+  edges.forEach((e) => g.setEdge(String(e.dep_id), String(e.task_id)));
   dagre.layout(g);
 
   const rfNodes: Node<GraphNodeData>[] = nodes.map((n) => {
@@ -241,7 +231,7 @@ function layout(
       },
     };
   });
-  const rfEdges: Edge<DependencyEdgeData>[] = visibleEdges.map((e) => ({
+  const rfEdges: Edge<DependencyEdgeData>[] = edges.map((e) => ({
     id: `${e.dep_id}-${e.task_id}`,
     source: String(e.dep_id),
     target: String(e.task_id),
