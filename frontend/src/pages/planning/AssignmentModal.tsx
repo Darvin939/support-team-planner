@@ -211,7 +211,6 @@ export function AssignmentModal({
   taskAssignments,
   freezeDays,
   onClose,
-  onDeleted,
 }: {
   open: boolean;
   teamId: number;
@@ -221,7 +220,6 @@ export function AssignmentModal({
   taskAssignments: Assignment[];
   freezeDays: Set<string>;
   onClose: () => void;
-  onDeleted?: () => void;
 }) {
   const [form] = Form.useForm<AssignmentFormValues>();
   const queryClient = useQueryClient();
@@ -370,7 +368,6 @@ export function AssignmentModal({
       queryClient.invalidateQueries({ queryKey: ['assignments'] });
       queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
       message.success('Назначение удалено');
-      onDeleted?.();
       onClose();
     },
     onError: (e: Error) => message.error(e.message),

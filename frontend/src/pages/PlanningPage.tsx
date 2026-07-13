@@ -540,7 +540,6 @@ export function PlanningPage() {
         assignment={assignmentModal.assignment}
         taskAssignments={assignmentModal.task ? (assignmentsByTask.get(assignmentModal.task.id) ?? jumpAssignments ?? []) : []}
         freezeDays={freezeDays}
-        onDeleted={triggerCenterOnNextLoad}
         onClose={() => setAssignmentModal({ open: false, task: null, date: null, assignment: null })}
       />
       {graphModal.open && (
