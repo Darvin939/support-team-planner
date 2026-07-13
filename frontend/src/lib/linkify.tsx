@@ -7,6 +7,12 @@ export function linkify(text: string): ReactNode[] {
   const parts = text.split(URL_PATTERN);
   return parts.map((part, i) =>
     i % 2 === 1 ? (
-      <a key={i} href={part} target="_blank" rel="noreferrer">{part}</a>) : (part),
+      <a
+        key={i}
+        href={part}
+        target="_blank"
+        rel="noreferrer"
+        onContextMenu={(e) => e.stopPropagation()}
+      >{part}</a>) : (part),
   );
 }
