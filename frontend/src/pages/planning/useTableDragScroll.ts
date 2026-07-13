@@ -24,6 +24,7 @@ export function useTableDragScroll(options: { isTaskLocked: (taskId: number) => 
     let state: PanState | null = null;
 
     function handleMouseDown(e: MouseEvent) {
+      if (e.ctrlKey || e.metaKey) return; // Ctrl зарезервирован за мультивыделением (useAssignmentSelection)
       const target = e.target as HTMLElement;
       if (!target.closest('[data-planning-grid]')) return;
       if (target.closest('button, input, select, textarea, a')) return;

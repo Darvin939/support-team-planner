@@ -48,7 +48,7 @@ body {
   background-color: rgba(128, 128, 128, 0.5);
 }
 
-td[data-schedule-cell]:hover:not(.assignment-drag-over):not(.assignment-drag-invalid) {
+td[data-schedule-cell]:hover:not(.assignment-drag-over):not(.assignment-drag-invalid):not(.assignment-lasso-pending) {
   box-shadow: inset 0 0 0 1000px rgba(128, 128, 128, 0.07);
 }
 
@@ -71,6 +71,15 @@ td[data-schedule-cell]:hover:not(.assignment-drag-over):not(.assignment-drag-inv
    colorError) by useAssignmentDrag.ts, since a static value here would only ever
    match one of light/dark theme. The classes still exist purely as state markers
    for the td[data-schedule-cell]:hover :not() exclusion above. */
+
+.assignment-select-rect {
+  position: fixed;
+  z-index: 2000;
+  pointer-events: none;
+  border-radius: 2px;
+  /* border/background цвет — инлайн из JS через colorPrimary (useAssignmentSelection.ts),
+     по той же причине, что и у .assignment-drag-over выше. */
+}
 
 .task-row-drag-ghost {
   position: fixed;

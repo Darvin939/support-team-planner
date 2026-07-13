@@ -1,8 +1,20 @@
 import {useEffect, useRef} from 'react';
+import dayjs from 'dayjs';
+import type {Assignment} from '../../hooks/usePlanningData';
 import {copyFontStyle, DRAG_START_THRESHOLD_PX, findScrollableAncestor} from './scrollUtils';
+import {API_DATE_FORMAT} from '../../lib/dateFormats';
 
 const SCROLL_ZONE = 60;
 const MAX_SPEED = 10;
+// Совпадает с ограничением DatePicker'ов (minDate/maxDate) в PlanningPage.tsx.
+const MIN_YEAR = 2000;
+const MAX_YEAR = 2099;
+
+interface BulkItem {
+  assignmentId: number;
+  taskId: number;
+  date: string;
+}
 
 interface DragState {
   assignmentId: number;
@@ -24,6 +36,11 @@ interface DragState {
   scroller: HTMLElement;
   sourceCell: HTMLElement;
   sourceChip: HTMLElement;
+  // Заполняется в момент mousedown, если захваченное назначение входит в активную мультивыборку
+  // (>1 элемента) — тогда весь drag двигает все элементы снапшота на одну и ту же дельту дней,
+  // а не только захваченное назначение.
+  bulkSnapshot: BulkItem[] | null;
+  bulkValid: boolean;
 }
 
 /**
@@ -32,12 +49,18 @@ interface DragState {
  * ghost clamped to the scrollable area, edge auto-scroll, and
  * elementFromPoint-based drop-target detection so it works regardless of
  * antd Table's internal DOM/sticky-column structure.
+ *
+ * Также умеет двигать сразу несколько назначений (bulkSnapshot/onDropMany) —
+ * см. useAssignmentSelection.ts для того, как формируется мультивыборка.
  */
 export function useAssignmentDrag(options: {
   isTaskLocked: (taskId: number) => boolean;
   isOccupied: (taskId: number, date: string) => boolean;
   onDrop: (assignmentId: number, taskId: number, newDate: string) => void;
+  onDropMany: (moves: { assignmentId: number; taskId: number; newDate: string }[]) => void;
   colors: { success: string; error: string };
+  selectedAssignmentIds: Set<number>;
+  getAssignment: (id: number) => Assignment | undefined;
 }) {
   const optionsRef = useRef(options);
   optionsRef.current = options;
@@ -60,6 +83,7 @@ export function useAssignmentDrag(options: {
 
     function handleMouseDown(e: MouseEvent) {
       if (e.button !== 0) return;
+      if (e.ctrlKey || e.metaKey) return; // Ctrl зарезервирован за мультивыделением (useAssignmentSelection)
       const target = e.target as HTMLElement;
       const chip = target.closest('[data-assignment-id]') as HTMLElement | null;
       if (!chip) return;
@@ -72,8 +96,21 @@ export function useAssignmentDrag(options: {
 
       e.preventDefault();
 
+      const assignmentId = Number(chip.dataset.assignmentId);
+      const { selectedAssignmentIds, getAssignment, isTaskLocked } = optionsRef.current;
+      let bulkSnapshot: BulkItem[] | null = null;
+      if (selectedAssignmentIds.has(assignmentId) && selectedAssignmentIds.size > 1) {
+        bulkSnapshot = [];
+        selectedAssignmentIds.forEach((id) => {
+          const a = getAssignment(id);
+          if (a && !isTaskLocked(a.task_id)) {
+            bulkSnapshot!.push({ assignmentId: a.id, taskId: a.task_id, date: a.date });
+          }
+        });
+      }
+
       dragState = {
-        assignmentId: Number(chip.dataset.assignmentId),
+        assignmentId,
         taskId,
         sourceDate,
         startX: e.pageX,
@@ -92,6 +129,8 @@ export function useAssignmentDrag(options: {
         scroller: findScrollableAncestor(cell),
         sourceCell: cell,
         sourceChip: chip,
+        bulkSnapshot,
+        bulkValid: false,
       };
     }
 
@@ -164,15 +203,38 @@ export function useAssignmentDrag(options: {
       });
 
       if (targetDate && targetDate !== state.sourceDate && targetTaskId === state.taskId) {
-        const occupied = optionsRef.current.isOccupied(state.taskId, targetDate);
         const { success, error } = optionsRef.current.colors;
-        targetCell!.classList.add(occupied ? 'assignment-drag-invalid' : 'assignment-drag-over');
-        targetCell!.style.boxShadow = `inset 0 0 0 2px ${occupied ? error : success}`;
-        state.targetDate = targetDate;
-        state.targetOccupied = occupied;
+        if (state.bulkSnapshot) {
+          const deltaDays = dayjs(targetDate).diff(dayjs(state.sourceDate), 'day');
+          let allValid = true;
+          state.bulkSnapshot.forEach((item) => {
+            const shifted = dayjs(item.date).add(deltaDays, 'day');
+            const shiftedDate = shifted.format(API_DATE_FORMAT);
+            const outOfRange = shifted.year() < MIN_YEAR || shifted.year() > MAX_YEAR;
+            const occupied = outOfRange || optionsRef.current.isOccupied(item.taskId, shiftedDate);
+            if (occupied) allValid = false;
+            const cell = document.querySelector<HTMLElement>(
+              `[data-schedule-cell][data-task-id="${item.taskId}"][data-date="${shiftedDate}"]`
+            );
+            if (cell) {
+              cell.classList.add(occupied ? 'assignment-drag-invalid' : 'assignment-drag-over');
+              cell.style.boxShadow = `inset 0 0 0 2px ${occupied ? error : success}`;
+            }
+          });
+          state.targetDate = targetDate;
+          state.targetOccupied = !allValid;
+          state.bulkValid = allValid;
+        } else {
+          const occupied = optionsRef.current.isOccupied(state.taskId, targetDate);
+          targetCell!.classList.add(occupied ? 'assignment-drag-invalid' : 'assignment-drag-over');
+          targetCell!.style.boxShadow = `inset 0 0 0 2px ${occupied ? error : success}`;
+          state.targetDate = targetDate;
+          state.targetOccupied = occupied;
+        }
       } else {
         state.targetDate = null;
         state.targetOccupied = false;
+        state.bulkValid = false;
       }
     }
 
@@ -195,7 +257,18 @@ export function useAssignmentDrag(options: {
         suppressClickRef.current = false;
       }, 0);
 
-      if (state.targetDate && !state.targetOccupied) {
+      if (!state.targetDate) return;
+
+      if (state.bulkSnapshot) {
+        if (!state.bulkValid) return;
+        const deltaDays = dayjs(state.targetDate).diff(dayjs(state.sourceDate), 'day');
+        const moves = state.bulkSnapshot.map((item) => ({
+          assignmentId: item.assignmentId,
+          taskId: item.taskId,
+          newDate: dayjs(item.date).add(deltaDays, 'day').format(API_DATE_FORMAT),
+        }));
+        optionsRef.current.onDropMany(moves);
+      } else if (!state.targetOccupied) {
         optionsRef.current.onDrop(state.assignmentId, state.taskId, state.targetDate);
       }
     }

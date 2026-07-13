@@ -10,6 +10,7 @@ import {
   Input,
   message,
   Pagination,
+  Popconfirm,
   Select,
   Space,
   Table,
@@ -38,6 +39,7 @@ import {type DepBadgeEntry} from '../components/planningBadges';
 import {TaskModal} from './planning/TaskModal';
 import {AssignmentModal} from './planning/AssignmentModal';
 import {useAssignmentDrag} from './planning/useAssignmentDrag';
+import {useAssignmentSelection} from './planning/useAssignmentSelection';
 import {useTableDragScroll} from './planning/useTableDragScroll';
 import {useTaskRowDrag} from './planning/useTaskRowDrag';
 import {ASSIGNMENT_STATUS_OPTIONS, usePlanningColumns} from './planning/usePlanningColumns';
@@ -115,6 +117,7 @@ export function PlanningPage() {
     date: null,
     assignment: null,
   });
+  const [selectedAssignmentIds, setSelectedAssignmentIds] = useState<Set<number>>(new Set());
 
   const queryClient = useQueryClient();
   const { data: freezeDaysList } = useFreezeDays();
@@ -171,6 +174,22 @@ export function PlanningPage() {
     setPage(1);
   }, [teamId, debouncedSearch, showCompleted]);
 
+  // Выборка ссылается на назначения из assignments, который сам подгружен только по task_ids
+  // текущей страницы (useAssignments(teamId, dateFrom, dateTo, taskIds) в usePlanningData.ts) —
+  // при смене страницы/лимита/команды/поиска/чекбокса эти данные пропадают целиком, а не просто
+  // визуально скрываются, поэтому выборку нужно сбрасывать при любом из этих изменений.
+  useEffect(() => {
+    setSelectedAssignmentIds(new Set());
+  }, [teamId, debouncedSearch, showCompleted, page, pageSize]);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setSelectedAssignmentIds((prev) => (prev.size > 0 ? new Set() : prev));
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const dateFrom = range[0].format(API_DATE_FORMAT);
   const dateTo = range[1].format(API_DATE_FORMAT);
   const today = dayjs().format(API_DATE_FORMAT);
@@ -191,6 +210,12 @@ export function PlanningPage() {
   const assignmentByKey = useMemo(() => {
     const map = new Map<string, Assignment>();
     (assignments ?? []).forEach((a) => map.set(`${a.task_id}-${a.date}`, a));
+    return map;
+  }, [assignments]);
+
+  const assignmentById = useMemo(() => {
+    const map = new Map<number, Assignment>();
+    (assignments ?? []).forEach((a) => map.set(a.id, a));
     return map;
   }, [assignments]);
 
@@ -298,6 +323,61 @@ export function PlanningPage() {
     onError: (e: Error) => message.error(e.message),
   });
 
+  // Последовательные await (не Promise.all) — каждый HTTP-запрос открывает и коммитит своё
+  // соединение SQLite до ответа, так что последовательность на клиенте гарантирует
+  // последовательность на сервере для этого клиента, без гонок внутри одного bulk-жеста.
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      const failed: number[] = [];
+      for (const id of ids) {
+        try {
+          await apiMutate(`/api/assignment/${id}`, 'DELETE');
+        } catch {
+          failed.push(id);
+        }
+      }
+      return { total: ids.length, failed };
+    },
+    onSuccess: ({ total, failed }) => {
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
+      setSelectedAssignmentIds(new Set(failed));
+      if (failed.length === 0) message.success(`Удалено назначений: ${total}`);
+      else message.warning(`Удалено ${total - failed.length} из ${total}, ${failed.length} не удалось удалить`);
+    },
+  });
+
+  const bulkRescheduleMutation = useMutation({
+    mutationFn: async (moves: { assignmentId: number; taskId: number; newDate: string }[]) => {
+      const failed: number[] = [];
+      for (const m of moves) {
+        const existing = assignmentById.get(m.assignmentId);
+        if (!existing) continue;
+        try {
+          await apiMutate('/api/assignment', 'POST', {
+            assignment_id: existing.id,
+            task_id: existing.task_id,
+            date: m.newDate,
+            block: existing.block,
+            status: existing.status,
+            user_id: existing.user_id,
+            comment: existing.comment,
+            time_spent: existing.time_spent,
+          });
+        } catch {
+          failed.push(m.assignmentId);
+        }
+      }
+      return { total: moves.length, failed };
+    },
+    onSuccess: ({ total, failed }) => {
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
+      if (failed.length === 0) message.success(`Перенесено назначений: ${total}`);
+      else message.warning(`Перенесено ${total - failed.length} из ${total}, ${failed.length} не удалось перенести`);
+    },
+  });
+
   const isTaskLocked = (taskId: number) => {
     const t = taskData?.tasks.find((x) => x.id === taskId);
     return !t || t.task_status === 'done' || t.task_status === 'cancelled';
@@ -307,10 +387,18 @@ export function PlanningPage() {
     isTaskLocked,
     isOccupied: (taskId, date) => assignmentByKey.has(`${taskId}-${date}`),
     onDrop: (assignmentId, _taskId, newDate) => rescheduleMutation.mutate({ assignmentId, newDate }),
+    onDropMany: (moves) => bulkRescheduleMutation.mutate(moves),
     colors: { success: token.colorSuccess, error: token.colorError },
+    selectedAssignmentIds,
+    getAssignment: (id) => assignmentById.get(id),
   });
 
   const panSuppressRef = useTableDragScroll({ isTaskLocked });
+
+  const selectSuppressRef = useAssignmentSelection({
+    onCommitSelection: (ids) => setSelectedAssignmentIds((prev) => new Set([...prev, ...ids])),
+    color: token.colorPrimary,
+  });
 
   const filteredTasks = useMemo(() => {
     return (taskData?.tasks ?? []).filter((t) => {
@@ -358,6 +446,16 @@ export function PlanningPage() {
     isUser,
     chipDragSuppressRef,
     panSuppressRef,
+    selectSuppressRef,
+    selectedAssignmentIds,
+    onToggleAssignment: (assignmentId) =>
+      setSelectedAssignmentIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(assignmentId)) next.delete(assignmentId);
+        else next.add(assignmentId);
+        return next;
+      }),
+    onClearSelection: () => setSelectedAssignmentIds(new Set()),
     priorityMutation,
     statusMutation,
     assignmentStatusMutation,
@@ -471,14 +569,30 @@ export function PlanningPage() {
       </Space>
 
       <Card>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <Space>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+          <Space wrap>
             <Button type="primary" onClick={() => setTaskModal({ open: true, task: null })}>
               Добавить работу
             </Button>
             <Button icon={<ApartmentOutlined />} onClick={() => setGraphModal({ open: true })}>
               Граф зависимостей
             </Button>
+            {selectedAssignmentIds.size > 0 && (
+              <Space size={8} style={{ paddingLeft: 8, borderLeft: `1px solid ${token.colorBorder}` }}>
+                <span style={{ color: token.colorTextSecondary }}>Выбрано: {selectedAssignmentIds.size}</span>
+                <Popconfirm
+                  title={`Удалить ${selectedAssignmentIds.size} назначений?`}
+                  okText="Удалить"
+                  cancelText="Отмена"
+                  onConfirm={() => bulkDeleteMutation.mutate([...selectedAssignmentIds])}
+                >
+                  <Button danger loading={bulkDeleteMutation.isPending}>
+                    Удалить
+                  </Button>
+                </Popconfirm>
+                <Button onClick={() => setSelectedAssignmentIds(new Set())}>Снять выделение</Button>
+              </Space>
+            )}
           </Space>
           <span style={{ fontFamily: "'JetBrains Mono Variable', monospace", color: token.colorTextSecondary, fontSize: '0.9rem' }}>
             Всего работ: {taskData?.total ?? 0} | Отображено: {filteredTasks.length}

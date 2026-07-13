@@ -1,4 +1,4 @@
-import {useMemo, type Dispatch, type SetStateAction} from 'react';
+import {useMemo, type Dispatch, type MouseEvent as ReactMouseEvent, type SetStateAction} from 'react';
 import type {Dayjs} from 'dayjs';
 import type {MenuProps, TableColumnsType} from 'antd';
 import {Button, Dropdown, Modal, theme} from 'antd';
@@ -46,6 +46,10 @@ interface UsePlanningColumnsOptions {
   isUser: boolean;
   chipDragSuppressRef: { current: boolean };
   panSuppressRef: { current: boolean };
+  selectSuppressRef: { current: boolean };
+  selectedAssignmentIds: Set<number>;
+  onToggleAssignment: (assignmentId: number) => void;
+  onClearSelection: () => void;
   priorityMutation: MutateFn<{ taskId: number; position: 'start' | 'end' }>;
   statusMutation: MutateFn<{ taskId: number; status: string }>;
   assignmentStatusMutation: MutateFn<{ assignmentId: number; status: string }>;
@@ -71,6 +75,10 @@ export function usePlanningColumns({
   isUser,
   chipDragSuppressRef,
   panSuppressRef,
+  selectSuppressRef,
+  selectedAssignmentIds,
+  onToggleAssignment,
+  onClearSelection,
   priorityMutation,
   statusMutation,
   assignmentStatusMutation,
@@ -230,23 +238,36 @@ export function usePlanningColumns({
         onHeaderCell: () => ({
           style: { ...headerTint, fontFamily: "'JetBrains Mono Variable', monospace" },
         }),
-        onCell: (task) => ({
-          'data-schedule-cell': true,
-          'data-task-id': task.id,
-          'data-date': dateStr,
-          style: {
-            ...cellTint,
-            padding: 3,
-            borderLeft: `1px solid ${token.colorBorder}`,
-            cursor: task.task_status === 'done' || task.task_status === 'cancelled' ? 'not-allowed' : 'pointer',
-          },
-          onClick: () => {
-            if (chipDragSuppressRef.current || panSuppressRef.current) return;
-            if (task.task_status === 'done' || task.task_status === 'cancelled') return;
-            const assignment = assignmentByKey.get(`${task.id}-${dateStr}`) ?? null;
-            setAssignmentModal({ open: true, task, date: dateStr, assignment });
-          },
-        }),
+        onCell: (task) => {
+          const assignment = assignmentByKey.get(`${task.id}-${dateStr}`);
+          const isSelected = !!assignment && selectedAssignmentIds.has(assignment.id);
+          return {
+            'data-schedule-cell': true,
+            'data-task-id': task.id,
+            'data-date': dateStr,
+            style: {
+              ...cellTint,
+              padding: 3,
+              borderLeft: `1px solid ${token.colorBorder}`,
+              cursor: task.task_status === 'done' || task.task_status === 'cancelled' ? 'not-allowed' : 'pointer',
+              ...(isSelected ? { boxShadow: `inset 0 0 0 2px ${token.colorPrimary}` } : {}),
+            },
+            onClick: (e: ReactMouseEvent<HTMLElement>) => {
+              if (chipDragSuppressRef.current || panSuppressRef.current || selectSuppressRef.current) return;
+              if (task.task_status === 'done' || task.task_status === 'cancelled') return;
+              const clickedAssignment = assignmentByKey.get(`${task.id}-${dateStr}`) ?? null;
+              if (e.ctrlKey || e.metaKey) {
+                if (clickedAssignment) onToggleAssignment(clickedAssignment.id);
+                return;
+              }
+              if (selectedAssignmentIds.size > 0) {
+                onClearSelection();
+                return;
+              }
+              setAssignmentModal({ open: true, task, date: dateStr, assignment: clickedAssignment });
+            },
+          };
+        },
         render: (_, task) => {
           const assignment = assignmentByKey.get(`${task.id}-${dateStr}`);
           const isTerminal = task.task_status === 'done' || task.task_status === 'cancelled';
@@ -285,5 +306,5 @@ export function usePlanningColumns({
     });
 
     return [infoColumn, ...dateColumns];
-  }, [dates, assignmentByKey, depsByTask, today, token, freezeDays, isUser]);
+  }, [dates, assignmentByKey, depsByTask, today, token, freezeDays, isUser, selectedAssignmentIds]);
 }
