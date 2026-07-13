@@ -26,7 +26,11 @@ interface SelectState {
  * Ctrl зарезервирован исключительно за этим хуком — useAssignmentDrag.ts и useTableDragScroll.ts
  * оба игнорируют mousedown, если зажат Ctrl/Cmd.
  */
-export function useAssignmentSelection(options: { onCommitSelection: (ids: number[]) => void; color: string }) {
+export function useAssignmentSelection(options: {
+  selectedAssignmentIds: Set<number>;
+  onCommitSelection: (ids: number[]) => void;
+  color: string;
+}) {
   const optionsRef = useRef(options);
   optionsRef.current = options;
   const selectSuppressRef = useRef(false);
@@ -123,17 +127,27 @@ export function useAssignmentSelection(options: { onCommitSelection: (ids: numbe
       document.querySelectorAll<HTMLElement>('[data-planning-grid] [data-assignment-id]').forEach((chip) => {
         const cell = chip.closest('[data-schedule-cell]') as HTMLElement | null;
         if (!cell) return;
+        const assignmentId = Number(chip.dataset.assignmentId);
+        // Ячейки, уже входящие в выборку до этого жеста, уже несут постоянную (React-управляемую)
+        // подсветку — не трогаем их style.boxShadow вовсе, иначе имитивная очистка на mouseup
+        // (см. ниже) молча стирает инлайн-стиль, который React больше не станет переустанавливать
+        // сам (его props для этой ячейки не изменились, раз назначение остаётся выбранным).
+        const alreadySelected = optionsRef.current.selectedAssignmentIds.has(assignmentId);
         const r = chip.getBoundingClientRect();
         const intersects = r.left < right && r.right > left && r.top < bottom && r.bottom > top;
         if (intersects) {
           if (!s.pending.has(cell)) {
-            cell.classList.add('assignment-lasso-pending');
-            cell.style.boxShadow = `inset 0 0 0 2px ${optionsRef.current.color}`;
-            s.pending.set(cell, Number(chip.dataset.assignmentId));
+            if (!alreadySelected) {
+              cell.classList.add('assignment-lasso-pending');
+              cell.style.boxShadow = `inset 0 0 0 2px ${optionsRef.current.color}`;
+            }
+            s.pending.set(cell, assignmentId);
           }
         } else if (s.pending.has(cell)) {
-          cell.classList.remove('assignment-lasso-pending');
-          cell.style.boxShadow = '';
+          if (!alreadySelected) {
+            cell.classList.remove('assignment-lasso-pending');
+            cell.style.boxShadow = '';
+          }
           s.pending.delete(cell);
         }
       });
@@ -148,7 +162,8 @@ export function useAssignmentSelection(options: { onCommitSelection: (ids: numbe
       if (s.rect) s.rect.remove();
 
       const ids = Array.from(s.pending.values());
-      s.pending.forEach((_id, cell) => {
+      s.pending.forEach((assignmentId, cell) => {
+        if (optionsRef.current.selectedAssignmentIds.has(assignmentId)) return;
         cell.classList.remove('assignment-lasso-pending');
         cell.style.boxShadow = '';
       });

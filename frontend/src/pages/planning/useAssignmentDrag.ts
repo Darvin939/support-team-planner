@@ -58,7 +58,7 @@ export function useAssignmentDrag(options: {
   isOccupied: (taskId: number, date: string) => boolean;
   onDrop: (assignmentId: number, taskId: number, newDate: string) => void;
   onDropMany: (moves: { assignmentId: number; taskId: number; newDate: string }[]) => void;
-  colors: { success: string; error: string };
+  colors: { success: string; error: string; selected: string };
   selectedAssignmentIds: Set<number>;
   getAssignment: (id: number) => Assignment | undefined;
 }) {
@@ -68,6 +68,20 @@ export function useAssignmentDrag(options: {
 
   useEffect(() => {
     let dragState: DragState | null = null;
+
+    // Ячейка при снятии drag-подсветки (over/invalid/source) возвращается не к пустому
+    // boxShadow, а к своему настоящему базовому состоянию — синей рамке, если она всё ещё
+    // содержит выбранное назначение. Иначе слепой сброс в '' молча стирает инлайн-стиль,
+    // который React больше не переустановит сам (его props для этой ячейки не изменились).
+    function restoreBaseline(cell: HTMLElement) {
+      const chip = cell.querySelector<HTMLElement>('[data-assignment-id]');
+      const assignmentId = chip ? Number(chip.dataset.assignmentId) : null;
+      if (assignmentId !== null && optionsRef.current.selectedAssignmentIds.has(assignmentId)) {
+        cell.style.boxShadow = `inset 0 0 0 2px ${optionsRef.current.colors.selected}`;
+      } else {
+        cell.style.boxShadow = '';
+      }
+    }
 
     function scrollStep() {
       if (!dragState || !dragState.scrollDir) return;
@@ -197,9 +211,9 @@ export function useAssignmentDrag(options: {
       const targetDate = targetCell ? targetCell.dataset.date! : null;
       const targetTaskId = targetCell ? Number(targetCell.dataset.taskId) : null;
 
-      document.querySelectorAll('.assignment-drag-over, .assignment-drag-invalid').forEach((c) => {
+      document.querySelectorAll<HTMLElement>('.assignment-drag-over, .assignment-drag-invalid').forEach((c) => {
         c.classList.remove('assignment-drag-over', 'assignment-drag-invalid');
-        (c as HTMLElement).style.boxShadow = '';
+        restoreBaseline(c);
       });
 
       if (targetDate && targetDate !== state.sourceDate && targetTaskId === state.taskId) {
@@ -245,9 +259,9 @@ export function useAssignmentDrag(options: {
 
       if (state.scrollRaf) cancelAnimationFrame(state.scrollRaf);
       if (state.ghost) state.ghost.remove();
-      document.querySelectorAll('.assignment-drag-over, .assignment-drag-invalid, .assignment-drag-source').forEach((c) => {
+      document.querySelectorAll<HTMLElement>('.assignment-drag-over, .assignment-drag-invalid, .assignment-drag-source').forEach((c) => {
         c.classList.remove('assignment-drag-over', 'assignment-drag-invalid', 'assignment-drag-source');
-        (c as HTMLElement).style.boxShadow = '';
+        restoreBaseline(c);
       });
 
       if (!state.dragStarted) return;

@@ -388,7 +388,7 @@ export function PlanningPage() {
     isOccupied: (taskId, date) => assignmentByKey.has(`${taskId}-${date}`),
     onDrop: (assignmentId, _taskId, newDate) => rescheduleMutation.mutate({ assignmentId, newDate }),
     onDropMany: (moves) => bulkRescheduleMutation.mutate(moves),
-    colors: { success: token.colorSuccess, error: token.colorError },
+    colors: { success: token.colorSuccess, error: token.colorError, selected: token.colorPrimary },
     selectedAssignmentIds,
     getAssignment: (id) => assignmentById.get(id),
   });
@@ -396,6 +396,7 @@ export function PlanningPage() {
   const panSuppressRef = useTableDragScroll({ isTaskLocked });
 
   const selectSuppressRef = useAssignmentSelection({
+    selectedAssignmentIds,
     onCommitSelection: (ids) => setSelectedAssignmentIds((prev) => new Set([...prev, ...ids])),
     color: token.colorPrimary,
   });
