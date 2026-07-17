@@ -1,4 +1,4 @@
-import {useMemo, type Dispatch, type MouseEvent as ReactMouseEvent, type SetStateAction} from 'react';
+import {useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent as ReactMouseEvent, type SetStateAction} from 'react';
 import type {Dayjs} from 'dayjs';
 import type {MenuProps, TableColumnsType} from 'antd';
 import {Button, Dropdown, Modal, theme} from 'antd';
@@ -88,6 +88,41 @@ export function usePlanningColumns({
   setAssignmentModal,
   onDepNavigate,
 }: UsePlanningColumnsOptions): TableColumnsType<Task> {
+  const [openContextMenu, setOpenContextMenu] = useState<string | null>(null);
+  const suppressNextActivationRef = useRef(false);
+
+  useEffect(() => {
+    function suppressActivation(event: MouseEvent) {
+      if (!suppressNextActivationRef.current) return;
+      suppressNextActivationRef.current = false;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      suppressNextActivationRef.current = false;
+      if (!openContextMenu) return;
+      const target = event.target;
+      if (!(target instanceof Element) || target.closest('.ant-dropdown')) return;
+
+      setOpenContextMenu(null);
+      suppressNextActivationRef.current = true;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    document.addEventListener('click', suppressActivation, true);
+    document.addEventListener('contextmenu', suppressActivation, true);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+      document.removeEventListener('click', suppressActivation, true);
+      document.removeEventListener('contextmenu', suppressActivation, true);
+    };
+  }, [openContextMenu]);
+
   return useMemo(() => {
     const infoColumn: TableColumnsType<Task>[number] = {
       title: 'Работа',
@@ -175,6 +210,8 @@ export function usePlanningColumns({
         }
         return (
           <Dropdown
+            open={openContextMenu === `task-${task.id}`}
+            onOpenChange={(open) => setOpenContextMenu(open ? `task-${task.id}` : null)}
             trigger={['contextMenu']}
             menu={{ items: menuItems, onClick: ({ key }) => handleMenuClick(key) }}
           >
@@ -304,6 +341,8 @@ export function usePlanningColumns({
           ];
           return (
             <Dropdown
+              open={openContextMenu === `assignment-${assignment.id}`}
+              onOpenChange={(open) => setOpenContextMenu(open ? `assignment-${assignment.id}` : null)}
               trigger={['contextMenu']}
               menu={{
                 items: statusItems,
@@ -323,5 +362,5 @@ export function usePlanningColumns({
     });
 
     return [infoColumn, ...dateColumns];
-  }, [dates, assignmentByKey, depsByTask, today, token, freezeDays, isUser, selectedAssignmentIds]);
+  }, [dates, assignmentByKey, depsByTask, today, token, freezeDays, isUser, selectedAssignmentIds, openContextMenu]);
 }
