@@ -43,6 +43,7 @@ const STATUS_OPTIONS = [
   { value: 'planned', label: 'Запланировано' },
   { value: 'rollback', label: 'Откат' },
   { value: 'success', label: 'Успешно' },
+  { value: 'cancelled', label: 'Отменено' },
 ];
 
 function confirmOverwrite(dates: string[]): Promise<boolean> {

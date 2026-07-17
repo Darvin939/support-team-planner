@@ -24,7 +24,7 @@ interface ActiveAssignment {
   criticality: 'high' | 'medium' | 'low';
   date: string;
   block: string | null;
-  status: 'new' | 'planned' | 'rollback' | 'success';
+  status: 'new' | 'planned' | 'rollback' | 'success' | 'cancelled';
   user_name: string | null;
   comment: string | null;
 }
@@ -38,7 +38,7 @@ interface ActiveAssignmentsResponse {
   };
 }
 
-const STATUS_LABEL: Record<string, string> = { new: 'Новый', planned: 'Запланировано', rollback: 'Откат', success: 'Успешно' };
+const STATUS_LABEL: Record<string, string> = { new: 'Новый', planned: 'Запланировано', rollback: 'Откат', success: 'Успешно', cancelled: 'Отменено' };
 
 function useActiveAssignments(from: string, to: string, teamIds: number[], offset: number, limit: number) {
   return useQuery<ActiveAssignmentsResponse>({

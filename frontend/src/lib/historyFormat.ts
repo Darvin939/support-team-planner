@@ -14,7 +14,7 @@ export const TASK_STATUS_LABELS: Record<string, string> = {
 };
 
 export const ASSIGNMENT_STATUS_LABELS: Record<string, string> = {
-  new: 'Новый', planned: 'Запланировано', rollback: 'Откат', success: 'Успешно',
+  new: 'Новый', planned: 'Запланировано', rollback: 'Откат', success: 'Успешно', cancelled: 'Отменено',
 };
 
 export interface HistoryEntry {

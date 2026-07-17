@@ -20,7 +20,7 @@ export interface Assignment {
   task_id: number;
   date: string;
   block: string | null;
-  status: 'new' | 'planned' | 'rollback' | 'success';
+  status: 'new' | 'planned' | 'rollback' | 'success' | 'cancelled';
   user_id: number | null;
   user_name: string | null;
   comment: string | null;

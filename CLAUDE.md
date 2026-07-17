@@ -245,7 +245,7 @@ only as a migration step for existing DBs.
 
 Two separate status machines coexist — do not confuse them:
 
-- **Assignment statuses** (`assignments.status`): `new` → `planned` → `success` | `rollback`. Assignments also
+- **Assignment statuses** (`assignments.status`): `new` → `planned` → `success` | `rollback` | `cancelled`. Assignments also
   still carry a legacy `is_psi` column (ПСИ) in the schema and in `assignment_history`/`historyFormat.ts` labels
   for old records, but it's no longer settable through `AssignmentIn` — new assignments can't set it.
 - **Task statuses** (`tasks.task_status`): `new` → `done` | `cancelled` (the old intermediate `ready`/

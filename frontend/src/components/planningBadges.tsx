@@ -109,7 +109,7 @@ export function BlockRail({ block}: { block: string | null }) {
 export interface AssignmentLite {
   id: number;
   block: string | null;
-  status: 'new' | 'planned' | 'rollback' | 'success';
+  status: 'new' | 'planned' | 'rollback' | 'success' | 'cancelled';
   user_name: string | null;
   comment: string | null;
   time_spent: string | null;
@@ -118,7 +118,7 @@ export interface AssignmentLite {
 export function ScheduleChip({ assignment, onClick, draggable }: { assignment: AssignmentLite; onClick?: () => void; draggable?: boolean }) {
   const { token } = theme.useToken();
   const statusColor =
-    assignment.status === 'planned' ? token.colorWarning : assignment.status === 'rollback' ? token.colorError : assignment.status === 'success' ? token.colorSuccess : token.colorPrimary;
+    assignment.status === 'planned' ? token.colorWarning : assignment.status === 'rollback' ? token.colorError : assignment.status === 'success' ? token.colorSuccess : assignment.status === 'cancelled' ? token.colorTextSecondary : token.colorPrimary;
 
   return (
     <div
