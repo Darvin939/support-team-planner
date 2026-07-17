@@ -1,5 +1,12 @@
 schema: spec-driven
 
+context: |
+  Tech stack: Frontend - React + Ant Design, TypeScript. Backend - FastAPI
+  Language: Russian (RU-ru)
+  Testing: For Frontend tests use Python + Playwrite
+
+  Answer all questions and write documentation in Russian
+
 # Project context (optional)
 # This is shown to AI when creating artifacts.
 # Add your tech stack, conventions, style guides, domain knowledge, etc.

@@ -1,5 +1,6 @@
 import contextvars
 import json
+import uuid
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -31,6 +32,14 @@ class IntegrityConstraintError(Exception):
     """Обёртка над ошибкой нарушения констрейнта БД (дубль уникального имени, попытка удалить
     запись, на которую ещё ссылаются другие) с уже готовым для показа пользователю сообщением."""
     pass
+
+
+class BulkAssignmentRescheduleError(Exception):
+    """Ошибка проверки атомарного переноса нескольких назначений."""
+
+    def __init__(self, message, status_code=400):
+        super().__init__(message)
+        self.status_code = status_code
 
 
 def get_db_connection():
@@ -1155,6 +1164,83 @@ def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, s
         snapshot = json.dumps(new_values, ensure_ascii=False, default=str)
         _record_assignment_history(conn, new_assignment_id, task_id, date_str, 'create',
                                     new_value=snapshot, changed_by=changed_by)
+
+
+@with_db_connection()
+def bulk_reschedule_assignments(conn, moves, role, changed_by=None):
+    """Атомарно перенести назначения на новые даты с проверкой итоговой раскладки."""
+    if not moves:
+        raise BulkAssignmentRescheduleError('Не выбраны назначения для переноса')
+    if len(moves) > 200:
+        raise BulkAssignmentRescheduleError('За один раз можно перенести не более 200 назначений')
+
+    assignment_ids = [move['assignment_id'] for move in moves]
+    if len(set(assignment_ids)) != len(assignment_ids):
+        raise BulkAssignmentRescheduleError('Список содержит повторяющиеся назначения')
+
+    placeholders = ','.join('?' * len(assignment_ids))
+    rows = conn.execute(
+        f'''SELECT a.id, a.task_id, a.date, a.status, a.is_deleted, t.task_status, t.is_deleted AS task_is_deleted
+            FROM assignments a
+            JOIN tasks t ON t.id = a.task_id
+            WHERE a.id IN ({placeholders})''',
+        assignment_ids
+    ).fetchall()
+    rows_by_id = {row['id']: row for row in rows}
+    if len(rows_by_id) != len(assignment_ids) or any(
+            rows_by_id[assignment_id]['is_deleted'] or rows_by_id[assignment_id]['task_is_deleted']
+            for assignment_id in assignment_ids if assignment_id in rows_by_id):
+        raise BulkAssignmentRescheduleError('Одно или несколько назначений не найдены', status_code=404)
+
+    final_keys = set()
+    normalized_moves = []
+    for move in moves:
+        row = rows_by_id[move['assignment_id']]
+        if row['task_status'] in ('done', 'cancelled'):
+            raise BulkAssignmentRescheduleError(
+                'Нельзя изменять назначения завершённой или отменённой задачи')
+        if role == 'user' and row['status'] != 'new':
+            raise BulkAssignmentRescheduleError(
+                'Недостаточно прав: нельзя изменять назначение в статусе, отличном от «Новый»',
+                status_code=403)
+
+        new_date = move['new_date']
+        try:
+            parsed_date = datetime.strptime(new_date, '%Y-%m-%d')
+        except (TypeError, ValueError):
+            raise BulkAssignmentRescheduleError('Дата переноса должна быть в формате ГГГГ-ММ-ДД')
+        if not 2000 <= parsed_date.year <= 2099:
+            raise BulkAssignmentRescheduleError('Дата переноса должна быть в диапазоне 2000–2099 годов')
+
+        final_key = (row['task_id'], new_date)
+        if final_key in final_keys:
+            raise BulkAssignmentRescheduleError('Несколько назначений попадают в одну ячейку')
+        final_keys.add(final_key)
+        normalized_moves.append((row, new_date))
+
+    for task_id, new_date in final_keys:
+        occupant = conn.execute(
+            '''SELECT id FROM assignments
+               WHERE task_id = ? AND date = ? AND is_deleted = 0''',
+            (task_id, new_date)
+        ).fetchone()
+        if occupant and occupant['id'] not in rows_by_id:
+            raise BulkAssignmentRescheduleError('Одна из целевых ячеек уже занята')
+
+    changed_moves = [(row, new_date) for row, new_date in normalized_moves if row['date'] != new_date]
+    operation_token = uuid.uuid4().hex
+    for row, _new_date in changed_moves:
+        staged_date = f'__bulk_reschedule__{operation_token}_{row["id"]}'
+        conn.execute('UPDATE assignments SET date = ? WHERE id = ?', (staged_date, row['id']))
+
+    for row, new_date in changed_moves:
+        conn.execute('UPDATE assignments SET date = ? WHERE id = ?', (new_date, row['id']))
+        _record_assignment_history(
+            conn, row['id'], row['task_id'], new_date, 'update', field_name='date',
+            old_value=row['date'], new_value=new_date, changed_by=changed_by
+        )
+
+    return len(changed_moves)
 
 
 @with_db_connection()

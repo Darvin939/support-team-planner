@@ -349,32 +349,21 @@ export function PlanningPage() {
 
   const bulkRescheduleMutation = useMutation({
     mutationFn: async (moves: { assignmentId: number; taskId: number; newDate: string }[]) => {
-      const failed: number[] = [];
-      for (const m of moves) {
-        const existing = assignmentById.get(m.assignmentId);
-        if (!existing) continue;
-        try {
-          await apiMutate('/api/assignment', 'POST', {
-            assignment_id: existing.id,
-            task_id: existing.task_id,
-            date: m.newDate,
-            block: existing.block,
-            status: existing.status,
-            user_id: existing.user_id,
-            comment: existing.comment,
-            time_spent: existing.time_spent,
-          });
-        } catch {
-          failed.push(m.assignmentId);
-        }
-      }
-      return { total: moves.length, failed };
+      await apiMutate('/api/assignments/bulk-reschedule', 'POST', {
+        moves: moves.map((move) => ({ assignment_id: move.assignmentId, new_date: move.newDate })),
+      });
+      return { total: moves.length };
     },
-    onSuccess: ({ total, failed }) => {
+    onSuccess: ({ total }) => {
       queryClient.invalidateQueries({ queryKey: ['assignments'] });
       queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
-      if (failed.length === 0) message.success(`Перенесено назначений: ${total}`);
-      else message.warning(`Перенесено ${total - failed.length} из ${total}, ${failed.length} не удалось перенести`);
+      setSelectedAssignmentIds(new Set());
+      message.success(`Перенесено назначений: ${total}`);
+    },
+    onError: (error: Error) => {
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
+      message.error(error.message);
     },
   });
 
@@ -385,7 +374,7 @@ export function PlanningPage() {
 
   const chipDragSuppressRef = useAssignmentDrag({
     isTaskLocked,
-    isOccupied: (taskId, date) => assignmentByKey.has(`${taskId}-${date}`),
+    getOccupant: (taskId, date) => assignmentByKey.get(`${taskId}-${date}`),
     onDrop: (assignmentId, _taskId, newDate) => rescheduleMutation.mutate({ assignmentId, newDate }),
     onDropMany: (moves) => bulkRescheduleMutation.mutate(moves),
     colors: { success: token.colorSuccess, error: token.colorError, selected: token.colorPrimary },

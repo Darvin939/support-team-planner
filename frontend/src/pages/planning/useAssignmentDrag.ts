@@ -55,7 +55,7 @@ interface DragState {
  */
 export function useAssignmentDrag(options: {
   isTaskLocked: (taskId: number) => boolean;
-  isOccupied: (taskId: number, date: string) => boolean;
+  getOccupant: (taskId: number, date: string) => Assignment | undefined;
   onDrop: (assignmentId: number, taskId: number, newDate: string) => void;
   onDropMany: (moves: { assignmentId: number; taskId: number; newDate: string }[]) => void;
   colors: { success: string; error: string; selected: string };
@@ -220,26 +220,36 @@ export function useAssignmentDrag(options: {
         const { success, error } = optionsRef.current.colors;
         if (state.bulkSnapshot) {
           const deltaDays = dayjs(targetDate).diff(dayjs(state.sourceDate), 'day');
-          let allValid = true;
-          state.bulkSnapshot.forEach((item) => {
+          const movingIds = new Set(state.bulkSnapshot.map((item) => item.assignmentId));
+          const targetCounts = new Map<string, number>();
+          const targets = state.bulkSnapshot.map((item) => {
             const shifted = dayjs(item.date).add(deltaDays, 'day');
             const shiftedDate = shifted.format(API_DATE_FORMAT);
+            const key = `${item.taskId}-${shiftedDate}`;
+            targetCounts.set(key, (targetCounts.get(key) ?? 0) + 1);
+            return { item, shifted, shiftedDate, key };
+          });
+          let allValid = true;
+          targets.forEach(({ item, shifted, shiftedDate, key }) => {
             const outOfRange = shifted.year() < MIN_YEAR || shifted.year() > MAX_YEAR;
-            const occupied = outOfRange || optionsRef.current.isOccupied(item.taskId, shiftedDate);
-            if (occupied) allValid = false;
+            const occupant = optionsRef.current.getOccupant(item.taskId, shiftedDate);
+            const invalid = outOfRange
+              || (targetCounts.get(key) ?? 0) > 1
+              || (!!occupant && !movingIds.has(occupant.id));
+            if (invalid) allValid = false;
             const cell = document.querySelector<HTMLElement>(
               `[data-schedule-cell][data-task-id="${item.taskId}"][data-date="${shiftedDate}"]`
             );
             if (cell) {
-              cell.classList.add(occupied ? 'assignment-drag-invalid' : 'assignment-drag-over');
-              cell.style.boxShadow = `inset 0 0 0 2px ${occupied ? error : success}`;
+              cell.classList.add(invalid ? 'assignment-drag-invalid' : 'assignment-drag-over');
+              cell.style.boxShadow = `inset 0 0 0 2px ${invalid ? error : success}`;
             }
           });
           state.targetDate = targetDate;
           state.targetOccupied = !allValid;
           state.bulkValid = allValid;
         } else {
-          const occupied = optionsRef.current.isOccupied(state.taskId, targetDate);
+          const occupied = !!optionsRef.current.getOccupant(state.taskId, targetDate);
           targetCell!.classList.add(occupied ? 'assignment-drag-invalid' : 'assignment-drag-over');
           targetCell!.style.boxShadow = `inset 0 0 0 2px ${occupied ? error : success}`;
           state.targetDate = targetDate;

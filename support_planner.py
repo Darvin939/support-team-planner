@@ -150,6 +150,15 @@ class AssignmentIn(BaseModel):
     time_spent: Optional[str] = None
 
 
+class AssignmentRescheduleIn(BaseModel):
+    assignment_id: int
+    new_date: str
+
+
+class BulkAssignmentRescheduleIn(BaseModel):
+    moves: List[AssignmentRescheduleIn]
+
+
 class TaskIn(BaseModel):
     task_id: Optional[Union[int, str]] = None
     team_id: Optional[int] = None
@@ -402,6 +411,22 @@ def save_assignment_api(request: Request, data: AssignmentIn):
     db.create_or_update_assignment(data.assignment_id, data.task_id, data.date, block, data.status, data.user_id,
                                    comment, time_spent, changed_by=changed_by)
     return {'success': True}
+
+
+@app.post('/api/assignments/bulk-reschedule')
+def bulk_reschedule_assignments_api(request: Request, data: BulkAssignmentRescheduleIn):
+    """Атомарно перенести несколько назначений на итоговые даты."""
+    try:
+        moved = db.bulk_reschedule_assignments(
+            [move.model_dump() for move in data.moves],
+            role=request.state.role,
+            changed_by=request.session.get('user_id'),
+        )
+    except db.BulkAssignmentRescheduleError as exc:
+        return JSONResponse({'error': str(exc)}, status_code=exc.status_code)
+    except Exception:
+        return JSONResponse({'error': 'Не удалось перенести назначения'}, status_code=500)
+    return {'success': True, 'moved': moved}
 
 
 @app.delete('/api/assignment/{assignment_id}')
