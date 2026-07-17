@@ -26,3 +26,13 @@ schedule-chip columns) SHALL render and behave identically whether its column de
 - **THEN** each date column shows the same assignment chips, with the same drag-and-drop and click behavior as
   before extraction
 
+### Requirement: Ячейка работы показывает сегмент
+Таблица планирования SHALL показывать название сегмента каждой работы как вторичную метаинформацию под её названием.
+
+#### Scenario: Сегмент виден в списке работ
+- **WHEN** таблица отображает работу с заполненным `segment_name`
+- **THEN** под названием работы показана строка `Сегмент: <segment_name>` вторичным цветом
+
+#### Scenario: Длинное название не расширяет колонку
+- **WHEN** название сегмента не помещается в доступную ширину
+- **THEN** текст обрезан многоточием, а полное название доступно как подсказка

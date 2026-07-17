@@ -201,7 +201,23 @@ export function usePlanningColumns({
                 {isTerminal ? <InfoCircleOutlined /> : <EditOutlined />}
               </Button>
               <CriticalityBadge value={task.criticality} />
-              <span style={{ fontWeight: 500, minWidth: 0, overflowWrap: 'anywhere' }} data-task-row-name>{task.name}</span>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <span style={{ display: 'block', fontWeight: 500, overflowWrap: 'anywhere' }} data-task-row-name>{task.name}</span>
+                <div
+                  data-task-row-segment
+                  title={`Сегмент: ${task.segment_name}`}
+                  style={{
+                    marginTop: 2,
+                    color: token.colorTextTertiary,
+                    fontSize: '0.72rem',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Сегмент: {task.segment_name}
+                </div>
+              </div>
             </div>
             {taskDeps.length > 0 &&
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4, flexWrap: 'wrap' }}>
