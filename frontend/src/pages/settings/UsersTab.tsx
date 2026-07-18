@@ -1,9 +1,11 @@
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
+import type {TableColumnsType} from 'antd';
 import {DeleteOutlined, EditOutlined, LockOutlined} from '@ant-design/icons';
-import {Button, Form, Input, List, Modal, Popconfirm, Select, Space, Switch, Tag, Tooltip} from 'antd';
-import {type User, useUsers} from '../../hooks/useSettingsData';
+import {Button, Form, Input, Modal, Pagination, Popconfirm, Select, Space, Switch, Table, Tag, Tooltip} from 'antd';
+import {type User, usePaginatedUsers} from '../../hooks/useSettingsData';
 import {useMe} from '../../hooks/useMe';
 import {useCrudMutations} from '../../hooks/useCrudMutations';
+import {DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS} from '../../lib/pagination';
 
 interface UserFormValues {
   last_name: string | null;
@@ -22,7 +24,11 @@ const ROLE_OPTIONS = [
 ];
 
 export function UsersTab() {
-  const { data: users } = useUsers();
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const {data, isLoading} = usePaginatedUsers((page - 1) * pageSize, pageSize, debouncedSearch);
   const { data: me } = useMe();
   const isAdmin = me?.role === 'admin';
   const [modalUser, setModalUser] = useState<User | 'new' | null>(null);
@@ -38,6 +44,37 @@ export function UsersTab() {
 
   const isEditingProtected = modalUser !== 'new' && modalUser !== null && modalUser.is_protected;
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    if (data && data.users.length === 0 && data.total > 0 && page > 1) setPage(page - 1);
+  }, [data, page]);
+
+  const columns: TableColumnsType<User> = [
+    {
+      title: 'ФИО', key: 'fullName',
+      render: (_, user) => <Space size={4} wrap>
+        <span>{[user.last_name, user.first_name, user.middle_name].filter(Boolean).join(' ')}</span>
+        {!user.is_assignee && <Tag>Не исполнитель</Tag>}
+        {user.is_protected && <Tooltip title="Учётную запись администратора по умолчанию нельзя удалить"><Tag icon={<LockOutlined />}>По умолчанию</Tag></Tooltip>}
+      </Space>,
+    },
+    {title: 'Роль', dataIndex: 'role', key: 'role', render: (role: string) => ROLE_OPTIONS.find((item) => item.value === role)?.label ?? role},
+    {title: 'Логин', dataIndex: 'login', key: 'login', render: (login: string | null) => login || '—'},
+    {
+      title: 'Действия', key: 'actions', width: 120,
+      render: (_, user) => isAdmin ? <Space>
+        <Button aria-label="Редактировать пользователя" size="small" onClick={() => openModal(user)}><EditOutlined /></Button>
+        {user.is_protected
+          ? <Tooltip title="Учётную запись администратора по умолчанию нельзя удалить"><Button aria-label="Удалить пользователя" size="small" danger disabled><DeleteOutlined /></Button></Tooltip>
+          : <Popconfirm title="Удалить пользователя?" onConfirm={() => deleteMutation.mutate(user.id)} okText="Удалить" cancelText="Отмена"><Button aria-label="Удалить пользователя" size="small" danger><DeleteOutlined /></Button></Popconfirm>}
+      </Space> : null,
+    },
+  ];
+
   function openModal(u: User | 'new') {
     setModalUser(u);
     if (u === 'new') {
@@ -50,54 +87,19 @@ export function UsersTab() {
   return (
     <>
       {isAdmin && (
-        <Space style={{ marginBottom: 16 }}>
+        <Space style={{ marginBottom: 16, display: 'flex' }}>
           <Button type="primary" onClick={() => openModal('new')}>
             Добавить пользователя
           </Button>
         </Space>
       )}
 
-      <List
-        bordered
-        dataSource={users}
-        renderItem={(u) => (
-          <List.Item
-            actions={
-              isAdmin
-                ? [
-                    <Button key="edit" size="small" onClick={() => openModal(u)}>
-                      <EditOutlined />
-                    </Button>,
-                    u.is_protected ? (
-                      <Tooltip key="delete" title="Учётную запись администратора по умолчанию нельзя удалить">
-                        <Button size="small" danger disabled>
-                          <DeleteOutlined />
-                        </Button>
-                      </Tooltip>
-                    ) : (
-                      <Popconfirm key="delete" title="Удалить пользователя?" onConfirm={() => deleteMutation.mutate(u.id)} okText="Удалить" cancelText="Отмена">
-                        <Button size="small" danger>
-                          <DeleteOutlined />
-                        </Button>
-                      </Popconfirm>
-                    ),
-                  ]
-                : []
-            }
-          >
-            {[u.last_name, u.first_name, u.middle_name].filter(Boolean).join(' ')} <Tag style={{ marginLeft: 8 }}>{u.role}</Tag>
-            {u.login && <Tag style={{ marginLeft: 4 }}>{u.login}</Tag>}
-            {!u.is_assignee && <Tag style={{ marginLeft: 4 }}>Не исполнитель</Tag>}
-            {u.is_protected && (
-              <Tooltip title="Учётную запись администратора по умолчанию нельзя удалить">
-                <Tag icon={<LockOutlined />} color="default" style={{ marginLeft: 4 }}>
-                  По умолчанию
-                </Tag>
-              </Tooltip>
-            )}
-          </List.Item>
-        )}
-      />
+      <Input.Search allowClear value={search} placeholder="Поиск по логину, ФИО или роли"
+        onChange={(event) => { setSearch(event.target.value); setPage(1); }} style={{maxWidth: 420, marginBottom: 16}} />
+      <Table<User> rowKey="id" columns={columns} dataSource={data?.users ?? []} loading={isLoading} pagination={false} scroll={{x: 720}} />
+      {(data?.total ?? 0) > pageSize && <Pagination current={page} pageSize={pageSize} total={data?.total ?? 0}
+        showSizeChanger pageSizeOptions={PAGE_SIZE_OPTIONS} style={{marginTop: 16, textAlign: 'right'}}
+        onChange={(nextPage, nextPageSize) => { setPageSize(nextPageSize); setPage(nextPageSize === pageSize ? nextPage : 1); }} />}
 
       <Modal
         title={modalUser === 'new' ? 'Добавить пользователя' : 'Редактирование пользователя'}

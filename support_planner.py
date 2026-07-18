@@ -729,9 +729,13 @@ def delete_team_api(team_id: int):
 # === API для пользователей ===
 
 @app.get('/api/users')
-def get_users_api():
+def get_users_api(offset: Optional[int] = None, limit: Optional[int] = None, search: Optional[str] = None):
     """Получить всех пользователей"""
-    return db.get_all_users()
+    if offset is None and limit is None and search is None:
+        return db.get_all_users()
+    safe_offset = max(offset or 0, 0)
+    safe_limit = min(max(limit or 20, 1), 100)
+    return db.get_users_page(safe_offset, safe_limit, search)
 
 
 _VALID_ROLES = {'admin', 'editor', 'user'}

@@ -39,6 +39,20 @@ export function useUsers() {
   return useQuery<User[]>({ queryKey: ['users'], queryFn: () => apiGet('/api/users') });
 }
 
+export interface PaginatedUsersResponse {
+  users: User[];
+  total: number;
+}
+
+export function usePaginatedUsers(offset: number, limit: number, search: string) {
+  const params = new URLSearchParams({offset: String(offset), limit: String(limit)});
+  if (search) params.set('search', search);
+  return useQuery<PaginatedUsersResponse>({
+    queryKey: ['users', 'paginated', offset, limit, search],
+    queryFn: () => apiGet(`/api/users?${params}`),
+  });
+}
+
 export function useBlocks() {
   return useQuery<Block[]>({ queryKey: ['blocks'], queryFn: () => apiGet('/api/blocks') });
 }

@@ -46,12 +46,11 @@ import {ASSIGNMENT_STATUS_OPTIONS, usePlanningColumns} from './planning/usePlann
 import {apiMutate} from '../lib/apiMutate';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT} from '../lib/dateFormats';
 import {TASK_STATUS_LABELS} from '../lib/historyFormat';
+import {DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS} from '../lib/pagination';
 
 const DependencyGraphModal = lazy(() => import('./planning/DependencyGraphModal').then((m) => ({ default: m.DependencyGraphModal })));
 
 const STORAGE_TEAM_ID = 'selectedTeamId';
-const DEFAULT_PAGE_SIZE = 20;
-const PAGE_SIZE_OPTIONS = ['10', '20', '50', '100'];
 // Must match TOP_BAR_HEIGHT in components/AppShell.tsx (mobile fixed top bar height).
 const TOP_BAR_HEIGHT = 56;
 

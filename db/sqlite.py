@@ -196,6 +196,7 @@ class SQLiteBackend(DBBackend):
         conn.execute('PRAGMA journal_mode=WAL;')
         conn.execute('PRAGMA synchronous=NORMAL;')
         conn.create_function('fuzzy_word_in', 2, _fuzzy_word_in)
+        conn.create_function('casefold', 1, lambda value: (value or '').casefold(), deterministic=True)
 
     def last_insert_id(self, cursor) -> int:
         return cursor.lastrowid

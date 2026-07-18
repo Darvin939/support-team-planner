@@ -12,10 +12,9 @@ import {StatGroupLabel, StatTile} from '../components/StatTile';
 import {FilterField, FilterGrid} from '../components/FilterGrid';
 import {CriticalityBadge} from '../components/planningBadges';
 import {NAME_COLUMN_WIDTH} from '../lib/layout';
+import {DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS} from '../lib/pagination';
 
 const STORAGE_STATS_TEAMS = 'statsSelectedTeams';
-const DEFAULT_STATS_PAGE_SIZE = 20;
-const STATS_PAGE_SIZE_OPTIONS = ['10', '20', '50', '100'];
 
 interface ActiveAssignment {
   id: number;
@@ -153,7 +152,7 @@ export function StatisticsPage() {
   });
 
   const [range, handleRangeChange] = useDateRangeFilter(() => [dayjs().subtract(14, 'day'), dayjs().add(14, 'day')]);
-  const [pageSize, setPageSize] = useState(DEFAULT_STATS_PAGE_SIZE);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [todayOffset, setTodayOffset] = useState(0);
   const [periodOffset, setPeriodOffset] = useState(0);
 
@@ -208,7 +207,7 @@ export function StatisticsPage() {
         showDate={false}
         offset={todayOffset}
         pageSize={pageSize}
-        pageSizeOptions={STATS_PAGE_SIZE_OPTIONS}
+        pageSizeOptions={PAGE_SIZE_OPTIONS}
         onPageChange={setTodayOffset}
         onPageSizeChange={handlePageSizeChange}
       />
@@ -234,7 +233,7 @@ export function StatisticsPage() {
         showDate
         offset={periodOffset}
         pageSize={pageSize}
-        pageSizeOptions={STATS_PAGE_SIZE_OPTIONS}
+        pageSizeOptions={PAGE_SIZE_OPTIONS}
         onPageChange={setPeriodOffset}
         onPageSizeChange={handlePageSizeChange}
       />
