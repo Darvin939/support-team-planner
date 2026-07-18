@@ -355,6 +355,7 @@ export function DependencyGraphModal({
   );
 
   const focalTask = taskId ? data?.nodes.find((n) => n.id === taskId) : undefined;
+  const isEmpty = (data?.nodes.length ?? 0) === 0 || (taskId !== undefined && (data?.edges.length ?? 0) === 0);
 
   return (
     <Modal
@@ -370,9 +371,9 @@ export function DependencyGraphModal({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
           <Spin size="large" />
         </div>
-      ) : nodes.length === 0 ? (
+      ) : isEmpty ? (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-          <Empty description="В команде нет задач" />
+          <Empty description={taskId !== undefined ? 'У работы нет зависимостей' : 'В команде нет задач'} />
         </div>
       ) : (
         <ReactFlow
