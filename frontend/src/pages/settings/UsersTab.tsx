@@ -8,6 +8,7 @@ import {useCrudMutations} from '../../hooks/useCrudMutations';
 import {DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS} from '../../lib/pagination';
 import {useTeams} from '../../hooks/useTeams';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
+import {usePaginationState} from '../../hooks/usePaginationState';
 
 interface UserFormValues {
   last_name: string | null;
@@ -29,9 +30,9 @@ const ROLE_OPTIONS = [
 export function UsersTab() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search.trim(), 350);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const {data, isLoading} = usePaginatedUsers((page - 1) * pageSize, pageSize, debouncedSearch);
+  const pagination = usePaginationState(DEFAULT_PAGE_SIZE);
+  const {page, pageSize} = pagination;
+  const {data, isLoading} = usePaginatedUsers(pagination.offset, pageSize, debouncedSearch);
   const {data: teams} = useTeams();
   const { data: me } = useMe();
   const isAdmin = me?.role === 'admin';
@@ -49,8 +50,8 @@ export function UsersTab() {
   const isEditingProtected = modalUser !== 'new' && modalUser !== null && modalUser.is_protected;
 
   useEffect(() => {
-    if (data && data.users.length === 0 && data.total > 0 && page > 1) setPage(page - 1);
-  }, [data, page]);
+    if (data && data.users.length === 0 && data.total > 0 && page > 1) pagination.setPage(page - 1);
+  }, [data, page, pagination]);
 
   const columns: TableColumnsType<User> = [
     {
@@ -94,11 +95,11 @@ export function UsersTab() {
       )}
 
       <Input.Search allowClear value={search} placeholder="Поиск по логину, ФИО или роли"
-        onChange={(event) => { setSearch(event.target.value); setPage(1); }} style={{maxWidth: 420, marginBottom: 16}} />
+        onChange={(event) => { setSearch(event.target.value); pagination.reset(); }} style={{maxWidth: 420, marginBottom: 16}} />
       <Table<User> rowKey="id" columns={columns} dataSource={data?.users ?? []} loading={isLoading} pagination={false} scroll={{x: 720}} />
       {(data?.total ?? 0) > pageSize && <Pagination current={page} pageSize={pageSize} total={data?.total ?? 0}
         showSizeChanger pageSizeOptions={PAGE_SIZE_OPTIONS} style={{marginTop: 16, textAlign: 'right'}}
-        onChange={(nextPage, nextPageSize) => { setPageSize(nextPageSize); setPage(nextPageSize === pageSize ? nextPage : 1); }} />}
+        onChange={pagination.onChange} />}
 
       <Modal
         title={modalUser === 'new' ? 'Добавить пользователя' : 'Редактирование пользователя'}

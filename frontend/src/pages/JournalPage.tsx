@@ -1,6 +1,6 @@
 import {useEffect, useState} from 'react';
 import {useParams} from 'react-router-dom';
-import {Card, DatePicker, Empty, Input, Modal, Pagination, Select, Spin, Tag, Typography} from 'antd';
+import {Card, DatePicker, Empty, Input, Modal, Select, Tag, Typography} from 'antd';
 import {useQuery} from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import {useTeams} from '../hooks/useTeams';
@@ -14,9 +14,11 @@ import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT} from '../lib/dateFormats';
 import {useDebouncedValue} from '../hooks/useDebouncedValue';
 import {useStoredTeamRoute} from '../hooks/useStoredTeamRoute';
 import {queryKeys} from '../lib/queryKeys';
+import {usePaginationState} from '../hooks/usePaginationState';
+import {HISTORY_PAGE_SIZE, HistoryEntries, useEntityHistory} from './planning/historyShared';
+import {OffsetPagination} from '../components/OffsetPagination';
 
 const JOURNAL_PAGE_SIZE = 20;
-const HISTORY_PAGE_SIZE = 10;
 
 interface JournalItem extends HistoryEntry {
   task_id: number;
@@ -44,50 +46,19 @@ function useJournal(teamId: number | undefined, offset: number, filters: Journal
   });
 }
 
-function useTaskHistory(taskId: number | null, offset: number) {
-  return useQuery<{ history: HistoryEntry[]; total: number }>({
-    queryKey: queryKeys.taskHistory(taskId, offset),
-    enabled: taskId !== null,
-    queryFn: () => apiGet(`/api/task/${taskId}/history?offset=${offset}&limit=${HISTORY_PAGE_SIZE}`),
-  });
-}
-
 function TaskHistoryModal({ taskId, taskName, onClose }: { taskId: number | null; taskName: string | null; onClose: () => void }) {
-  const [offset, setOffset] = useState(0);
-  const { data, isLoading } = useTaskHistory(taskId, offset);
-  const getUserName = useUserNames();
+  const pagination = usePaginationState(HISTORY_PAGE_SIZE);
+  const { data, isLoading } = useEntityHistory('task', taskId, pagination.offset);
 
   useEffect(() => {
-    if (taskId !== null) setOffset(0);
-  }, [taskId]);
+    if (taskId !== null) pagination.reset();
+  }, [taskId, pagination.reset]);
 
   return (
     <Modal title={taskName ? `История задачи: ${taskName}` : 'История задачи'} open={taskId !== null} onCancel={onClose} footer={null} width={700}>
-      {isLoading && <Spin />}
-      {data && data.history.length === 0 && <Empty description="Изменений пока нет" />}
-      {data && data.history.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {data.history.map((entry) => (
-            <div key={`${entry.entity}-${entry.id}`} style={{ fontSize: '0.85rem', padding: '6px 10px', background: 'rgba(128,128,128,0.08)', borderRadius: 4 }}>
-              <div style={{ opacity: 0.6, fontSize: '0.78rem' }}>
-                {entry.changed_at} — {formatChangedBy(entry)}
-              </div>
-              <div>{formatHistoryText(entry, getUserName, false)}</div>
-            </div>
-          ))}
-        </div>
-      )}
-      {data && data.total > HISTORY_PAGE_SIZE && (
-        <Pagination
-          style={{ marginTop: 12, textAlign: 'center' }}
-          simple
-          showSizeChanger={false}
-          current={Math.floor(offset / HISTORY_PAGE_SIZE) + 1}
-          pageSize={HISTORY_PAGE_SIZE}
-          total={data.total}
-          onChange={(page) => setOffset((page - 1) * HISTORY_PAGE_SIZE)}
-        />
-      )}
+      <HistoryEntries entries={data?.history} loading={isLoading} showAssignmentContext={false} />
+      {data && <OffsetPagination style={{marginTop: 12, textAlign: 'center'}} offset={pagination.offset}
+        pageSize={HISTORY_PAGE_SIZE} total={data.total} onOffsetChange={pagination.setOffset} />}
     </Modal>
   );
 }
@@ -97,7 +68,7 @@ export function JournalPage() {
   const isMobile = useIsMobile();
   const { data: teams } = useTeams();
   const userOptions = useUserOptions();
-  const [offset, setOffset] = useState(0);
+  const pagination = usePaginationState(JOURNAL_PAGE_SIZE);
   const [modalTask, setModalTask] = useState<{ id: number; name: string } | null>(null);
   const getUserName = useUserNames();
 
@@ -107,7 +78,7 @@ export function JournalPage() {
     storageKeyFrom: 'journalDateFrom',
     storageKeyTo: 'journalDateTo',
     maxPeriodDays: Infinity,
-    onChange: () => setOffset(0),
+    onChange: pagination.reset,
   });
   const [changedByUserId, setChangedByUserId] = useState<number | null>(null);
 
@@ -115,16 +86,16 @@ export function JournalPage() {
   const selectTeamRoute = useStoredTeamRoute('/journal', teamId, teams);
 
   useEffect(() => {
-    setOffset(0);
-  }, [teamId]);
+    pagination.reset();
+  }, [teamId, pagination.reset]);
 
   useEffect(() => {
-    setOffset(0);
-  }, [debouncedSearch]);
+    pagination.reset();
+  }, [debouncedSearch, pagination.reset]);
 
   function handleChangedByChange(value: number | undefined) {
     setChangedByUserId(value ?? null);
-    setOffset(0);
+    pagination.reset();
   }
 
   const filters: JournalFilters = {
@@ -134,7 +105,7 @@ export function JournalPage() {
     changedByUserId,
   };
 
-  const { data } = useJournal(teamId, offset, filters);
+  const { data } = useJournal(teamId, pagination.offset, filters);
 
   function handleTeamSelect(value: number | undefined) {
     selectTeamRoute(value);
@@ -219,16 +190,8 @@ export function JournalPage() {
               </Card>
             ))}
           </div>
-          {data && data.total > JOURNAL_PAGE_SIZE && (
-            <Pagination
-              style={{ textAlign: 'center' }}
-              current={Math.floor(offset / JOURNAL_PAGE_SIZE) + 1}
-              pageSize={JOURNAL_PAGE_SIZE}
-              total={data.total}
-              onChange={(page) => setOffset((page - 1) * JOURNAL_PAGE_SIZE)}
-              showSizeChanger={false}
-            />
-          )}
+          {data && <OffsetPagination style={{textAlign: 'center'}} offset={pagination.offset}
+            pageSize={JOURNAL_PAGE_SIZE} total={data.total} onOffsetChange={pagination.setOffset} simple={false} />}
         </>
       )}
 

@@ -15,6 +15,7 @@ import {NAME_COLUMN_WIDTH} from '../lib/layout';
 import {DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS} from '../lib/pagination';
 import {readStoredJson, writeStoredJson} from '../lib/storage';
 import {queryKeys} from '../lib/queryKeys';
+import {usePaginationState} from '../hooks/usePaginationState';
 
 const STORAGE_STATS_TEAMS = 'statsSelectedTeams';
 
@@ -148,15 +149,15 @@ export function StatisticsPage() {
   const [selectedTeamIds, setSelectedTeamIds] = useState<number[]>(() => readStoredJson(STORAGE_STATS_TEAMS, []));
 
   const [range, handleRangeChange] = useDateRangeFilter(() => [dayjs().subtract(14, 'day'), dayjs().add(14, 'day')]);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const [todayOffset, setTodayOffset] = useState(0);
-  const [periodOffset, setPeriodOffset] = useState(0);
+  const todayPagination = usePaginationState(DEFAULT_PAGE_SIZE);
+  const periodPagination = usePaginationState(DEFAULT_PAGE_SIZE);
+  const pageSize = todayPagination.pageSize;
 
   function handleTeamsChange(ids: number[]) {
     setSelectedTeamIds(ids);
     writeStoredJson(STORAGE_STATS_TEAMS, ids);
-    setTodayOffset(0);
-    setPeriodOffset(0);
+    todayPagination.reset();
+    periodPagination.reset();
   }
 
   useEffect(() => {
@@ -170,21 +171,20 @@ export function StatisticsPage() {
   }, [teams, selectedTeamIds]);
 
   function handlePageSizeChange(size: number) {
-    setPageSize(size);
-    setTodayOffset(0);
-    setPeriodOffset(0);
+    todayPagination.setPageSize(size);
+    periodPagination.setPageSize(size);
   }
 
   const periodFrom = range[0].format(API_DATE_FORMAT);
   const periodTo = range[1].format(API_DATE_FORMAT);
 
   useEffect(() => {
-    setPeriodOffset(0);
-  }, [periodFrom, periodTo]);
+    periodPagination.reset();
+  }, [periodFrom, periodTo, periodPagination.reset]);
 
   const today = dayjs().format(API_DATE_FORMAT);
-  const { data: todayData } = useActiveAssignments(today, today, selectedTeamIds, todayOffset, pageSize);
-  const { data: periodData } = useActiveAssignments(periodFrom, periodTo, selectedTeamIds, periodOffset, pageSize);
+  const { data: todayData } = useActiveAssignments(today, today, selectedTeamIds, todayPagination.offset, pageSize);
+  const { data: periodData } = useActiveAssignments(periodFrom, periodTo, selectedTeamIds, periodPagination.offset, pageSize);
 
   return (
     <>
@@ -211,10 +211,10 @@ export function StatisticsPage() {
         title="Активные работы на сегодня"
         response={todayData}
         showDate={false}
-        offset={todayOffset}
+        offset={todayPagination.offset}
         pageSize={pageSize}
         pageSizeOptions={PAGE_SIZE_OPTIONS}
-        onPageChange={setTodayOffset}
+        onPageChange={todayPagination.setOffset}
         onPageSizeChange={handlePageSizeChange}
       />
 
@@ -237,10 +237,10 @@ export function StatisticsPage() {
         title="Активные работы за период"
         response={periodData}
         showDate
-        offset={periodOffset}
+        offset={periodPagination.offset}
         pageSize={pageSize}
         pageSizeOptions={PAGE_SIZE_OPTIONS}
-        onPageChange={setPeriodOffset}
+        onPageChange={periodPagination.setOffset}
         onPageSizeChange={handlePageSizeChange}
       />
     </>

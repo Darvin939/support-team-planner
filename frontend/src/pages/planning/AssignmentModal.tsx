@@ -1,4 +1,4 @@
-import {type CSSProperties, useEffect, useMemo, useState} from 'react';
+import {type CSSProperties, useMemo} from 'react';
 import {
   Alert,
   Button,
@@ -25,14 +25,15 @@ import {apiMutate} from '../../lib/apiMutate';
 import {invalidateAssignmentData} from '../../lib/queryInvalidation';
 import {useDeleteAssignmentMutation, useSaveAssignmentMutation} from './assignmentMutations';
 import type {AssignmentStatus} from '../../domain/types';
-import {computeAutoAssignDates, getAutoScheduleDateRange} from '../../lib/autoSchedule';
+import {getAutoScheduleDateRange} from '../../lib/autoSchedule';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT, TIME_FORMAT} from '../../lib/dateFormats';
 import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';
 import {useIsMobile} from '../../hooks/useIsMobile';
 import {useAutoScheduleDragScroll} from './useAutoScheduleDragScroll';
 import {getCellTint, getHeaderTint} from './cellTint';
+import {useAssignmentModalState} from './useAssignmentModalState';
 
-interface AssignmentFormValues {
+export interface AssignmentFormValues {
   date: dayjs.Dayjs;
   time_spent: dayjs.Dayjs | null;
   block_ids: number[];
@@ -241,52 +242,10 @@ export function AssignmentModal({
     [allTeamTemplates, task?.segment_id]
   );
 
-  const [autoAssignEnabled, setAutoAssignEnabled] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
-  const [autoAssignDates, setAutoAssignDates] = useState<Record<number, string>>({});
-  const [autoAssignSelected, setAutoAssignSelected] = useState<number | null>(null);
-
-  const watchedDate = Form.useWatch('date', form);
-
-  useEffect(() => {
-    if (!open) return;
-    const names = (assignment?.block ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-    const blockIds = (teamBlocks ?? []).filter((b) => names.includes(b.name)).map((b) => b.id);
-    form.setFieldsValue({
-      date: dayjs(assignment?.date ?? date ?? undefined),
-      time_spent: assignment?.time_spent ? dayjs(assignment.time_spent, TIME_FORMAT) : null,
-      block_ids: blockIds,
-      status: assignment?.status ?? 'new',
-      user_id: assignment?.user_id ?? null,
-      comment: assignment?.comment ?? '',
-    });
-    setAutoAssignEnabled(false);
-    setSelectedTemplateId(null);
-    setAutoAssignDates({});
-    setAutoAssignSelected(null);
-  }, [open, assignment, date, teamBlocks, form]);
-
-  function recomputeSchedule(templateId: number | null, baseDate: string) {
-    const blocks = templates?.find((t) => t.id === templateId)?.blocks ?? [];
-    setAutoAssignDates(templateId ? computeAutoAssignDates(baseDate, blocks, freezeDays) : {});
-  }
-
-  useEffect(() => {
-    if (!autoAssignEnabled || !watchedDate) return;
-    recomputeSchedule(selectedTemplateId, watchedDate.format(API_DATE_FORMAT));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchedDate, autoAssignEnabled, selectedTemplateId, templates]);
-
-  function handleAutoAssignToggle(checked: boolean) {
-    setAutoAssignEnabled(checked);
-    setAutoAssignSelected(null);
-    if (checked) {
-      form.setFieldValue('status', 'new');
-      const defaultTemplateId = templates?.[0]?.id ?? null;
-      setSelectedTemplateId(defaultTemplateId);
-      recomputeSchedule(defaultTemplateId, (watchedDate ?? dayjs()).format(API_DATE_FORMAT));
-    }
-  }
+  const {
+    autoAssignEnabled, selectedTemplateId, autoAssignDates, autoAssignSelected, watchedDate,
+    setSelectedTemplateId, setAutoAssignDates, setAutoAssignSelected, recomputeSchedule, handleAutoAssignToggle,
+  } = useAssignmentModalState({open, assignment, date, teamBlocks, templates, freezeDays, form});
 
   const saveMutation = useSaveAssignmentMutation({includeTasks: true, successMessage: 'Сохранено', onSuccess: onClose});
 

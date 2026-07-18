@@ -51,6 +51,8 @@ import {useStoredTeamRoute} from '../hooks/useStoredTeamRoute';
 import {DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS} from '../lib/pagination';
 import {invalidateAssignmentData} from '../lib/queryInvalidation';
 import {assignmentToPayload, useSaveAssignmentMutation} from './planning/assignmentMutations';
+import {usePaginationState} from '../hooks/usePaginationState';
+import {usePlanningFilters} from './planning/usePlanningFilters';
 
 const DependencyGraphModal = lazy(() => import('./planning/DependencyGraphModal').then((m) => ({ default: m.DependencyGraphModal })));
 
@@ -104,12 +106,8 @@ export function PlanningPage() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search, 500);
   const [showCompleted, setShowCompleted] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const [critFilter, setCritFilter] = useState<string[]>([]);
-  const [statusFilter, setStatusFilter] = useState<string[]>([]);
-  const [taskStatusFilter, setTaskStatusFilter] = useState<string[]>([]);
-  const [segmentFilter, setSegmentFilter] = useState<number[]>([]);
+  const pagination = usePaginationState(DEFAULT_PAGE_SIZE);
+  const {page, pageSize} = pagination;
   const { data: segments } = useSegments();
   const [taskModal, setTaskModal] = useState<{ open: boolean; task: Task | null }>({ open: false, task: null });
   const [depJumpTaskId, setDepJumpTaskId] = useState<number | null>(null);
@@ -163,8 +161,8 @@ export function PlanningPage() {
 
   useEffect(() => {
     pendingCenterRef.current = true;
-    setPage(1);
-  }, [teamId, debouncedSearch, showCompleted]);
+    pagination.reset();
+  }, [teamId, debouncedSearch, showCompleted, pagination.reset]);
 
   // Выборка ссылается на назначения из assignments, который сам подгружен только по task_ids
   // текущей страницы (useAssignments(teamId, dateFrom, dateTo, taskIds) в usePlanningData.ts) —
@@ -186,7 +184,7 @@ export function PlanningPage() {
   const dateTo = range[1].format(API_DATE_FORMAT);
   const today = dayjs().format(API_DATE_FORMAT);
 
-  const { data: taskData } = useTasks(teamId ?? 0, (page - 1) * pageSize, pageSize, debouncedSearch, showCompleted);
+  const { data: taskData } = useTasks(teamId ?? 0, pagination.offset, pageSize, debouncedSearch, showCompleted);
   const taskIds = useMemo(() => taskData?.tasks.map((t) => t.id) ?? [], [taskData]);
   // Зависимость, на которую перешли по клику, может отсутствовать в текущей загруженной странице
   // (пагинация/фильтры) — подмешиваем её id в запрос зависимостей, чтобы модалка задачи открылась
@@ -350,18 +348,13 @@ export function PlanningPage() {
     color: token.colorPrimary,
   });
 
-  const filteredTasks = useMemo(() => {
-    return (taskData?.tasks ?? []).filter((t) => {
-      if (critFilter.length && !critFilter.includes(t.criticality)) return false;
-      if (taskStatusFilter.length && !taskStatusFilter.includes(t.task_status)) return false;
-      if (segmentFilter.length && !segmentFilter.includes(t.segment_id)) return false;
-      if (statusFilter.length) {
-        const taskAssignments = assignmentsByTask.get(t.id) ?? [];
-        if (!taskAssignments.some((a) => statusFilter.includes(a.status))) return false;
-      }
-      return true;
-    });
-  }, [taskData, critFilter, taskStatusFilter, segmentFilter, statusFilter, assignmentsByTask]);
+  const {
+    criticalities: critFilter, setCriticalities: setCritFilter,
+    assignmentStatuses: statusFilter, setAssignmentStatuses: setStatusFilter,
+    taskStatuses: taskStatusFilter, setTaskStatuses: setTaskStatusFilter,
+    segmentIds: segmentFilter, setSegmentIds: setSegmentFilter,
+    filteredTasks,
+  } = usePlanningFilters(taskData?.tasks, assignmentsByTask);
 
   function handleTeamSelect(value: number) {
     pendingCenterRef.current = true;
@@ -576,10 +569,9 @@ export function PlanningPage() {
               onChange={(p, size) => {
                 pendingCenterRef.current = true;
                 if (size !== pageSize) {
-                  setPageSize(size);
-                  setPage(1);
+                  pagination.setPageSize(size);
                 } else {
-                  setPage(p);
+                  pagination.setPage(p);
                 }
               }}
             />
