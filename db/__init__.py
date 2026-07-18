@@ -104,6 +104,38 @@ def get_all_teams_with_templates(conn):
 
 
 @with_db_connection(commit_on_success=False)
+def get_teams_for_user(conn, user_id, role):
+    if role == 'admin' or not conn.execute(
+        'SELECT 1 FROM user_team_access WHERE user_id = ? LIMIT 1', (user_id,)
+    ).fetchone():
+        teams = conn.execute('SELECT id, name FROM teams ORDER BY name').fetchall()
+    else:
+        teams = conn.execute(
+            '''SELECT t.id, t.name FROM teams t
+               JOIN user_team_access access ON access.team_id = t.id
+               WHERE access.user_id = ? ORDER BY t.name''', (user_id,)
+        ).fetchall()
+    rows = conn.execute(
+        '''SELECT tt.team_id, bt.id, bt.name FROM team_templates tt
+           JOIN block_templates bt ON tt.template_id = bt.id ORDER BY bt.name'''
+    ).fetchall()
+    templates = {}
+    allowed = {team['id'] for team in teams}
+    for row in rows:
+        if row['team_id'] in allowed:
+            templates.setdefault(row['team_id'], []).append({'id': row['id'], 'name': row['name']})
+    return [{'id': team['id'], 'name': team['name'], 'templates': templates.get(team['id'], [])} for team in teams]
+
+
+@with_db_connection()
+def grant_team_access_if_restricted(conn, user_id, role, team_id):
+    if role == 'admin':
+        return
+    if conn.execute('SELECT 1 FROM user_team_access WHERE user_id = ? LIMIT 1', (user_id,)).fetchone():
+        conn.execute('INSERT OR IGNORE INTO user_team_access (user_id, team_id) VALUES (?, ?)', (user_id, team_id))
+
+
+@with_db_connection(commit_on_success=False)
 def get_team_by_id(conn, team_id):
     """Получить команду по ID"""
     return conn.execute('SELECT id, name FROM teams WHERE id = ?', (team_id,)).fetchone()
@@ -372,6 +404,92 @@ def _is_bootstrap_admin(row):
     return row['login'] == _BOOTSTRAP_ADMIN_LOGIN
 
 
+def _get_user_team_ids(conn, user_id):
+    return [row['team_id'] for row in conn.execute(
+        'SELECT team_id FROM user_team_access WHERE user_id = ? ORDER BY team_id', (user_id,)
+    ).fetchall()]
+
+
+def _set_user_team_ids(conn, user_id, team_ids, role=None):
+    conn.execute('DELETE FROM user_team_access WHERE user_id = ?', (user_id,))
+    if role == 'admin':
+        return
+    for team_id in dict.fromkeys(team_ids or []):
+        conn.execute('INSERT INTO user_team_access (user_id, team_id) VALUES (?, ?)', (user_id, int(team_id)))
+
+
+@with_db_connection(commit_on_success=False)
+def get_user_team_ids(conn, user_id):
+    return _get_user_team_ids(conn, user_id)
+
+
+@with_db_connection(commit_on_success=False)
+def get_effective_team_ids(conn, user_id, role):
+    if role == 'admin':
+        return None
+    team_ids = _get_user_team_ids(conn, user_id)
+    return team_ids or None
+
+
+@with_db_connection(commit_on_success=False)
+def user_can_access_team(conn, user_id, role, team_id):
+    if role == 'admin':
+        return True
+    restricted = conn.execute('SELECT 1 FROM user_team_access WHERE user_id = ? LIMIT 1', (user_id,)).fetchone()
+    if not restricted:
+        return True
+    return conn.execute(
+        'SELECT 1 FROM user_team_access WHERE user_id = ? AND team_id = ?', (user_id, team_id)
+    ).fetchone() is not None
+
+
+@with_db_connection(commit_on_success=False)
+def get_task_team_id(conn, task_id):
+    row = conn.execute('SELECT team_id FROM tasks WHERE id = ?', (task_id,)).fetchone()
+    return row['team_id'] if row else None
+
+
+@with_db_connection(commit_on_success=False)
+def get_assignment_team_id(conn, assignment_id):
+    row = conn.execute(
+        'SELECT t.team_id FROM assignments a JOIN tasks t ON t.id = a.task_id WHERE a.id = ?',
+        (assignment_id,),
+    ).fetchone()
+    return row['team_id'] if row else None
+
+
+@with_db_connection(commit_on_success=False)
+def get_team_assignees(conn, team_id):
+    rows = conn.execute(
+        '''SELECT u.id, u.last_name, u.first_name, u.middle_name, u.role, u.login,
+                  u.is_assignee
+           FROM users u
+           WHERE u.is_assignee = 1 AND (
+               u.role = 'admin'
+               OR NOT EXISTS (SELECT 1 FROM user_team_access any_access WHERE any_access.user_id = u.id)
+               OR EXISTS (SELECT 1 FROM user_team_access access
+                          WHERE access.user_id = u.id AND access.team_id = ?)
+           )
+           ORDER BY u.last_name, u.first_name, u.middle_name''',
+        (team_id,),
+    ).fetchall()
+    return [{**dict(row), 'is_assignee': bool(row['is_assignee'])} for row in rows]
+
+
+@with_db_connection(commit_on_success=False)
+def user_is_eligible_assignee(conn, user_id, team_id):
+    row = conn.execute(
+        '''SELECT 1 FROM users u
+           WHERE u.id = ? AND u.is_assignee = 1 AND (
+               u.role = 'admin'
+               OR NOT EXISTS (SELECT 1 FROM user_team_access any_access WHERE any_access.user_id = u.id)
+               OR EXISTS (SELECT 1 FROM user_team_access access
+                          WHERE access.user_id = u.id AND access.team_id = ?)
+           )''', (user_id, team_id)
+    ).fetchone()
+    return row is not None
+
+
 @with_db_connection(commit_on_success=False)
 def is_bootstrap_admin_id(conn, user_id):
     """Является ли user_id учётной записью администратора по умолчанию (см. _is_bootstrap_admin)"""
@@ -389,6 +507,7 @@ def get_all_users(conn):
         u_dict = dict(u)
         u_dict['is_assignee'] = bool(u_dict['is_assignee'])
         u_dict['is_protected'] = _is_bootstrap_admin(u)
+        u_dict['team_ids'] = _get_user_team_ids(conn, u['id'])
         result.append(u_dict)
     return result
 
@@ -426,6 +545,7 @@ def get_users_page(conn, offset=0, limit=20, search=None):
         user_dict = dict(user)
         user_dict['is_assignee'] = bool(user_dict['is_assignee'])
         user_dict['is_protected'] = _is_bootstrap_admin(user)
+        user_dict['team_ids'] = _get_user_team_ids(conn, user['id'])
         result.append(user_dict)
     return {'users': result, 'total': total}
 
@@ -440,7 +560,7 @@ def get_user(conn, user_id):
 
 @with_db_connection(default_return=None, raise_on_error=False, commit_on_success=False)
 def create_user(conn, last_name, first_name, middle_name=None, password_hash=None, role='user', login=None,
-                 is_assignee=True):
+                 is_assignee=True, team_ids=None):
     """Создать пользователя. Возвращает None при нарушении UNIQUE (дубль логина) —
     raise_on_error=False нужен именно для этого: без него IntegrityError улетал бы наверх
     необработанным, и вызывающий код никогда не увидел бы свою ветку "уже существует"."""
@@ -448,8 +568,9 @@ def create_user(conn, last_name, first_name, middle_name=None, password_hash=Non
         '''INSERT INTO users (last_name, first_name, middle_name, password_hash, role, login, is_assignee)
            VALUES (?, ?, ?, ?, ?, ?, ?)''',
         (last_name, first_name, middle_name, password_hash, role, login, int(is_assignee)))
-    conn.commit()
-    return _backend.last_insert_id(cursor)
+    user_id = _backend.last_insert_id(cursor)
+    _set_user_team_ids(conn, user_id, team_ids, role)
+    return user_id
 
 
 def _update_login_and_password(conn, user_id, password_hash=None, login=None):
@@ -472,7 +593,7 @@ def update_own_password(conn, user_id, password_hash):
 
 @with_db_connection(default_return=False, raise_on_error=False)
 def update_user(conn, user_id, last_name, first_name, middle_name=None, password_hash=None, role='user', login=None,
-                 is_assignee=True):
+                 is_assignee=True, team_ids=None):
     """Обновить пользователя. password_hash=None означает "не менять пароль", login=None — "не менять логин".
     Для учётной записи администратора по умолчанию ФИО и роль никогда не перезаписываются этой
     функцией (можно поменять только пароль и логин) — независимо от того, что пришло в
@@ -483,6 +604,7 @@ def update_user(conn, user_id, last_name, first_name, middle_name=None, password
 
     if _is_bootstrap_admin(current):
         _update_login_and_password(conn, user_id, password_hash, login)
+        _set_user_team_ids(conn, user_id, [], 'admin')
         return True
 
     if password_hash is not None:
@@ -507,6 +629,7 @@ def update_user(conn, user_id, last_name, first_name, middle_name=None, password
                    login       = ?,
                    is_assignee = ?
                WHERE id = ?''', (last_name, first_name, middle_name, role, login, int(is_assignee), user_id))
+    _set_user_team_ids(conn, user_id, team_ids, role)
     return True
 
 

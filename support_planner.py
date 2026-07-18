@@ -3,7 +3,7 @@ import os
 from datetime import date, timedelta
 from typing import Optional, List, Union
 
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -24,7 +24,6 @@ _REACT_DIST = os.path.join(os.path.dirname(__file__), 'frontend', 'dist')
 if os.path.isdir(_REACT_DIST):
     app.mount("/react-assets", StaticFiles(directory=_REACT_DIST), name="react-assets")
 
-
 _react_index_html: Optional[str] = None
 
 
@@ -38,6 +37,7 @@ def _serve_react_index() -> str:
         with open(os.path.join(_REACT_DIST, 'index.html'), encoding='utf-8') as f:
             _react_index_html = f.read()
     return _react_index_html
+
 
 _SESSION_SECRET_KEY = os.environ.get('SESSION_SECRET_KEY')
 if not _SESSION_SECRET_KEY:
@@ -201,6 +201,7 @@ class UserIn(BaseModel):
     role: str = "user"
     login: Optional[str] = None
     is_assignee: bool = True
+    team_ids: Optional[List[int]] = None
 
 
 class MyPasswordIn(BaseModel):
@@ -248,6 +249,39 @@ def _task_is_locked(task) -> bool:
 def _parse_int_csv(value: Optional[str]) -> Optional[List[int]]:
     """Распарсить query-параметр вида '1,2,3' в список int; None/пусто -> None (без фильтрации)."""
     return [int(x) for x in value.split(',') if x.strip()] if value else None
+
+
+def _access_user(request: Request):
+    return request.session['user_id'], request.state.role
+
+
+def _require_team_access(request: Request, team_id: Optional[int]):
+    if team_id is None:
+        raise HTTPException(status_code=404, detail='Команда не найдена')
+    user_id, role = _access_user(request)
+    if not db.user_can_access_team(user_id, role, team_id):
+        raise HTTPException(status_code=403, detail='Нет доступа к команде')
+    return team_id
+
+
+def _require_task_access(request: Request, task_id: int):
+    team_id = db.get_task_team_id(task_id)
+    return _require_team_access(request, team_id)
+
+
+def _require_assignment_access(request: Request, assignment_id: int):
+    team_id = db.get_assignment_team_id(assignment_id)
+    return _require_team_access(request, team_id)
+
+
+def _require_team_list_access(request: Request, team_ids: List[int]):
+    for team_id in team_ids:
+        _require_team_access(request, team_id)
+
+
+def _effective_team_filter(request: Request):
+    user_id, role = _access_user(request)
+    return db.get_effective_team_ids(user_id, role)
 
 
 # === Роуты ===
@@ -348,9 +382,11 @@ def journal_page(team_id: int):
 # === API для назначений ===
 
 @app.get('/api/assignments/{team_id}')
-def get_assignments_api(team_id: int, start_date: Optional[str] = None, end_date: Optional[str] = None,
+def get_assignments_api(request: Request, team_id: int, start_date: Optional[str] = None,
+                        end_date: Optional[str] = None,
                         task_ids: Optional[str] = None):
     """API для получения назначений команды"""
+    _require_team_access(request, team_id)
     if not start_date or not end_date:
         today = date.today()
         start_date = start_date or (today - timedelta(days=30)).strftime('%Y-%m-%d')
@@ -361,8 +397,8 @@ def get_assignments_api(team_id: int, start_date: Optional[str] = None, end_date
     result = []
     for a in assignments:
         user_name = utils.format_user_name(a['user_last_name'],
-                                            a['user_first_name'],
-                                            a['user_middle_name'])
+                                           a['user_first_name'],
+                                           a['user_middle_name'])
         result.append({
             'id': a['id'],
             'task_id': a['task_id'],
@@ -390,6 +426,11 @@ def save_assignment_api(request: Request, data: AssignmentIn):
 
     if not db.task_exists(data.task_id):
         return JSONResponse({'error': 'Task not found'}, status_code=404)
+    team_id = _require_task_access(request, data.task_id)
+    if data.assignment_id:
+        _require_assignment_access(request, data.assignment_id)
+    if data.user_id is not None and not db.user_is_eligible_assignee(data.user_id, team_id):
+        return JSONResponse({'error': 'Пользователь недоступен для назначения в этой команде'}, status_code=400)
 
     task = db.get_task_status(data.task_id)
     if task and _task_is_locked(task):
@@ -416,6 +457,8 @@ def save_assignment_api(request: Request, data: AssignmentIn):
 @app.post('/api/assignments/bulk-reschedule')
 def bulk_reschedule_assignments_api(request: Request, data: BulkAssignmentRescheduleIn):
     """Атомарно перенести несколько назначений на итоговые даты."""
+    for move in data.moves:
+        _require_assignment_access(request, move.assignment_id)
     try:
         moved = db.bulk_reschedule_assignments(
             [move.model_dump() for move in data.moves],
@@ -432,6 +475,7 @@ def bulk_reschedule_assignments_api(request: Request, data: BulkAssignmentResche
 @app.delete('/api/assignment/{assignment_id}')
 def delete_assignment_api(request: Request, assignment_id: int):
     """API для удаления назначения"""
+    _require_assignment_access(request, assignment_id)
     task = db.get_task_status_by_assignment(assignment_id)
     if task and _task_is_locked(task):
         return JSONResponse({'error': 'Нельзя изменять назначения завершённой или отменённой задачи'}, status_code=400)
@@ -444,8 +488,9 @@ def delete_assignment_api(request: Request, assignment_id: int):
 
 
 @app.get('/api/assignment/{assignment_id}/history')
-def get_assignment_history_api(assignment_id: int, offset: int = 0, limit: int = 20):
+def get_assignment_history_api(request: Request, assignment_id: int, offset: int = 0, limit: int = 20):
     """История изменений назначения (с пагинацией)"""
+    _require_assignment_access(request, assignment_id)
     return {
         'history': db.get_assignment_history(assignment_id, offset=offset, limit=limit),
         'total': db.get_assignment_history_count(assignment_id)
@@ -455,12 +500,14 @@ def get_assignment_history_api(assignment_id: int, offset: int = 0, limit: int =
 # === API для задач ===
 
 @app.get('/api/tasks/{team_id}')
-def get_tasks_api(team_id: int, offset: int = 0, limit: int = 20, search: str = "", show_completed: bool = False,
-                   task_id: Optional[int] = None):
+def get_tasks_api(request: Request, team_id: int, offset: int = 0, limit: int = 20, search: str = "",
+                  show_completed: bool = False,
+                  task_id: Optional[int] = None):
     """API для получения задач команды с пагинацией"""
+    _require_team_access(request, team_id)
     search_val = search.strip() or None
     tasks = db.get_tasks_by_team(team_id, offset=offset, limit=limit, search=search_val, show_completed=show_completed,
-                                  task_id=task_id)
+                                 task_id=task_id)
     total = db.get_tasks_count_by_team(team_id, search=search_val, show_completed=show_completed)
     return {
         'tasks': [{'id': t['id'], 'name': t['name'], 'description': t['description'],
@@ -479,6 +526,7 @@ def save_task_api(request: Request, data: TaskIn):
 
     if not data.team_id or not name:
         return JSONResponse({'error': 'Team ID and name required'}, status_code=400)
+    _require_team_access(request, data.team_id)
     if data.criticality not in ('low', 'medium', 'high'):
         return JSONResponse({'error': 'criticality must be low, medium or high'}, status_code=400)
     if not data.segment_id or not any(s['id'] == data.segment_id for s in db.get_all_segments()):
@@ -487,13 +535,14 @@ def save_task_api(request: Request, data: TaskIn):
     if data.task_id:
         if not db.task_exists(data.task_id):
             return JSONResponse({'error': 'Задача не найдена'}, status_code=404)
+        _require_task_access(request, int(data.task_id))
         task = db.get_task_status(data.task_id)
         if task and _task_is_locked(task):
             return JSONResponse({'error': 'Нельзя редактировать завершённую или отменённую задачу'}, status_code=400)
 
     task_id = int(db.create_or_update_task(data.task_id, data.team_id, name, description, data.criticality,
-                                            segment_id=data.segment_id,
-                                            changed_by=request.session.get('user_id')))
+                                           segment_id=data.segment_id,
+                                           changed_by=request.session.get('user_id')))
 
     if data.dependency_ids is not None:
         if data.dependency_ids and db.has_dependency_cycle(task_id, data.dependency_ids):
@@ -504,7 +553,8 @@ def save_task_api(request: Request, data: TaskIn):
 
 
 @app.get('/api/tasks/{team_id}/deps')
-def get_team_deps(team_id: int, task_ids: Optional[str] = None):
+def get_team_deps(request: Request, team_id: int, task_ids: Optional[str] = None):
+    _require_team_access(request, team_id)
     parsed_task_ids = _parse_int_csv(task_ids)
     rows = db.get_all_deps_for_team(team_id, task_ids=parsed_task_ids)
     return [{'task_id': r['task_id'], 'dep_id': r['dep_id'], 'dep_name': r['dep_name'],
@@ -514,10 +564,13 @@ def get_team_deps(team_id: int, task_ids: Optional[str] = None):
 
 
 @app.get('/api/tasks/{team_id}/dependency-graph')
-def get_team_dependency_graph(team_id: int, task_id: Optional[int] = None):
+def get_team_dependency_graph(request: Request, team_id: int, task_id: Optional[int] = None):
     """Граф зависимостей для визуализации — в отличие от /deps не ограничен списком уже
     загруженных на странице задач. Без task_id — весь граф команды (задачи без единой связи
     исключены). С task_id — только связная компонента конкретной задачи (её предки и потомки)."""
+    _require_team_access(request, team_id)
+    if task_id is not None:
+        _require_task_access(request, task_id)
     graph = db.get_dependency_graph_for_team(team_id, task_id=task_id)
     return {
         'nodes': [{'id': n['id'], 'name': n['name'], 'description': n['description'],
@@ -548,8 +601,10 @@ def _validate_task_dependency_edit(data: 'TaskDependencyIn'):
 
 
 @app.post('/api/task-dependency')
-def add_task_dependency_api(data: TaskDependencyIn):
+def add_task_dependency_api(request: Request, data: TaskDependencyIn):
     """Добавить одну связь зависимости прямо с графа (без пересохранения всей задачи)."""
+    _require_task_access(request, data.task_id)
+    _require_task_access(request, data.depends_on_task_id)
     error = _validate_task_dependency_edit(data)
     if error:
         return error
@@ -560,8 +615,10 @@ def add_task_dependency_api(data: TaskDependencyIn):
 
 
 @app.delete('/api/task-dependency')
-def remove_task_dependency_api(data: TaskDependencyIn):
+def remove_task_dependency_api(request: Request, data: TaskDependencyIn):
     """Удалить одну связь зависимости прямо с графа."""
+    _require_task_access(request, data.task_id)
+    _require_task_access(request, data.depends_on_task_id)
     error = _validate_task_dependency_edit(data)
     if error:
         return error
@@ -570,7 +627,9 @@ def remove_task_dependency_api(data: TaskDependencyIn):
 
 
 @app.get('/api/tasks/{team_id}/active-list')
-def get_active_tasks_list(team_id: int, search: str = "", limit: int = 50, include_ids: Optional[str] = None):
+def get_active_tasks_list(request: Request, team_id: int, search: str = "", limit: int = 50,
+                          include_ids: Optional[str] = None):
+    _require_team_access(request, team_id)
     search_val = search.strip() or None
     parsed_include_ids = _parse_int_csv(include_ids)
     rows = db.get_active_tasks_flat(team_id, search=search_val, limit=limit, include_ids=parsed_include_ids)
@@ -581,12 +640,14 @@ def get_active_tasks_list(team_id: int, search: str = "", limit: int = 50, inclu
 @app.delete('/api/task/{task_id}')
 def delete_task_api(request: Request, task_id: int):
     """API для удаления задачи"""
+    _require_task_access(request, task_id)
     task = db.get_task_status(task_id)
     if task and _task_is_locked(task):
         return JSONResponse({'error': 'Нельзя удалить завершённую или отменённую задачу'}, status_code=400)
     if request.state.role == 'user' and db.task_has_active_assignments(task_id):
         return JSONResponse(
-            {'error': 'Недостаточно прав: нельзя удалить работу, у которой есть назначения в статусе, отличном от «Новый»'},
+            {
+                'error': 'Недостаточно прав: нельзя удалить работу, у которой есть назначения в статусе, отличном от «Новый»'},
             status_code=403)
     db.delete_task(task_id, changed_by=request.session.get('user_id'))
     return {'success': True}
@@ -595,6 +656,7 @@ def delete_task_api(request: Request, task_id: int):
 @app.patch('/api/tasks/{task_id}/status')
 def update_task_status_api(request: Request, task_id: int, data: TaskStatusIn):
     """Обновить статус задачи"""
+    _require_task_access(request, task_id)
     task = db.get_task_status(task_id)
     if not task:
         return JSONResponse({'error': 'Task not found'}, status_code=404)
@@ -611,6 +673,7 @@ def update_task_status_api(request: Request, task_id: int, data: TaskStatusIn):
 @app.patch('/api/tasks/{team_id}/reorder')
 def reorder_tasks_api(request: Request, team_id: int, data: TaskReorderIn):
     """Переупорядочить задачи в пределах одной уже загруженной страницы (drag-and-drop)"""
+    _require_team_access(request, team_id)
     if not data.task_ids:
         return JSONResponse({'error': 'task_ids required'}, status_code=400)
     try:
@@ -623,6 +686,7 @@ def reorder_tasks_api(request: Request, team_id: int, data: TaskReorderIn):
 @app.patch('/api/task/{task_id}/priority')
 def move_task_priority_api(request: Request, task_id: int, data: TaskPriorityIn):
     """Переместить задачу в начало/конец списка её уровня критичности (контекстное меню)"""
+    _require_task_access(request, task_id)
     if data.position not in ('start', 'end'):
         return JSONResponse({'error': 'position must be start or end'}, status_code=400)
     try:
@@ -633,8 +697,9 @@ def move_task_priority_api(request: Request, task_id: int, data: TaskPriorityIn)
 
 
 @app.get('/api/task/{task_id}/history')
-def get_task_history_api(task_id: int, offset: int = 0, limit: int = 20):
+def get_task_history_api(request: Request, task_id: int, offset: int = 0, limit: int = 20):
     """Объединённая история задачи и всех связанных с ней назначений (с пагинацией)"""
+    _require_task_access(request, task_id)
     return {
         'history': db.get_task_full_history(task_id, offset=offset, limit=limit),
         'total': db.get_task_full_history_count(task_id)
@@ -642,35 +707,37 @@ def get_task_history_api(task_id: int, offset: int = 0, limit: int = 20):
 
 
 @app.get('/api/journal/{team_id}')
-def get_team_history_api(team_id: int, offset: int = 0, limit: int = 50, search: str = "",
-                          date_from: str = "", date_to: str = "",
-                          changed_by_user_id: Optional[int] = None):
+def get_team_history_api(request: Request, team_id: int, offset: int = 0, limit: int = 50, search: str = "",
+                         date_from: str = "", date_to: str = "",
+                         changed_by_user_id: Optional[int] = None):
     """Журнал изменений команды: все изменения задач и назначений (с пагинацией и фильтрами
     по названию задачи, периоду изменения и автору изменения)"""
+    _require_team_access(request, team_id)
     search_val = search.strip() or None
     date_from_val = date_from.strip() or None
     date_to_val = date_to.strip() or None
     return {
         'items': db.get_team_history(team_id, offset=offset, limit=limit, search=search_val,
-                                      date_from=date_from_val, date_to=date_to_val,
-                                      changed_by_user_id=changed_by_user_id),
+                                     date_from=date_from_val, date_to=date_to_val,
+                                     changed_by_user_id=changed_by_user_id),
         'total': db.get_team_history_count(team_id, search=search_val, date_from=date_from_val,
-                                            date_to=date_to_val,
-                                            changed_by_user_id=changed_by_user_id)
+                                           date_to=date_to_val,
+                                           changed_by_user_id=changed_by_user_id)
     }
 
 
 # === API для команд ===
 
 @app.get('/api/teams')
-def get_teams_api():
+def get_teams_api(request: Request):
     """Получить все команды с разрешёнными шаблонами"""
-    return db.get_all_teams_with_templates()
+    return db.get_teams_for_user(request.session['user_id'], request.state.role)
 
 
 @app.get('/api/teams/{team_id}')
-def get_team_api(team_id: int):
+def get_team_api(request: Request, team_id: int):
     """Получить одну команду с разрешёнными шаблонами"""
+    _require_team_access(request, team_id)
     team = db.get_team_by_id(team_id)
     if not team:
         return JSONResponse({'error': 'Team not found'}, status_code=404)
@@ -684,15 +751,22 @@ def get_team_api(team_id: int):
 
 
 @app.get('/api/teams/{team_id}/blocks')
-def get_team_blocks_api(team_id: int, segment_id: Optional[int] = None):
+def get_team_blocks_api(request: Request, team_id: int, segment_id: Optional[int] = None):
     """Уникальные блоки из разрешённых шаблонов команды — для ручного выбора блока
     в модалке назначения (React); та же выборка, что раньше шла в Jinja-контекст /planning/{team_id}.
     segment_id, если передан, дополнительно сужает выборку до шаблонов конкретного сегмента."""
+    _require_team_access(request, team_id)
     return db.get_blocks_for_team(team_id, segment_id=segment_id)
 
 
+@app.get('/api/teams/{team_id}/assignees')
+def get_team_assignees_api(request: Request, team_id: int):
+    _require_team_access(request, team_id)
+    return db.get_team_assignees(team_id)
+
+
 @app.post('/api/teams')
-def create_team_api(data: TeamIn):
+def create_team_api(request: Request, data: TeamIn):
     """Создать команду"""
     name = (data.name or '').strip()
     if not name:
@@ -700,14 +774,16 @@ def create_team_api(data: TeamIn):
 
     try:
         team_id = db.create_team(name, data.template_ids or [])
+        db.grant_team_access_if_restricted(request.session['user_id'], request.state.role, team_id)
         return {'id': team_id, 'success': True}
     except db.IntegrityConstraintError as e:
         return JSONResponse({'error': str(e)}, status_code=400)
 
 
 @app.put('/api/teams/{team_id}')
-def update_team_api(team_id: int, data: TeamIn):
+def update_team_api(request: Request, team_id: int, data: TeamIn):
     """Обновить команду"""
+    _require_team_access(request, team_id)
     name = (data.name or '').strip()
     if not name:
         return JSONResponse({'error': 'Name required'}, status_code=400)
@@ -720,8 +796,9 @@ def update_team_api(team_id: int, data: TeamIn):
 
 
 @app.delete('/api/teams/{team_id}')
-def delete_team_api(team_id: int):
+def delete_team_api(request: Request, team_id: int):
     """Удалить команду (каскадно удаляются задачи и блоки)"""
+    _require_team_access(request, team_id)
     db.delete_team(team_id)
     return {'success': True}
 
@@ -755,7 +832,8 @@ def create_user_api(data: UserIn):
     if data.role not in _VALID_ROLES:
         return JSONResponse({'error': 'Недопустимая роль'}, status_code=400)
 
-    user_id = db.create_user(last_name, first_name, middle_name, password_hash, data.role, login, data.is_assignee)
+    user_id = db.create_user(last_name, first_name, middle_name, password_hash, data.role, login, data.is_assignee,
+                             data.team_ids)
     if user_id:
         return {'id': user_id, 'success': True}
     else:
@@ -777,7 +855,7 @@ def update_user_api(user_id: int, data: UserIn):
         return JSONResponse({'error': 'Недопустимая роль'}, status_code=400)
 
     success = db.update_user(user_id, last_name, first_name, middle_name, password_hash, data.role, login,
-                              data.is_assignee)
+                             data.is_assignee, data.team_ids)
     if success:
         return {'success': True}
     else:
@@ -837,7 +915,8 @@ def delete_freeze_day_api(date_str: str):
 # === API для статистики ===
 
 @app.get('/api/active-assignments/{team_id}')
-def get_active_assignments_api(team_id: int, start_date: Optional[str] = None, end_date: Optional[str] = None,
+def get_active_assignments_api(request: Request, team_id: int, start_date: Optional[str] = None,
+                               end_date: Optional[str] = None,
                                team_ids: Optional[str] = None, offset: int = 0, limit: Optional[int] = None):
     """Активные назначения (new/planned) за период, с опциональной пагинацией (limit не задан -> вся выборка)"""
     today_str = date.today().strftime('%Y-%m-%d')
@@ -845,8 +924,14 @@ def get_active_assignments_api(team_id: int, start_date: Optional[str] = None, e
     end_date = end_date or today_str
 
     parsed_team_ids = _parse_int_csv(team_ids)
+    if parsed_team_ids:
+        _require_team_list_access(request, parsed_team_ids)
+    elif team_id:
+        _require_team_access(request, team_id)
+    else:
+        parsed_team_ids = _effective_team_filter(request)
     assignments = db.get_active_assignments_in_period(team_id, start_date, end_date, team_ids=parsed_team_ids,
-                                                       offset=offset, limit=limit)
+                                                      offset=offset, limit=limit)
     stats = db.get_active_assignments_stats(team_id, start_date, end_date, team_ids=parsed_team_ids)
 
     items = []

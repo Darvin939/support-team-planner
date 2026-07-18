@@ -63,18 +63,17 @@ backend = subprocess.Popen(
     [sys.executable, "support_planner.py"],
     cwd=ROOT,
     env=env,
-    stdout=subprocess.PIPE,
+    # Не использовать PIPE без постоянного чтения: буфер логов Uvicorn заполнится и
+    # заблокирует backend. Для обычного теста достаточно DEVNULL; при диагностике
+    # направлять вывод в открытый UTF-8 log-файл и закрывать его в finally.
+    stdout=subprocess.DEVNULL,
     stderr=subprocess.STDOUT,
-    text=True,
-    encoding="utf-8",
-    errors="replace",
 )
 
 try:
     for _ in range(40):
         if backend.poll() is not None:
-            output, _ = backend.communicate()
-            raise RuntimeError(f"Backend stopped before startup:\n{output}")
+            raise RuntimeError("Backend stopped before startup")
         try:
             with urllib.request.urlopen("http://127.0.0.1:5093/login", timeout=1) as response:
                 if response.status == 200:

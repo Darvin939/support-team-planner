@@ -158,10 +158,18 @@ export function PlanningPage() {
   });
 
   useEffect(() => {
-    if (teamId !== undefined) return;
+    if (!teams) return;
+    if (teamId !== undefined) {
+      if (!teams.some((team) => team.id === teamId)) {
+        localStorage.removeItem(STORAGE_TEAM_ID);
+        navigate('/planning', {replace: true});
+      }
+      return;
+    }
     const saved = localStorage.getItem(STORAGE_TEAM_ID);
-    if (saved && saved !== '0') navigate(`/planning/${saved}`, { replace: true });
-  }, [teamId, navigate]);
+    if (saved && teams.some((team) => team.id === Number(saved))) navigate(`/planning/${saved}`, { replace: true });
+    else if (saved) localStorage.removeItem(STORAGE_TEAM_ID);
+  }, [teamId, navigate, teams]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 500);

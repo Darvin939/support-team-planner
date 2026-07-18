@@ -38,6 +38,16 @@ _SCHEMA = '''
     -- для мигрируемых БД обеспечивается этим индексом, а не констрейнтом самой колонки.
     CREATE UNIQUE INDEX IF NOT EXISTS idx_users_login ON users (login);
 
+    CREATE TABLE IF NOT EXISTS user_team_access (
+        user_id INTEGER NOT NULL,
+        team_id INTEGER NOT NULL,
+        PRIMARY KEY (user_id, team_id),
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+        FOREIGN KEY (team_id) REFERENCES teams (id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_user_team_access_team_id ON user_team_access (team_id);
+
     CREATE TABLE if NOT EXISTS freeze_days (
         id INTEGER PRIMARY key autoincrement,
         date DATE NOT NULL UNIQUE

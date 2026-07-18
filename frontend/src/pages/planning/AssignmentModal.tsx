@@ -18,7 +18,7 @@ import {useMutation, useQueryClient} from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import type {Assignment, Task} from '../../hooks/usePlanningData';
 import {type BlockTemplateEntry, useTeamBlocks, useTeamTemplates} from '../../hooks/usePlanningData';
-import {useUsers} from '../../hooks/useSettingsData';
+import {useTeamAssignees} from '../../hooks/useSettingsData';
 import {useMe} from '../../hooks/useMe';
 import {formatDisplayName} from '../../hooks/useUserNames';
 import {apiMutate} from '../../lib/apiMutate';
@@ -227,7 +227,7 @@ export function AssignmentModal({
   const isMobile = useIsMobile();
   const { token } = theme.useToken();
   const { data: teamBlocks } = useTeamBlocks(teamId, task?.segment_id);
-  const { data: users } = useUsers();
+  const { data: users } = useTeamAssignees(teamId);
   const { data: allTeamTemplates } = useTeamTemplates(teamId);
   // Шаблоны команды сужаются до сегмента задачи — назначение/автопланирование должно предлагать
   // только шаблоны, относящиеся к тому же сегменту работ, что и сама задача (см. design.md).

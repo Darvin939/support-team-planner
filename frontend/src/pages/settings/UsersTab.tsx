@@ -6,6 +6,7 @@ import {type User, usePaginatedUsers} from '../../hooks/useSettingsData';
 import {useMe} from '../../hooks/useMe';
 import {useCrudMutations} from '../../hooks/useCrudMutations';
 import {DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS} from '../../lib/pagination';
+import {useTeams} from '../../hooks/useTeams';
 
 interface UserFormValues {
   last_name: string | null;
@@ -15,6 +16,7 @@ interface UserFormValues {
   password: string | null;
   role: string;
   is_assignee: boolean;
+  team_ids: number[];
 }
 
 const ROLE_OPTIONS = [
@@ -29,6 +31,7 @@ export function UsersTab() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const {data, isLoading} = usePaginatedUsers((page - 1) * pageSize, pageSize, debouncedSearch);
+  const {data: teams} = useTeams();
   const { data: me } = useMe();
   const isAdmin = me?.role === 'admin';
   const [modalUser, setModalUser] = useState<User | 'new' | null>(null);
@@ -78,9 +81,9 @@ export function UsersTab() {
   function openModal(u: User | 'new') {
     setModalUser(u);
     if (u === 'new') {
-      form.setFieldsValue({ last_name: '', first_name: '', middle_name: '', login: '', password: '', role: 'user', is_assignee: true });
+      form.setFieldsValue({ last_name: '', first_name: '', middle_name: '', login: '', password: '', role: 'user', is_assignee: true, team_ids: [] });
     } else {
-      form.setFieldsValue({ last_name: u.last_name ?? '', first_name: u.first_name, middle_name: u.middle_name ?? '', login: u.login ?? '', password: '', role: u.role, is_assignee: u.is_assignee });
+      form.setFieldsValue({ last_name: u.last_name ?? '', first_name: u.first_name, middle_name: u.middle_name ?? '', login: u.login ?? '', password: '', role: u.role, is_assignee: u.is_assignee, team_ids: u.team_ids ?? [] });
     }
   }
 
@@ -140,6 +143,17 @@ export function UsersTab() {
           {!isEditingProtected && (
             <Form.Item name="role" label="Роль">
               <Select options={ROLE_OPTIONS} />
+            </Form.Item>
+          )}
+          {!isEditingProtected && (
+            <Form.Item noStyle shouldUpdate={(prev, next) => prev.role !== next.role}>
+              {({getFieldValue}) => (
+                <Form.Item name="team_ids" label="Доступные команды"
+                  extra={getFieldValue('role') === 'admin' ? 'Администратору всегда доступны все команды' : 'Если команды не выбраны, доступны все команды'}>
+                  <Select mode="multiple" allowClear disabled={getFieldValue('role') === 'admin'}
+                    placeholder="Все команды" options={teams?.map((team) => ({value: team.id, label: team.name}))} />
+                </Form.Item>
+              )}
             </Form.Item>
           )}
         </Form>

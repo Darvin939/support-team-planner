@@ -20,6 +20,7 @@ class UsersPaginationTest(unittest.TestCase):
                 is_assignee INTEGER NOT NULL
             )'''
         )
+        self.conn.execute('CREATE TABLE user_team_access (user_id INTEGER, team_id INTEGER)')
         self.conn.executemany(
             'INSERT INTO users VALUES (?, ?, ?, ?, ?, ?, ?)',
             [

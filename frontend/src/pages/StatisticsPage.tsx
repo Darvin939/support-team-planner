@@ -163,6 +163,16 @@ export function StatisticsPage() {
     setPeriodOffset(0);
   }
 
+  useEffect(() => {
+    if (!teams) return;
+    const allowed = new Set(teams.map((team) => team.id));
+    const filtered = selectedTeamIds.filter((id) => allowed.has(id));
+    if (filtered.length !== selectedTeamIds.length) {
+      setSelectedTeamIds(filtered);
+      localStorage.setItem(STORAGE_STATS_TEAMS, JSON.stringify(filtered));
+    }
+  }, [teams, selectedTeamIds]);
+
   function handlePageSizeChange(size: number) {
     setPageSize(size);
     setTodayOffset(0);

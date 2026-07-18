@@ -10,6 +10,7 @@ export interface User {
   login: string | null;
   is_assignee: boolean;
   is_protected: boolean;
+  team_ids: number[];
 }
 
 export interface Block {
@@ -37,6 +38,14 @@ export interface Segment {
 
 export function useUsers() {
   return useQuery<User[]>({ queryKey: ['users'], queryFn: () => apiGet('/api/users') });
+}
+
+export function useTeamAssignees(teamId: number) {
+  return useQuery<User[]>({
+    queryKey: ['team-assignees', teamId],
+    queryFn: () => apiGet(`/api/teams/${teamId}/assignees`),
+    enabled: teamId > 0,
+  });
 }
 
 export interface PaginatedUsersResponse {

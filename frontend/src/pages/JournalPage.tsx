@@ -113,10 +113,18 @@ export function JournalPage() {
   const teamId = teamIdParam ? Number(teamIdParam) : undefined;
 
   useEffect(() => {
-    if (teamId !== undefined) return;
+    if (!teams) return;
+    if (teamId !== undefined) {
+      if (!teams.some((team) => team.id === teamId)) {
+        localStorage.removeItem(STORAGE_TEAM_ID);
+        navigate('/journal', {replace: true});
+      }
+      return;
+    }
     const saved = localStorage.getItem(STORAGE_TEAM_ID);
-    if (saved && saved !== '0') navigate(`/journal/${saved}`, { replace: true });
-  }, [teamId, navigate]);
+    if (saved && teams.some((team) => team.id === Number(saved))) navigate(`/journal/${saved}`, { replace: true });
+    else if (saved) localStorage.removeItem(STORAGE_TEAM_ID);
+  }, [teamId, navigate, teams]);
 
   useEffect(() => {
     setOffset(0);
