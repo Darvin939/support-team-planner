@@ -5,6 +5,7 @@ import {formatChangedBy, formatHistoryText, type HistoryEntry} from '../../lib/h
 import {useUserNames} from '../../hooks/useUserNames';
 import {useIsMobile} from '../../hooks/useIsMobile';
 import {apiGet} from '../../lib/apiMutate';
+import {queryKeys} from '../../lib/queryKeys';
 
 const HISTORY_PAGE_SIZE = 10;
 
@@ -33,7 +34,7 @@ export function HistoryPanel({ kind, entityId, open }: { kind: 'task' | 'assignm
   }, [entityId, open]);
 
   const { data, isLoading } = useQuery<{ history: HistoryEntry[]; total: number }>({
-    queryKey: ['entity-history', kind, entityId, offset],
+    queryKey: queryKeys.entityHistory(kind, entityId, offset),
     enabled: open && entityId !== null,
     queryFn: () => {
       const url = kind === 'task' ? `/api/task/${entityId}/history` : `/api/assignment/${entityId}/history`;

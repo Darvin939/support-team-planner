@@ -11,10 +11,11 @@ import {
   InfoCircleOutlined,
 } from '@ant-design/icons';
 import type {Assignment, Task, TaskDep} from '../../hooks/usePlanningData';
+import type {AssignmentStatus} from '../../domain/types';
 import {CriticalityBadge, DepBadge, type DepBadgeEntry, ScheduleChip} from '../../components/planningBadges';
 import {linkify} from '../../lib/linkify';
 import {API_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT} from '../../lib/dateFormats';
-import {ASSIGNMENT_STATUS_LABELS, TASK_STATUS_LABELS} from '../../lib/historyFormat';
+import {ASSIGNMENT_STATUS_LABELS, TASK_STATUS_LABELS} from '../../domain/types';
 import {NAME_COLUMN_WIDTH} from '../../lib/layout';
 import {getCellTint, getHeaderTint} from './cellTint';
 import taskTransitionsJson from '../../data/taskTransitions.json';
@@ -53,7 +54,7 @@ interface UsePlanningColumnsOptions {
   onClearSelection: () => void;
   priorityMutation: MutateFn<{ taskId: number; position: 'start' | 'end' }>;
   statusMutation: MutateFn<{ taskId: number; status: string }>;
-  assignmentStatusMutation: MutateFn<{ assignmentId: number; status: string }>;
+  assignmentStatusMutation: MutateFn<{ assignmentId: number; status: AssignmentStatus }>;
   setGraphModal: Dispatch<SetStateAction<{ open: boolean; taskId?: number }>>;
   setTaskModal: Dispatch<SetStateAction<{ open: boolean; task: Task | null }>>;
   setAssignmentModal: Dispatch<
@@ -348,7 +349,7 @@ export function usePlanningColumns({
                 items: statusItems,
                 onClick: ({ key, domEvent }) => {
                   domEvent.stopPropagation();
-                  assignmentStatusMutation.mutate({ assignmentId: assignment.id, status: key });
+                  assignmentStatusMutation.mutate({ assignmentId: assignment.id, status: key as AssignmentStatus });
                 },
               }}
             >

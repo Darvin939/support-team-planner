@@ -7,16 +7,6 @@ export const HISTORY_FIELD_LABELS: Record<string, string> = {
   comment: 'Комментарий', is_psi: 'ПСИ', time_spent: 'Время выполнения', is_deleted: 'Удаление',
 };
 
-export const CRITICALITY_LABELS: Record<string, string> = { high: 'Высокая', medium: 'Средняя', low: 'Низкая' };
-
-export const TASK_STATUS_LABELS: Record<string, string> = {
-  new: 'Новый', ready: 'К планированию', in_progress: 'В работе', done: 'Выполнено', cancelled: 'Отменено',
-};
-
-export const ASSIGNMENT_STATUS_LABELS: Record<string, string> = {
-  new: 'Новый', planned: 'Запланировано', rollback: 'Откат', success: 'Успешно', cancelled: 'Отменено',
-};
-
 export interface HistoryEntry {
   id: number;
   entity?: 'task' | 'assignment';
@@ -44,9 +34,9 @@ export function formatChangedBy(entry: HistoryEntry): string {
 export function formatHistoryValue(field: string, value: string | null, getUserName: (id: string) => string): string {
   if (field === 'is_deleted') return value === '1' ? 'Да' : 'Нет';
   if (value === null || value === undefined || value === '') return '—';
-  if (field === 'criticality') return CRITICALITY_LABELS[value] || value;
-  if (field === 'task_status') return TASK_STATUS_LABELS[value] || value;
-  if (field === 'status') return ASSIGNMENT_STATUS_LABELS[value] || value;
+  if (field === 'criticality') return CRITICALITY_LABELS[value as keyof typeof CRITICALITY_LABELS] || value;
+  if (field === 'task_status') return TASK_STATUS_LABELS[value as keyof typeof TASK_STATUS_LABELS] || value;
+  if (field === 'status') return ASSIGNMENT_STATUS_LABELS[value as keyof typeof ASSIGNMENT_STATUS_LABELS] || value;
   if (field === 'employee_id' || field === 'user_id') return getUserName(value);
   if (field === 'is_psi') return value === '1' ? 'Да' : 'Нет';
   return value;
@@ -75,3 +65,5 @@ export function formatHistoryText(
   const changeText = `${label}: ${oldV} ➜ ${newV}`;
   return showAssignmentContext && isAssignmentRow ? `Назначение на ${entry.date} — ${changeText}` : changeText;
 }
+import {ASSIGNMENT_STATUS_LABELS, CRITICALITY_LABELS, TASK_STATUS_LABELS} from '../domain/types';
+export {ASSIGNMENT_STATUS_LABELS, CRITICALITY_LABELS, TASK_STATUS_LABELS} from '../domain/types';

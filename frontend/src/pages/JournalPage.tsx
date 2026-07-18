@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react';
-import {useNavigate, useParams} from 'react-router-dom';
+import {useParams} from 'react-router-dom';
 import {Card, DatePicker, Empty, Input, Modal, Pagination, Select, Spin, Tag, Typography} from 'antd';
 import {useQuery} from '@tanstack/react-query';
 import dayjs from 'dayjs';
@@ -11,10 +11,12 @@ import {FilterField, FilterGrid} from '../components/FilterGrid';
 import {formatChangedBy, formatHistoryText, type HistoryEntry} from '../lib/historyFormat';
 import {apiGet} from '../lib/apiMutate';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT} from '../lib/dateFormats';
+import {useDebouncedValue} from '../hooks/useDebouncedValue';
+import {useStoredTeamRoute} from '../hooks/useStoredTeamRoute';
+import {queryKeys} from '../lib/queryKeys';
 
 const JOURNAL_PAGE_SIZE = 20;
 const HISTORY_PAGE_SIZE = 10;
-const STORAGE_TEAM_ID = 'selectedTeamId';
 
 interface JournalItem extends HistoryEntry {
   task_id: number;
@@ -29,7 +31,7 @@ interface JournalFilters {
 
 function useJournal(teamId: number | undefined, offset: number, filters: JournalFilters) {
   return useQuery<{ items: JournalItem[]; total: number }>({
-    queryKey: ['journal', teamId, offset, filters],
+    queryKey: queryKeys.journal(teamId, offset, filters),
     enabled: teamId !== undefined,
     queryFn: () => {
       const params = new URLSearchParams({ offset: String(offset), limit: String(JOURNAL_PAGE_SIZE) });
@@ -44,7 +46,7 @@ function useJournal(teamId: number | undefined, offset: number, filters: Journal
 
 function useTaskHistory(taskId: number | null, offset: number) {
   return useQuery<{ history: HistoryEntry[]; total: number }>({
-    queryKey: ['task-history', taskId, offset],
+    queryKey: queryKeys.taskHistory(taskId, offset),
     enabled: taskId !== null,
     queryFn: () => apiGet(`/api/task/${taskId}/history?offset=${offset}&limit=${HISTORY_PAGE_SIZE}`),
   });
@@ -92,7 +94,6 @@ function TaskHistoryModal({ taskId, taskName, onClose }: { taskId: number | null
 
 export function JournalPage() {
   const { teamId: teamIdParam } = useParams();
-  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { data: teams } = useTeams();
   const userOptions = useUserOptions();
@@ -101,7 +102,7 @@ export function JournalPage() {
   const getUserName = useUserNames();
 
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 500);
   const [dateRange, handleDateRangeChange] = useDateRangeFilter(null, {
     storageKeyFrom: 'journalDateFrom',
     storageKeyTo: 'journalDateTo',
@@ -111,29 +112,11 @@ export function JournalPage() {
   const [changedByUserId, setChangedByUserId] = useState<number | null>(null);
 
   const teamId = teamIdParam ? Number(teamIdParam) : undefined;
-
-  useEffect(() => {
-    if (!teams) return;
-    if (teamId !== undefined) {
-      if (!teams.some((team) => team.id === teamId)) {
-        localStorage.removeItem(STORAGE_TEAM_ID);
-        navigate('/journal', {replace: true});
-      }
-      return;
-    }
-    const saved = localStorage.getItem(STORAGE_TEAM_ID);
-    if (saved && teams.some((team) => team.id === Number(saved))) navigate(`/journal/${saved}`, { replace: true });
-    else if (saved) localStorage.removeItem(STORAGE_TEAM_ID);
-  }, [teamId, navigate, teams]);
+  const selectTeamRoute = useStoredTeamRoute('/journal', teamId, teams);
 
   useEffect(() => {
     setOffset(0);
   }, [teamId]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search), 500);
-    return () => clearTimeout(timer);
-  }, [search]);
 
   useEffect(() => {
     setOffset(0);
@@ -154,8 +137,7 @@ export function JournalPage() {
   const { data } = useJournal(teamId, offset, filters);
 
   function handleTeamSelect(value: number | undefined) {
-    localStorage.setItem(STORAGE_TEAM_ID, value ? String(value) : '');
-    navigate(value ? `/journal/${value}` : '/journal');
+    selectTeamRoute(value);
   }
 
   return (

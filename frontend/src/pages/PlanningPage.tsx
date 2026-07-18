@@ -45,12 +45,15 @@ import {useTaskRowDrag} from './planning/useTaskRowDrag';
 import {ASSIGNMENT_STATUS_OPTIONS, usePlanningColumns} from './planning/usePlanningColumns';
 import {apiMutate} from '../lib/apiMutate';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT} from '../lib/dateFormats';
-import {TASK_STATUS_LABELS} from '../lib/historyFormat';
+import {TASK_STATUS_LABELS} from '../domain/types';
+import {useDebouncedValue} from '../hooks/useDebouncedValue';
+import {useStoredTeamRoute} from '../hooks/useStoredTeamRoute';
 import {DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS} from '../lib/pagination';
+import {invalidateAssignmentData} from '../lib/queryInvalidation';
+import {assignmentToPayload, useSaveAssignmentMutation} from './planning/assignmentMutations';
 
 const DependencyGraphModal = lazy(() => import('./planning/DependencyGraphModal').then((m) => ({ default: m.DependencyGraphModal })));
 
-const STORAGE_TEAM_ID = 'selectedTeamId';
 // Must match TOP_BAR_HEIGHT in components/AppShell.tsx (mobile fixed top bar height).
 const TOP_BAR_HEIGHT = 56;
 
@@ -95,10 +98,11 @@ export function PlanningPage() {
   const { token } = theme.useToken();
   const teamId = teamIdParam ? Number(teamIdParam) : undefined;
   const isMobile = useIsMobile();
+  const selectTeamRoute = useStoredTeamRoute('/planning', teamId, teams);
 
   const [range, handleRangeChange] = useDateRangeFilter(() => [dayjs().subtract(14, 'day'), dayjs().add(14, 'day')]);
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 500);
   const [showCompleted, setShowCompleted] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -156,25 +160,6 @@ export function PlanningPage() {
     onDrop: (newOrder) => reorderMutation.mutate(newOrder),
     color: token.colorPrimary,
   });
-
-  useEffect(() => {
-    if (!teams) return;
-    if (teamId !== undefined) {
-      if (!teams.some((team) => team.id === teamId)) {
-        localStorage.removeItem(STORAGE_TEAM_ID);
-        navigate('/planning', {replace: true});
-      }
-      return;
-    }
-    const saved = localStorage.getItem(STORAGE_TEAM_ID);
-    if (saved && teams.some((team) => team.id === Number(saved))) navigate(`/planning/${saved}`, { replace: true });
-    else if (saved) localStorage.removeItem(STORAGE_TEAM_ID);
-  }, [teamId, navigate, teams]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search), 500);
-    return () => clearTimeout(timer);
-  }, [search]);
 
   useEffect(() => {
     pendingCenterRef.current = true;
@@ -283,52 +268,23 @@ export function PlanningPage() {
     return map;
   }, [assignments]);
 
-  const rescheduleMutation = useMutation({
-    mutationFn: ({ assignmentId, newDate }: { assignmentId: number; newDate: string }) => {
+  const saveRescheduledAssignment = useSaveAssignmentMutation({successMessage: 'Назначение перенесено'});
+  const rescheduleMutation = {
+    mutate: ({ assignmentId, newDate }: { assignmentId: number; newDate: string }) => {
       const existing = (assignments ?? []).find((a) => a.id === assignmentId);
-      if (!existing) throw new Error('Назначение не найдено');
-      return apiMutate('/api/assignment', 'POST', {
-        assignment_id: existing.id,
-        task_id: existing.task_id,
-        date: newDate,
-        block: existing.block,
-        status: existing.status,
-        user_id: existing.user_id,
-        comment: existing.comment,
-        time_spent: existing.time_spent,
-      });
+      if (!existing) return message.error('Назначение не найдено');
+      saveRescheduledAssignment.mutate(assignmentToPayload(existing, {date: newDate}));
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['assignments'] });
-      queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
-      message.success('Назначение перенесено');
-    },
-    onError: (e: Error) => message.error(e.message),
-  });
+  };
 
-  const assignmentStatusMutation = useMutation({
-    mutationFn: ({ assignmentId, status }: { assignmentId: number; status: string }) => {
+  const saveAssignmentStatus = useSaveAssignmentMutation({includeTasks: true, successMessage: 'Статус назначения обновлён'});
+  const assignmentStatusMutation = {
+    mutate: ({ assignmentId, status }: { assignmentId: number; status: Assignment['status'] }) => {
       const existing = (assignments ?? []).find((a) => a.id === assignmentId);
-      if (!existing) throw new Error('Назначение не найдено');
-      return apiMutate('/api/assignment', 'POST', {
-        assignment_id: existing.id,
-        task_id: existing.task_id,
-        date: existing.date,
-        block: existing.block,
-        status,
-        user_id: existing.user_id,
-        comment: existing.comment,
-        time_spent: existing.time_spent,
-      });
+      if (!existing) return message.error('Назначение не найдено');
+      saveAssignmentStatus.mutate(assignmentToPayload(existing, {status}));
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['assignments'] });
-      queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      message.success('Статус назначения обновлён');
-    },
-    onError: (e: Error) => message.error(e.message),
-  });
+  };
 
   // Последовательные await (не Promise.all) — каждый HTTP-запрос открывает и коммитит своё
   // соединение SQLite до ответа, так что последовательность на клиенте гарантирует
@@ -346,8 +302,7 @@ export function PlanningPage() {
       return { total: ids.length, failed };
     },
     onSuccess: ({ total, failed }) => {
-      queryClient.invalidateQueries({ queryKey: ['assignments'] });
-      queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
+      invalidateAssignmentData(queryClient);
       setSelectedAssignmentIds(new Set(failed));
       if (failed.length === 0) message.success(`Удалено назначений: ${total}`);
       else message.warning(`Удалено ${total - failed.length} из ${total}, ${failed.length} не удалось удалить`);
@@ -362,14 +317,12 @@ export function PlanningPage() {
       return { total: moves.length };
     },
     onSuccess: ({ total }) => {
-      queryClient.invalidateQueries({ queryKey: ['assignments'] });
-      queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
+      invalidateAssignmentData(queryClient);
       setSelectedAssignmentIds(new Set());
       message.success(`Перенесено назначений: ${total}`);
     },
     onError: (error: Error) => {
-      queryClient.invalidateQueries({ queryKey: ['assignments'] });
-      queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
+      invalidateAssignmentData(queryClient);
       message.error(error.message);
     },
   });
@@ -411,9 +364,8 @@ export function PlanningPage() {
   }, [taskData, critFilter, taskStatusFilter, segmentFilter, statusFilter, assignmentsByTask]);
 
   function handleTeamSelect(value: number) {
-    localStorage.setItem(STORAGE_TEAM_ID, String(value));
     pendingCenterRef.current = true;
-    navigate(`/planning/${value}`);
+    selectTeamRoute(value);
   }
 
   function handleDepNavigate(dep: DepBadgeEntry) {

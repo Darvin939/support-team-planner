@@ -1,5 +1,6 @@
 import {useQuery} from '@tanstack/react-query';
 import {apiGet} from '../lib/apiMutate';
+import {queryKeys} from '../lib/queryKeys';
 
 export interface Team {
   id: number;
@@ -9,7 +10,7 @@ export interface Team {
 
 export function useTeams() {
   return useQuery<Team[]>({
-    queryKey: ['teams'],
+    queryKey: queryKeys.teams,
     queryFn: () => apiGet('/api/teams'),
   });
 }

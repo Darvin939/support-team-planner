@@ -1,5 +1,6 @@
 import {useQuery} from '@tanstack/react-query';
 import {apiGet} from '../lib/apiMutate';
+import {queryKeys} from '../lib/queryKeys';
 
 export interface User {
   id: number;
@@ -37,12 +38,12 @@ export interface Segment {
 }
 
 export function useUsers() {
-  return useQuery<User[]>({ queryKey: ['users'], queryFn: () => apiGet('/api/users') });
+  return useQuery<User[]>({ queryKey: queryKeys.users.all, queryFn: () => apiGet('/api/users') });
 }
 
 export function useTeamAssignees(teamId: number) {
   return useQuery<User[]>({
-    queryKey: ['team-assignees', teamId],
+    queryKey: queryKeys.users.assignees(teamId),
     queryFn: () => apiGet(`/api/teams/${teamId}/assignees`),
     enabled: teamId > 0,
   });
@@ -57,23 +58,23 @@ export function usePaginatedUsers(offset: number, limit: number, search: string)
   const params = new URLSearchParams({offset: String(offset), limit: String(limit)});
   if (search) params.set('search', search);
   return useQuery<PaginatedUsersResponse>({
-    queryKey: ['users', 'paginated', offset, limit, search],
+    queryKey: queryKeys.users.paginated(offset, limit, search),
     queryFn: () => apiGet(`/api/users?${params}`),
   });
 }
 
 export function useBlocks() {
-  return useQuery<Block[]>({ queryKey: ['blocks'], queryFn: () => apiGet('/api/blocks') });
+  return useQuery<Block[]>({ queryKey: queryKeys.blocks, queryFn: () => apiGet('/api/blocks') });
 }
 
 export function useBlockTemplates() {
-  return useQuery<BlockTemplate[]>({ queryKey: ['block-templates'], queryFn: () => apiGet('/api/block-templates') });
+  return useQuery<BlockTemplate[]>({ queryKey: queryKeys.blockTemplates, queryFn: () => apiGet('/api/block-templates') });
 }
 
 export function useFreezeDays() {
-  return useQuery<string[]>({ queryKey: ['freeze-days'], queryFn: () => apiGet('/api/freeze-days') });
+  return useQuery<string[]>({ queryKey: queryKeys.freezeDays, queryFn: () => apiGet('/api/freeze-days') });
 }
 
 export function useSegments() {
-  return useQuery<Segment[]>({ queryKey: ['segments'], queryFn: () => apiGet('/api/segments') });
+  return useQuery<Segment[]>({ queryKey: queryKeys.segments, queryFn: () => apiGet('/api/segments') });
 }

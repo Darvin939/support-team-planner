@@ -22,6 +22,9 @@ import {useTeamAssignees} from '../../hooks/useSettingsData';
 import {useMe} from '../../hooks/useMe';
 import {formatDisplayName} from '../../hooks/useUserNames';
 import {apiMutate} from '../../lib/apiMutate';
+import {invalidateAssignmentData} from '../../lib/queryInvalidation';
+import {useDeleteAssignmentMutation, useSaveAssignmentMutation} from './assignmentMutations';
+import type {AssignmentStatus} from '../../domain/types';
 import {computeAutoAssignDates, getAutoScheduleDateRange} from '../../lib/autoSchedule';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT, TIME_FORMAT} from '../../lib/dateFormats';
 import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';
@@ -33,7 +36,7 @@ interface AssignmentFormValues {
   date: dayjs.Dayjs;
   time_spent: dayjs.Dayjs | null;
   block_ids: number[];
-  status: string;
+  status: AssignmentStatus;
   user_id: number | null;
   comment: string;
 }
@@ -285,33 +288,26 @@ export function AssignmentModal({
     }
   }
 
-  const saveMutation = useMutation({
-    mutationFn: (values: AssignmentFormValues) => {
-      const blockNames = (values.block_ids ?? [])
-        .map((id) => teamBlocks?.find((b) => b.id === id)?.name)
-        .filter(Boolean)
-        .join(', ');
-      const timeSpent = values.time_spent ? values.time_spent.format(TIME_FORMAT) : null;
-      return apiMutate('/api/assignment', 'POST', {
-        assignment_id: assignment?.id,
-        task_id: task?.id,
-        date: values.date.format(API_DATE_FORMAT),
-        block: blockNames || null,
-        status: values.status,
-        user_id: values.user_id,
-        comment: values.comment || null,
-        time_spent: timeSpent === '00:00' ? null : timeSpent,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['assignments'] });
-      queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      message.success('Сохранено');
-      onClose();
-    },
-    onError: (e: Error) => message.error(e.message),
-  });
+  const saveMutation = useSaveAssignmentMutation({includeTasks: true, successMessage: 'Сохранено', onSuccess: onClose});
+
+  function saveAssignment(values: AssignmentFormValues) {
+    if (!task) return;
+    const blockNames = (values.block_ids ?? [])
+      .map((id) => teamBlocks?.find((b) => b.id === id)?.name)
+      .filter(Boolean)
+      .join(', ');
+    const timeSpent = values.time_spent ? values.time_spent.format(TIME_FORMAT) : null;
+    saveMutation.mutate({
+      assignment_id: assignment?.id,
+      task_id: task.id,
+      date: values.date.format(API_DATE_FORMAT),
+      block: blockNames || null,
+      status: values.status,
+      user_id: values.user_id,
+      comment: values.comment || null,
+      time_spent: timeSpent === '00:00' ? null : timeSpent,
+    });
+  }
 
   const autoSaveMutation = useMutation({
     mutationFn: async (values: AssignmentFormValues) => {
@@ -354,24 +350,18 @@ export function AssignmentModal({
     },
     onSuccess: (result) => {
       if (result.cancelled) return;
-      queryClient.invalidateQueries({ queryKey: ['assignments'] });
-      queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      invalidateAssignmentData(queryClient, true);
       message.success('Сохранено');
       onClose();
     },
     onError: (e: Error) => message.error(e.message),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: () => apiMutate(`/api/assignment/${assignment!.id}`, 'DELETE'),
+  const deleteMutation = useDeleteAssignmentMutation({
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['assignments'] });
-      queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
       message.success('Назначение удалено');
       onClose();
     },
-    onError: (e: Error) => message.error(e.message),
   });
 
   const autoAssignMissingTemplate = autoAssignEnabled && !selectedTemplateId;
@@ -404,7 +394,7 @@ export function AssignmentModal({
         <Space>
           {assignment && <HistoryToggleButton open={historyOpen} onClick={() => setHistoryOpen((v) => !v)} />}
           {assignment && !readOnly && (
-            <Popconfirm title="Удалить эту запись?" onConfirm={() => deleteMutation.mutate()} okText="Удалить" cancelText="Отмена">
+            <Popconfirm title="Удалить эту запись?" onConfirm={() => assignment && deleteMutation.mutate(assignment.id)} okText="Удалить" cancelText="Отмена">
               <Button danger loading={deleteMutation.isPending}>
                 Удалить
               </Button>
@@ -419,7 +409,7 @@ export function AssignmentModal({
       }
     >
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
-      <Form form={form} layout="vertical" disabled={readOnly} onFinish={(v) => (autoAssignEnabled ? autoSaveMutation.mutate(v) : saveMutation.mutate(v))} style={{ flex: 1, minWidth: 0 }}>
+      <Form form={form} layout="vertical" disabled={readOnly} onFinish={(v) => (autoAssignEnabled ? autoSaveMutation.mutate(v) : saveAssignment(v))} style={{ flex: 1, minWidth: 0 }}>
         <Space.Compact block>
           <Form.Item name="date" label="Дата" style={{ flex: 1 }} rules={[{ required: true }]}>
             <DatePicker style={{ width: '100%' }} format={DISPLAY_DATE_FORMAT} minDate={dayjs('2000-01-01')} maxDate={dayjs('2099-12-31')} allowClear={false} />

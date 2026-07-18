@@ -4,11 +4,12 @@ import {useMutation, useQueryClient} from '@tanstack/react-query';
 import type {Task} from '../../hooks/usePlanningData';
 import {useActiveTasksList} from '../../hooks/usePlanningData';
 import {useMe} from '../../hooks/useMe';
+import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import {useSegments} from '../../hooks/useSettingsData';
 import {CriticalityBadge, TaskStatusBadge, tintedStyle} from '../../components/planningBadges';
 import {apiMutate} from '../../lib/apiMutate';
 import {linkify} from '../../lib/linkify';
-import {CRITICALITY_LABELS} from '../../lib/historyFormat';
+import {CRITICALITY_LABELS} from '../../domain/types';
 import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';
 import {useIsMobile} from '../../hooks/useIsMobile';
 
@@ -41,8 +42,8 @@ export function TaskModal({
   const queryClient = useQueryClient();
   const [depIds, setDepIds] = useState<Set<number>>(new Set());
   const [depSearch, setDepSearch] = useState('');
-  const [debouncedDepSearch, setDebouncedDepSearch] = useState('');
-  const { data: activeTasks, isLoading: depsLoading } = useActiveTasksList(teamId, debouncedDepSearch, existingDepIds);
+  const debouncedDepSearch = useDebouncedValue(depSearch, 500);
+  const { data: activeTasks, isLoading: depsLoading } = useActiveTasksList(teamId, depSearch ? debouncedDepSearch : '', existingDepIds);
   const { data: segments } = useSegments();
   const isTerminal = task ? task.task_status === 'done' || task.task_status === 'cancelled' : false;
   const { data: me } = useMe();
@@ -62,13 +63,7 @@ export function TaskModal({
     });
     setDepIds(new Set(existingDepIds));
     setDepSearch('');
-    setDebouncedDepSearch('');
   }, [open, task, existingDepIds, form, segments]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedDepSearch(depSearch), 500);
-    return () => clearTimeout(timer);
-  }, [depSearch]);
 
   const saveMutation = useMutation({
     mutationFn: (values: TaskFormValues) =>

@@ -7,6 +7,7 @@ import {useMe} from '../../hooks/useMe';
 import {useCrudMutations} from '../../hooks/useCrudMutations';
 import {DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS} from '../../lib/pagination';
 import {useTeams} from '../../hooks/useTeams';
+import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 
 interface UserFormValues {
   last_name: string | null;
@@ -27,7 +28,7 @@ const ROLE_OPTIONS = [
 
 export function UsersTab() {
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search.trim(), 350);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const {data, isLoading} = usePaginatedUsers((page - 1) * pageSize, pageSize, debouncedSearch);
@@ -46,11 +47,6 @@ export function UsersTab() {
   });
 
   const isEditingProtected = modalUser !== 'new' && modalUser !== null && modalUser.is_protected;
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 350);
-    return () => window.clearTimeout(timer);
-  }, [search]);
 
   useEffect(() => {
     if (data && data.users.length === 0 && data.total > 0 && page > 1) setPage(page - 1);

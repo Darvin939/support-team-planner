@@ -1,5 +1,6 @@
 import {useQuery} from '@tanstack/react-query';
 import {apiGet} from '../lib/apiMutate';
+import {queryKeys} from '../lib/queryKeys';
 
 export interface Me {
   user_id: number;
@@ -11,7 +12,7 @@ export interface Me {
 
 export function useMe() {
   return useQuery<Me>({
-    queryKey: ['me'],
+    queryKey: queryKeys.me,
     queryFn: () => apiGet('/api/me'),
     retry: false,
   });

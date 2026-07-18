@@ -13,6 +13,8 @@ import {FilterField, FilterGrid} from '../components/FilterGrid';
 import {CriticalityBadge} from '../components/planningBadges';
 import {NAME_COLUMN_WIDTH} from '../lib/layout';
 import {DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS} from '../lib/pagination';
+import {readStoredJson, writeStoredJson} from '../lib/storage';
+import {queryKeys} from '../lib/queryKeys';
 
 const STORAGE_STATS_TEAMS = 'statsSelectedTeams';
 
@@ -41,7 +43,7 @@ const STATUS_LABEL: Record<string, string> = { new: 'Новый', planned: 'За
 
 function useActiveAssignments(from: string, to: string, teamIds: number[], offset: number, limit: number) {
   return useQuery<ActiveAssignmentsResponse>({
-    queryKey: ['active-assignments', from, to, teamIds, offset, limit],
+    queryKey: queryKeys.assignments.activeList(from, to, teamIds, offset, limit),
     queryFn: () => {
       const teamParam = teamIds.length ? `&team_ids=${teamIds.join(',')}` : '';
       return apiGet(`/api/active-assignments/0?start_date=${from}&end_date=${to}${teamParam}&offset=${offset}&limit=${limit}`);
@@ -143,13 +145,7 @@ export function StatisticsPage() {
   const { data: teams } = useTeams();
   const isMobile = useIsMobile();
 
-  const [selectedTeamIds, setSelectedTeamIds] = useState<number[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_STATS_TEAMS) ?? '[]');
-    } catch {
-      return [];
-    }
-  });
+  const [selectedTeamIds, setSelectedTeamIds] = useState<number[]>(() => readStoredJson(STORAGE_STATS_TEAMS, []));
 
   const [range, handleRangeChange] = useDateRangeFilter(() => [dayjs().subtract(14, 'day'), dayjs().add(14, 'day')]);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -158,7 +154,7 @@ export function StatisticsPage() {
 
   function handleTeamsChange(ids: number[]) {
     setSelectedTeamIds(ids);
-    localStorage.setItem(STORAGE_STATS_TEAMS, JSON.stringify(ids));
+    writeStoredJson(STORAGE_STATS_TEAMS, ids);
     setTodayOffset(0);
     setPeriodOffset(0);
   }
@@ -169,7 +165,7 @@ export function StatisticsPage() {
     const filtered = selectedTeamIds.filter((id) => allowed.has(id));
     if (filtered.length !== selectedTeamIds.length) {
       setSelectedTeamIds(filtered);
-      localStorage.setItem(STORAGE_STATS_TEAMS, JSON.stringify(filtered));
+      writeStoredJson(STORAGE_STATS_TEAMS, filtered);
     }
   }, [teams, selectedTeamIds]);
 
