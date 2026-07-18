@@ -82,6 +82,7 @@ function TaskGraphNode({ id, data, selected }: { id: string; data: GraphNodeData
           : token.colorBorder;
   return (
     <div
+      data-graph-node-id={id}
       style={{
         width: NODE_WIDTH,
         height: NODE_HEIGHT,
@@ -115,19 +116,38 @@ function TaskGraphNode({ id, data, selected }: { id: string; data: GraphNodeData
         <PlusOutlined />
       </Handle>
       <div style={{ height: '100%', overflowY: 'auto', padding: '10px 12px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <CriticalityBadge value={data.criticality} />
-          <span
-            style={{ fontSize: '0.85rem', fontWeight: 600, minWidth: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
-          >
-            {data.name}
-          </span>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <span data-graph-node-name style={{ display: 'block', fontWeight: 500, overflowWrap: 'anywhere' }}>
+              {data.name}
+            </span>
+            <div
+              data-graph-node-segment
+              title={`Сегмент: ${data.segment_name}`}
+              style={{
+                marginTop: 2,
+                color: token.colorTextTertiary,
+                fontSize: '0.72rem',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Сегмент: {data.segment_name}
+            </div>
+          </div>
         </div>
         {data.description && (
           <div
+            data-graph-node-description
             style={{
-              marginTop: 6,
-              fontSize: '0.78rem',
+              marginTop: 4,
+              padding: '5px 8px',
+              border: `1px solid ${token.colorBorder}`,
+              borderRadius: 2,
+              background: token.colorFillTertiary,
+              fontSize: '0.85rem',
               color: token.colorTextSecondary,
               whiteSpace: 'pre-wrap',
               overflowWrap: 'anywhere',
@@ -136,7 +156,6 @@ function TaskGraphNode({ id, data, selected }: { id: string; data: GraphNodeData
             {data.description}
           </div>
         )}
-        <div style={{ marginTop: 6, fontSize: '0.75rem', color: token.colorTextTertiary }}>{data.segment_name}</div>
       </div>
     </div>
   );
