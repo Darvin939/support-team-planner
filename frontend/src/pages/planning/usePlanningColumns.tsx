@@ -1,14 +1,21 @@
-import {useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent as ReactMouseEvent, type SetStateAction} from 'react';
+import {useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent as ReactMouseEvent, type ReactNode, type SetStateAction} from 'react';
 import type {Dayjs} from 'dayjs';
 import type {MenuProps, TableColumnsType} from 'antd';
 import {Button, Dropdown, Modal, theme} from 'antd';
 import {
   ApartmentOutlined,
+  CalendarOutlined,
+  CheckCircleOutlined,
   CheckOutlined,
+  CloseCircleOutlined,
   CloseOutlined,
   EditOutlined,
   HolderOutlined,
   InfoCircleOutlined,
+  PlusCircleOutlined,
+  UndoOutlined,
+  VerticalAlignBottomOutlined,
+  VerticalAlignTopOutlined,
 } from '@ant-design/icons';
 import type {Assignment, Task, TaskDep} from '../../hooks/usePlanningData';
 import type {AssignmentStatus} from '../../domain/types';
@@ -31,6 +38,14 @@ export const ASSIGNMENT_STATUS_OPTIONS = [
   { value: 'success', label: 'Успешно' },
   { value: 'cancelled', label: 'Отменено' },
 ];
+
+const ASSIGNMENT_STATUS_ICONS: Record<AssignmentStatus, ReactNode> = {
+  new: <PlusCircleOutlined />,
+  planned: <CalendarOutlined />,
+  rollback: <UndoOutlined />,
+  success: <CheckCircleOutlined />,
+  cancelled: <CloseCircleOutlined />,
+};
 
 type GlobalToken = ReturnType<typeof theme.useToken>['token'];
 
@@ -179,8 +194,8 @@ export function usePlanningColumns({
                   type: 'group' as const,
                   label: 'Приоритет',
                   children: [
-                    { key: 'start', label: 'В начало уровня критичности' },
-                    { key: 'end', label: 'В конец уровня критичности' },
+                    { key: 'start', label: 'В начало уровня критичности', icon: <VerticalAlignTopOutlined /> },
+                    { key: 'end', label: 'В конец уровня критичности', icon: <VerticalAlignBottomOutlined /> },
                   ],
                 },
               ]),
@@ -336,7 +351,8 @@ export function usePlanningColumns({
               label: 'Статус',
               children: ASSIGNMENT_STATUS_OPTIONS.filter((o) => o.value !== assignment.status).map((o) => ({
                 key: o.value,
-                label: ASSIGNMENT_STATUS_LABELS[o.value] ?? o.label
+                label: ASSIGNMENT_STATUS_LABELS[o.value] ?? o.label,
+                icon: ASSIGNMENT_STATUS_ICONS[o.value as AssignmentStatus],
               }))
             }
           ];
