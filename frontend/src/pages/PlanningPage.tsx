@@ -2,6 +2,7 @@ import {type HTMLAttributes, lazy, Suspense, useEffect, useMemo, useRef, useStat
 import {useLocation, useNavigate, useParams} from 'react-router-dom';
 import {ApartmentOutlined} from '@ant-design/icons';
 import {
+  Alert,
   Button,
   Card,
   Checkbox,
@@ -13,6 +14,7 @@ import {
   Popconfirm,
   Select,
   Space,
+  Spin,
   Table,
   theme,
   Typography
@@ -121,7 +123,11 @@ export function PlanningPage() {
   const [selectedAssignmentIds, setSelectedAssignmentIds] = useState<Set<number>>(new Set());
 
   const queryClient = useQueryClient();
-  const { data: freezeDaysList } = useFreezeDays();
+  const {
+    data: freezeDaysList,
+    isPending: freezeDaysPending,
+    isError: freezeDaysError,
+  } = useFreezeDays();
   const freezeDays = useMemo(() => new Set(freezeDaysList ?? []), [freezeDaysList]);
 
   const statusMutation = useMutation({
@@ -184,7 +190,11 @@ export function PlanningPage() {
   const dateTo = range[1].format(API_DATE_FORMAT);
   const today = dayjs().format(API_DATE_FORMAT);
 
-  const { data: taskData } = useTasks(teamId ?? 0, pagination.offset, pageSize, debouncedSearch, showCompleted);
+  const {
+    data: taskData,
+    isPending: tasksPending,
+    isError: tasksError,
+  } = useTasks(teamId ?? 0, pagination.offset, pageSize, debouncedSearch, showCompleted);
   const taskIds = useMemo(() => taskData?.tasks.map((t) => t.id) ?? [], [taskData]);
   // Зависимость, на которую перешли по клику, может отсутствовать в текущей загруженной странице
   // (пагинация/фильтры) — подмешиваем её id в запрос зависимостей, чтобы модалка задачи открылась
@@ -193,9 +203,25 @@ export function PlanningPage() {
     () => (depJumpTaskId && !taskIds.includes(depJumpTaskId) ? [...taskIds, depJumpTaskId] : taskIds),
     [taskIds, depJumpTaskId]
   );
-  const { data: assignments } = useAssignments(teamId ?? 0, dateFrom, dateTo, taskIds);
-  const { data: deps } = useTaskDeps(teamId ?? 0, depsTaskIds);
+  const {
+    data: assignments,
+    isPending: assignmentsPending,
+    isError: assignmentsError,
+  } = useAssignments(teamId ?? 0, dateFrom, dateTo, taskIds);
+  const {
+    data: deps,
+    isPending: depsPending,
+    isError: depsError,
+  } = useTaskDeps(teamId ?? 0, depsTaskIds);
   const { data: todayActive } = useTodayActive(teamId ?? 0, today);
+
+  const hasTasks = taskIds.length > 0;
+  const planningDataError = tasksError || freezeDaysError || (hasTasks && (assignmentsError || depsError));
+  const planningDataReady =
+    !tasksPending &&
+    !freezeDaysPending &&
+    !planningDataError &&
+    (!hasTasks || (!assignmentsPending && !depsPending));
 
   const assignmentByKey = useMemo(() => {
     const map = new Map<string, Assignment>();
@@ -215,9 +241,9 @@ export function PlanningPage() {
   };
 
   useEffect(() => {
-    if (!pendingCenterRef.current) return;
+    if (!planningDataReady || !pendingCenterRef.current) return;
     if (scrollGridToToday(today)) pendingCenterRef.current = false;
-  }, [taskData, assignments, today]);
+  }, [planningDataReady, taskData, assignments, deps, freezeDaysList, today]);
 
   const { data: jumpTask } = useTaskById(teamId ?? 0, jump?.jumpTaskId ?? null);
   const { data: jumpAssignments } = useAssignments(
@@ -541,7 +567,18 @@ export function PlanningPage() {
           </span>
         </div>
 
-        {filteredTasks.length === 0 ? (
+        {planningDataError ? (
+          <Alert
+            type="error"
+            showIcon
+            title="Не удалось загрузить таблицу планирования"
+            description="Обновите страницу или повторите попытку позже."
+          />
+        ) : !planningDataReady ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
+            <Spin size="large" description="Загрузка таблицы..." />
+          </div>
+        ) : filteredTasks.length === 0 ? (
           <Empty description="Нет запланированных работ" />
         ) : (
           <div data-planning-grid style={{ cursor: 'grab' }} onContextMenu={(e) => e.preventDefault()}>
