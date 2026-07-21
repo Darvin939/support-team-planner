@@ -1,36 +1,26 @@
-# Python
+# Python environments and bytecode
+.venv/
+venv/
+env/
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-pyvenv.cfg
 
-# Distribution / packaging
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-#lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+# Python test and analysis artifacts
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
 
-# Database
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+config.local.py
+
+# Local databases and SQLite runtime files
 *.db
 *.sqlite
 *.sqlite3
@@ -38,58 +28,27 @@ MANIFEST
 *.db-wal
 *.db-shm
 
-# Flask
-instance/
-.webassets-cache
-.flaskenv
-.env
-
-# Logs
+# Runtime output and temporary files
+logs/
 *.log
 *.log.*
-logs/
 *.pid
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-Thumbs.db
-Desktop.ini
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Project specific
-config.local.py
 *.bak
 *.tmp
 *.temp
 
-# OS specific
-.DS_Store?
+# IDE and editor state
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS metadata
+.DS_Store
 ._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-*.dll
-*.exe
+Thumbs.db
+Desktop.ini
 
-# Debug
-debug.log
-error.log
-*.spec
-
+# Local assistant state
 .claude/
-
-# Frontend (React/Vite, see frontend/) — dist/ already covered above, node_modules/ needs its own entry
-node_modules/
