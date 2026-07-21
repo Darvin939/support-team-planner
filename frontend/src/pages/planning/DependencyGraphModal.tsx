@@ -57,8 +57,8 @@ const handleStyle = (token: ReturnType<typeof theme.useToken>['token']): React.C
   fontSize: 8,
 });
 
-function TaskGraphNode({ id, data, selected }: { id: string; data: GraphNodeData; selected?: boolean }) {
-  const { token } = theme.useToken();
+function TaskGraphNode({id, data, selected}: { id: string; data: GraphNodeData; selected?: boolean }) {
+  const {token} = theme.useToken();
   const updateNodeInternals = useUpdateNodeInternals();
   useEffect(() => {
     // Forces xyflow to re-measure this node's handle bounds right after mount. Under React
@@ -105,7 +105,7 @@ function TaskGraphNode({ id, data, selected }: { id: string; data: GraphNodeData
         style={handleStyle(token)}
         onMouseDownCapture={data.onHandlePointerDown}
       >
-        <PlusOutlined />
+        <PlusOutlined/>
       </Handle>
       <Handle
         type="source"
@@ -113,13 +113,13 @@ function TaskGraphNode({ id, data, selected }: { id: string; data: GraphNodeData
         style={handleStyle(token)}
         onMouseDownCapture={data.onHandlePointerDown}
       >
-        <PlusOutlined />
+        <PlusOutlined/>
       </Handle>
-      <div style={{ height: '100%', overflowY: 'auto', padding: '10px 12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <CriticalityBadge value={data.criticality} />
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <span data-graph-node-name style={{ display: 'block', fontWeight: 500, overflowWrap: 'anywhere' }}>
+      <div style={{height: '100%', overflowY: 'auto', padding: '10px 12px'}}>
+        <div style={{display: 'flex', alignItems: 'center', gap: 6}}>
+          <CriticalityBadge value={data.criticality}/>
+          <div style={{minWidth: 0, flex: 1}}>
+            <span data-graph-node-name style={{display: 'block', fontWeight: 500, overflowWrap: 'anywhere'}}>
               {data.name}
             </span>
             <div
@@ -161,7 +161,7 @@ function TaskGraphNode({ id, data, selected }: { id: string; data: GraphNodeData
   );
 }
 
-const nodeTypes = { task: TaskGraphNode };
+const nodeTypes = {task: TaskGraphNode};
 
 interface DependencyEdgeData extends Record<string, unknown> {
   onDelete: (taskId: number, depId: number) => void;
@@ -169,9 +169,27 @@ interface DependencyEdgeData extends Record<string, unknown> {
   depId: number;
 }
 
-function DependencyEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected, markerEnd, data }: EdgeProps<Edge<DependencyEdgeData>>) {
-  const { token } = theme.useToken();
-  const [edgePath, labelX, labelY] = getBezierPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition });
+function DependencyEdge({
+                          id,
+                          sourceX,
+                          sourceY,
+                          targetX,
+                          targetY,
+                          sourcePosition,
+                          targetPosition,
+                          selected,
+                          markerEnd,
+                          data
+                        }: EdgeProps<Edge<DependencyEdgeData>>) {
+  const {token} = theme.useToken();
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition
+  });
   const stroke = selected ? token.colorPrimary : token.colorTextTertiary;
   const strokeWidth = selected ? 3.5 : 2;
   return (
@@ -215,7 +233,7 @@ function DependencyEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition
   );
 }
 
-const edgeTypes = { dependency: DependencyEdge };
+const edgeTypes = {dependency: DependencyEdge};
 
 function layout(
   nodes: DependencyGraphNode[],
@@ -225,9 +243,9 @@ function layout(
   focalTaskId?: number
 ) {
   const g = new dagre.graphlib.Graph();
-  g.setGraph({ rankdir: 'LR', nodesep: 56, ranksep: 130, ranker: 'longest-path' });
+  g.setGraph({rankdir: 'LR', nodesep: 56, ranksep: 130, ranker: 'longest-path'});
   g.setDefaultEdgeLabel(() => ({}));
-  nodes.forEach((n) => g.setNode(String(n.id), { width: NODE_WIDTH, height: NODE_HEIGHT }));
+  nodes.forEach((n) => g.setNode(String(n.id), {width: NODE_WIDTH, height: NODE_HEIGHT}));
   // Ребро "task зависит от dep" рисуем dep -> task, чтобы граф читался слева направо в
   // порядке выполнения (сначала зависимость, потом зависящая от неё задача).
   edges.forEach((e) => g.setEdge(String(e.dep_id), String(e.task_id)));
@@ -238,7 +256,7 @@ function layout(
     return {
       id: String(n.id),
       type: 'task',
-      position: { x: pos.x - NODE_WIDTH / 2, y: pos.y - NODE_HEIGHT / 2 },
+      position: {x: pos.x - NODE_WIDTH / 2, y: pos.y - NODE_HEIGHT / 2},
       data: {
         name: n.name,
         description: n.description,
@@ -256,26 +274,26 @@ function layout(
     target: String(e.task_id),
     type: 'dependency',
     reconnectable: true,
-    markerEnd: { type: MarkerType.ArrowClosed },
-    data: { onDelete: onDeleteEdge, taskId: e.task_id, depId: e.dep_id },
+    markerEnd: {type: MarkerType.ArrowClosed},
+    data: {onDelete: onDeleteEdge, taskId: e.task_id, depId: e.dep_id},
   }));
-  return { rfNodes, rfEdges };
+  return {rfNodes, rfEdges};
 }
 
 export function DependencyGraphModal({
-  open,
-  teamId,
-  taskId,
-  onClose,
-  onNavigate,
-}: {
+                                       open,
+                                       teamId,
+                                       taskId,
+                                       onClose,
+                                       onNavigate,
+                                     }: {
   open: boolean;
   teamId: number | undefined;
   taskId?: number;
   onClose: () => void;
   onNavigate: (taskId: number) => void;
 }) {
-  const { data, isLoading } = useDependencyGraph(teamId ?? 0, open, taskId);
+  const {data, isLoading} = useDependencyGraph(teamId ?? 0, open, taskId);
   const addDependency = useAddTaskDependency();
   const removeDependency = useRemoveTaskDependency();
 
@@ -287,8 +305,8 @@ export function DependencyGraphModal({
   removeDependencyRef.current = removeDependency;
   const handleDeleteEdge = useCallback((dependentTaskId: number, dependsOnTaskId: number) => {
     removeDependencyRef.current.mutate(
-      { task_id: dependentTaskId, depends_on_task_id: dependsOnTaskId },
-      { onError: (e: Error) => message.error(e.message) }
+      {task_id: dependentTaskId, depends_on_task_id: dependsOnTaskId},
+      {onError: (e: Error) => message.error(e.message)}
     );
   }, []);
 
@@ -312,8 +330,8 @@ export function DependencyGraphModal({
     window.addEventListener('mouseup', clear);
   }, []);
 
-  const { rfNodes, rfEdges } = useMemo(() => {
-    if (!data) return { rfNodes: [], rfEdges: [] };
+  const {rfNodes, rfEdges} = useMemo(() => {
+    if (!data) return {rfNodes: [], rfEdges: []};
     return layout(data.nodes, data.edges, handleDeleteEdge, suppressNodeClickUntilMouseUp, taskId);
   }, [data, handleDeleteEdge, suppressNodeClickUntilMouseUp, taskId]);
 
@@ -332,8 +350,8 @@ export function DependencyGraphModal({
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
       addDependency.mutate(
-        { task_id: Number(connection.target), depends_on_task_id: Number(connection.source) },
-        { onError: (e: Error) => message.error(e.message) }
+        {task_id: Number(connection.target), depends_on_task_id: Number(connection.source)},
+        {onError: (e: Error) => message.error(e.message)}
       );
     },
     [addDependency]
@@ -343,10 +361,10 @@ export function DependencyGraphModal({
     (oldEdge: Edge, newConnection: Connection) => {
       if (!newConnection.source || !newConnection.target) return;
       addDependency.mutate(
-        { task_id: Number(newConnection.target), depends_on_task_id: Number(newConnection.source) },
+        {task_id: Number(newConnection.target), depends_on_task_id: Number(newConnection.source)},
         {
           onSuccess: () =>
-            removeDependency.mutate({ task_id: Number(oldEdge.target), depends_on_task_id: Number(oldEdge.source) }),
+            removeDependency.mutate({task_id: Number(oldEdge.target), depends_on_task_id: Number(oldEdge.source)}),
           onError: (e: Error) => message.error(e.message),
         }
       );
@@ -364,16 +382,16 @@ export function DependencyGraphModal({
       onCancel={onClose}
       footer={null}
       width="100vw"
-      style={{ top: 0, maxWidth: '100vw', paddingBottom: 0 }}
-      styles={{ body: { height: 'calc(100vh - 110px)', padding: 0 } }}
+      style={{top: 0, maxWidth: '100vw', paddingBottom: 0}}
+      styles={{body: {height: 'calc(100vh - 110px)', padding: 0}}}
     >
       {isLoading ? (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-          <Spin size="large" />
+        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%'}}>
+          <Spin size="large"/>
         </div>
       ) : isEmpty ? (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-          <Empty description={taskId !== undefined ? 'У работы нет зависимостей' : 'В команде нет задач'} />
+        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%'}}>
+          <Empty description={taskId !== undefined ? 'У работы нет зависимостей' : 'В команде нет задач'}/>
         </div>
       ) : (
         <ReactFlow
@@ -394,7 +412,7 @@ export function DependencyGraphModal({
             onNavigate(Number(node.id));
           }}
         >
-          <Background />
+          <Background/>
         </ReactFlow>
       )}
     </Modal>

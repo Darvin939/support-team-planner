@@ -65,5 +65,7 @@ export function formatHistoryText(
   const changeText = `${label}: ${oldV} ➜ ${newV}`;
   return showAssignmentContext && isAssignmentRow ? `Назначение на ${entry.date} — ${changeText}` : changeText;
 }
+
 import {ASSIGNMENT_STATUS_LABELS, CRITICALITY_LABELS, TASK_STATUS_LABELS} from '../domain/types';
+
 export {ASSIGNMENT_STATUS_LABELS, CRITICALITY_LABELS, TASK_STATUS_LABELS} from '../domain/types';

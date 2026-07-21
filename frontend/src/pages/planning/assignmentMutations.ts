@@ -49,7 +49,7 @@ export function useSaveAssignmentMutation(options: {
   });
 }
 
-export function useDeleteAssignmentMutation(options: {onSuccess?: () => void} = {}) {
+export function useDeleteAssignmentMutation(options: { onSuccess?: () => void } = {}) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (assignmentId: number) => apiMutate(`/api/assignment/${assignmentId}`, 'DELETE'),

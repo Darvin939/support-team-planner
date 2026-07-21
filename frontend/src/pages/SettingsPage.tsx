@@ -21,10 +21,10 @@ export function SettingsPage() {
         defaultActiveKey={getInitialTab()}
         onChange={(key) => localStorage.setItem(SETTINGS_TAB_KEY, key)}
         items={[
-          { key: 'teams', label: 'Команды', children: <TeamsTab /> },
-          { key: 'references', label: 'Справочники работ', children: <WorkReferencesTab /> },
-          { key: 'freeze', label: 'Дни фриза', children: <FreezeDaysTab /> },
-          { key: 'users', label: 'Пользователи', children: <UsersTab /> },
+          {key: 'teams', label: 'Команды', children: <TeamsTab/>},
+          {key: 'references', label: 'Справочники работ', children: <WorkReferencesTab/>},
+          {key: 'freeze', label: 'Дни фриза', children: <FreezeDaysTab/>},
+          {key: 'users', label: 'Пользователи', children: <UsersTab/>},
         ]}
       />
     </>

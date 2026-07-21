@@ -25,7 +25,7 @@ function useUsersQuery() {
 
 /** Кэш имён пользователей по id — для отображения "Исполнитель" в истории изменений. */
 export function useUserNames() {
-  const { data } = useUsersQuery();
+  const {data} = useUsersQuery();
   const byId = new Map(data?.map((u) => [String(u.id), formatDisplayName(u)]));
 
   return (userId: string | null): string => {
@@ -36,6 +36,6 @@ export function useUserNames() {
 
 /** Список пользователей с отображаемым именем — для фильтров/пикеров (использует тот же кэш `['users']`). */
 export function useUserOptions(): { value: number; label: string }[] {
-  const { data } = useUsersQuery();
-  return data?.map((u) => ({ value: u.id, label: formatDisplayName(u) })) ?? [];
+  const {data} = useUsersQuery();
+  return data?.map((u) => ({value: u.id, label: formatDisplayName(u)})) ?? [];
 }

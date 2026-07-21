@@ -41,6 +41,6 @@ export const lightTheme: ThemeConfig = {
 // Sidebar ("chrome") stays a distinct dark panel in both themes in the current
 // vanilla-JS app; mirrored here for the AppShell rather than left to antd's Sider defaults.
 export const chrome = {
-  dark: { bg: '#0A0E14', text: '#F7F9FCA3' },
-  light: { bg: '#F5F7FA', text: '#10151FA3' },
+  dark: {bg: '#0A0E14', text: '#F7F9FCA3'},
+  light: {bg: '#F5F7FA', text: '#10151FA3'},
 };

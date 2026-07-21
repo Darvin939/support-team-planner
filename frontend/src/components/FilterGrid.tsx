@@ -7,10 +7,10 @@ import {theme} from 'antd';
  * full-width line. Used identically by every page with a filter row, so mobile
  * behavior doesn't silently diverge between pages.
  */
-export function FilterGrid({ isMobile, children }: { isMobile: boolean; children: ReactNode }) {
+export function FilterGrid({isMobile, children}: { isMobile: boolean; children: ReactNode }) {
   const style: CSSProperties = isMobile
-    ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12, width: '100%' }
-    : { display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' };
+    ? {display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12, width: '100%'}
+    : {display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end'};
   return <div style={style}>{children}</div>;
 }
 
@@ -23,19 +23,22 @@ export function FilterGrid({ isMobile, children }: { isMobile: boolean; children
  * same grid row.
  */
 export function FilterField({
-  label,
-  isMobile,
-  mobileSpan,
-  children,
-}: {
+                              label,
+                              isMobile,
+                              mobileSpan,
+                              children,
+                            }: {
   label?: string;
   isMobile: boolean;
   mobileSpan?: number | 'full';
   children: ReactNode;
 }) {
-  const { token } = theme.useToken();
+  const {token} = theme.useToken();
   return (
-    <div style={isMobile && mobileSpan ? { gridColumn: mobileSpan === 'full' ? '1 / -1' : `span ${mobileSpan}`, minWidth: 0 } : { minWidth: 0 }}>
+    <div style={isMobile && mobileSpan ? {
+      gridColumn: mobileSpan === 'full' ? '1 / -1' : `span ${mobileSpan}`,
+      minWidth: 0
+    } : {minWidth: 0}}>
       {label && (
         <div
           title={label}

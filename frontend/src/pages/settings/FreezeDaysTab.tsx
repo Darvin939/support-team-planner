@@ -23,57 +23,63 @@ function getFreezeDaysByMonth(allDays: string[] | undefined): Map<number, Set<nu
 }
 
 function MonthCalendarGrid({
-  month,
-  markedDays,
-  interactive,
-  onToggleDay,
-}: {
+                             month,
+                             markedDays,
+                             interactive,
+                             onToggleDay,
+                           }: {
   month: number;
   markedDays: Set<number>;
   interactive: boolean;
   onToggleDay?: (day: number) => void;
 }) {
-  const { token } = theme.useToken();
+  const {token} = theme.useToken();
   const daysInMonth = new Date(CURRENT_YEAR, month, 0).getDate();
   let firstDow = new Date(CURRENT_YEAR, month - 1, 1).getDay();
   firstDow = firstDow === 0 ? 6 : firstDow - 1;
   const today = new Date();
 
-  const cells: (number | null)[] = [...Array(firstDow).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
+  const cells: (number | null)[] = [...Array(firstDow).fill(null), ...Array.from({length: daysInMonth}, (_, i) => i + 1)];
   while (cells.length % 7 !== 0) cells.push(null);
 
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'center' }}>
+    <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'center'}}>
       <thead>
-        <tr>
-          {WEEKDAY_NAMES.map((d) => (
-            <th key={d} style={{ color: token.colorTextTertiary, fontWeight: 500, padding: 2 }}>
-              {d}
-            </th>
-          ))}
-        </tr>
+      <tr>
+        {WEEKDAY_NAMES.map((d) => (
+          <th key={d} style={{color: token.colorTextTertiary, fontWeight: 500, padding: 2}}>
+            {d}
+          </th>
+        ))}
+      </tr>
       </thead>
       <tbody>
-        {Array.from({ length: cells.length / 7 }, (_, row) => (
-          <tr key={row}>
-            {cells.slice(row * 7, row * 7 + 7).map((day, col) => {
-              if (day === null) return <td key={col} />;
-              const isWeekend = col === 5 || col === 6;
-              const isToday = CURRENT_YEAR === today.getFullYear() && month === today.getMonth() + 1 && day === today.getDate();
-              const isMarked = markedDays.has(day);
-              return (
-                <td
-                  key={col}
-                  onClick={interactive ? () => onToggleDay?.(day) : undefined}
-                  style={{
-                    padding: '3px 1px',
-                    background: isWeekend ? `color-mix(in srgb, ${token.colorWarning} 8%, transparent)` : undefined,
-                    cursor: interactive ? 'pointer' : undefined,
-                  }}
-                >
+      {Array.from({length: cells.length / 7}, (_, row) => (
+        <tr key={row}>
+          {cells.slice(row * 7, row * 7 + 7).map((day, col) => {
+            if (day === null) return <td key={col}/>;
+            const isWeekend = col === 5 || col === 6;
+            const isToday = CURRENT_YEAR === today.getFullYear() && month === today.getMonth() + 1 && day === today.getDate();
+            const isMarked = markedDays.has(day);
+            return (
+              <td
+                key={col}
+                onClick={interactive ? () => onToggleDay?.(day) : undefined}
+                style={{
+                  padding: '3px 1px',
+                  background: isWeekend ? `color-mix(in srgb, ${token.colorWarning} 8%, transparent)` : undefined,
+                  cursor: interactive ? 'pointer' : undefined,
+                }}
+              >
                   <span
                     style={{
-                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: '50%', lineHeight: 1,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 24,
+                      height: 24,
+                      borderRadius: '50%',
+                      lineHeight: 1,
                       background: isMarked ? token.colorError : undefined,
                       color: isMarked ? '#fff' : undefined,
                       fontWeight: isMarked ? 600 : 400,
@@ -82,18 +88,18 @@ function MonthCalendarGrid({
                   >
                     {day}
                   </span>
-                </td>
-              );
-            })}
-          </tr>
-        ))}
+              </td>
+            );
+          })}
+        </tr>
+      ))}
       </tbody>
     </table>
   );
 }
 
 export function FreezeDaysTab() {
-  const { data: freezeDays } = useFreezeDays();
+  const {data: freezeDays} = useFreezeDays();
   const queryClient = useQueryClient();
   const [modalMonth, setModalMonth] = useState<number | null>(null);
   const [modalSelectedDays, setModalSelectedDays] = useState<Set<number>>(new Set());
@@ -103,9 +109,13 @@ export function FreezeDaysTab() {
   const configuredMonths = [...byMonth.keys()].sort((a, b) => a - b);
 
   const saveMutation = useMutation({
-    mutationFn: (days: number[]) => apiMutate('/api/freeze-days/month', 'PUT', { year: CURRENT_YEAR, month: modalMonth, days }),
+    mutationFn: (days: number[]) => apiMutate('/api/freeze-days/month', 'PUT', {
+      year: CURRENT_YEAR,
+      month: modalMonth,
+      days
+    }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['freeze-days'] });
+      queryClient.invalidateQueries({queryKey: ['freeze-days']});
       message.success('Сохранено');
       setModalMonth(null);
     },
@@ -115,7 +125,7 @@ export function FreezeDaysTab() {
   const deleteMutation = useMutation({
     mutationFn: (month: number) => apiMutate(`/api/freeze-days/month/${CURRENT_YEAR}/${month}`, 'DELETE'),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['freeze-days'] });
+      queryClient.invalidateQueries({queryKey: ['freeze-days']});
       message.success('Удалено');
     },
     onError: (e: Error) => message.error(e.message),
@@ -151,16 +161,16 @@ export function FreezeDaysTab() {
 
   return (
     <>
-      <Space style={{ marginBottom: 16 }}>
+      <Space style={{marginBottom: 16}}>
         <Button type="primary" onClick={openAddModal}>
           Добавить месяц
         </Button>
       </Space>
 
       {configuredMonths.length === 0 ? (
-        <Empty description="Нет дней фриза" />
+        <Empty description="Нет дней фриза"/>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
+        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14}}>
           {configuredMonths.map((m) => (
             <Card
               key={m}
@@ -169,17 +179,18 @@ export function FreezeDaysTab() {
               extra={
                 <Space>
                   <Button size="small" onClick={() => openEditModal(m)}>
-                    <EditOutlined />
+                    <EditOutlined/>
                   </Button>
-                  <Popconfirm title={`Удалить все дни фриза за ${MONTH_NAMES[m - 1]}?`} onConfirm={() => deleteMutation.mutate(m)} okText="Удалить" cancelText="Отмена">
+                  <Popconfirm title={`Удалить все дни фриза за ${MONTH_NAMES[m - 1]}?`}
+                              onConfirm={() => deleteMutation.mutate(m)} okText="Удалить" cancelText="Отмена">
                     <Button size="small" danger>
-                      <DeleteOutlined />
+                      <DeleteOutlined/>
                     </Button>
                   </Popconfirm>
                 </Space>
               }
             >
-              <MonthCalendarGrid month={m} markedDays={byMonth.get(m) ?? new Set()} interactive={false} />
+              <MonthCalendarGrid month={m} markedDays={byMonth.get(m) ?? new Set()} interactive={false}/>
             </Card>
           ))}
         </div>
@@ -196,16 +207,17 @@ export function FreezeDaysTab() {
       >
         {isNewMonth && (
           <Select
-            style={{ width: '100%', marginBottom: 12 }}
+            style={{width: '100%', marginBottom: 12}}
             value={modalMonth}
             onChange={(m) => {
               setModalMonth(m);
               setModalSelectedDays(new Set(byMonth.get(m) ?? []));
             }}
-            options={MONTH_NAMES.map((name, i) => ({ value: i + 1, label: name }))}
+            options={MONTH_NAMES.map((name, i) => ({value: i + 1, label: name}))}
           />
         )}
-        {modalMonth !== null && <MonthCalendarGrid month={modalMonth} markedDays={modalSelectedDays} interactive onToggleDay={toggleDay} />}
+        {modalMonth !== null &&
+            <MonthCalendarGrid month={modalMonth} markedDays={modalSelectedDays} interactive onToggleDay={toggleDay}/>}
       </Modal>
     </>
   );

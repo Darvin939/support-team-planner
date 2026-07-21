@@ -53,11 +53,11 @@ function scrollGridToToday(today: string): number | null {
 }
 
 export function usePlanningGridTodayCenter({
-  today,
-  isReady,
-  viewKey,
-  renderKey,
-}: PlanningGridTodayCenterOptions): void {
+                                             today,
+                                             isReady,
+                                             viewKey,
+                                             renderKey,
+                                           }: PlanningGridTodayCenterOptions): void {
   const pendingCenterRef = useRef(true);
   const lastScrollLeftRef = useRef<number | null>(null);
 

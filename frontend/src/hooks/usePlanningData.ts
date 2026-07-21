@@ -52,7 +52,11 @@ export function useTasks(teamId: number, offset: number, limit: number, search: 
 export function useAssignments(teamId: number, dateFrom: string, dateTo: string, taskIds: number[]) {
   return useQuery<Assignment[]>({
     queryKey: queryKeys.assignments.list(teamId, dateFrom, dateTo, taskIds),
-    queryFn: () => apiGet(buildApiUrl(`/api/assignments/${teamId}`, {start_date: dateFrom, end_date: dateTo, task_ids: taskIds.join(',')})),
+    queryFn: () => apiGet(buildApiUrl(`/api/assignments/${teamId}`, {
+      start_date: dateFrom,
+      end_date: dateTo,
+      task_ids: taskIds.join(',')
+    })),
     enabled: !!teamId && taskIds.length > 0,
   });
 }
@@ -75,7 +79,9 @@ export function useTodayActive(teamId: number, today: string) {
   return useQuery<ActiveAssignmentLite[]>({
     queryKey: [...queryKeys.assignments.active, teamId, today, today],
     queryFn: () =>
-      apiGet<{ items: ActiveAssignmentLite[] }>(`/api/active-assignments/${teamId}?start_date=${today}&end_date=${today}`).then(
+      apiGet<{
+        items: ActiveAssignmentLite[]
+      }>(`/api/active-assignments/${teamId}?start_date=${today}&end_date=${today}`).then(
         (r) => r.items
       ),
     enabled: !!teamId,
@@ -120,7 +126,11 @@ export function useTaskById(teamId: number, taskId: number | null) {
   return useQuery<Task | null>({
     queryKey: queryKeys.tasks.byId(teamId, taskId),
     queryFn: () =>
-      apiGet<{ tasks: Task[] }>(buildApiUrl(`/api/tasks/${teamId}`, {task_id: taskId, show_completed: true, limit: 1})).then(
+      apiGet<{ tasks: Task[] }>(buildApiUrl(`/api/tasks/${teamId}`, {
+        task_id: taskId,
+        show_completed: true,
+        limit: 1
+      })).then(
         (r) => r.tasks[0] ?? null
       ),
     enabled: !!teamId && !!taskId,
@@ -222,7 +232,7 @@ export function useActiveTasksList(teamId: number, search: string, includeIds: n
     queryFn: () =>
       apiGet(
         `/api/tasks/${teamId}/active-list?search=${encodeURIComponent(search)}` +
-          (includeIdsKey ? `&include_ids=${includeIdsKey}` : '')
+        (includeIdsKey ? `&include_ids=${includeIdsKey}` : '')
       ),
     enabled: !!teamId,
     placeholderData: keepPreviousData,

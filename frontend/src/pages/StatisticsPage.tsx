@@ -40,7 +40,13 @@ interface ActiveAssignmentsResponse {
   };
 }
 
-const STATUS_LABEL: Record<string, string> = { new: 'Новый', planned: 'Запланировано', rollback: 'Откат', success: 'Успешно', cancelled: 'Отменено' };
+const STATUS_LABEL: Record<string, string> = {
+  new: 'Новый',
+  planned: 'Запланировано',
+  rollback: 'Откат',
+  success: 'Успешно',
+  cancelled: 'Отменено'
+};
 
 function useActiveAssignments(from: string, to: string, teamIds: number[], offset: number, limit: number) {
   return useQuery<ActiveAssignmentsResponse>({
@@ -59,31 +65,31 @@ function buildColumns(showDate: boolean): TableColumnsType<ActiveAssignment> {
       dataIndex: 'task_name',
       key: 'task_name',
       width: NAME_COLUMN_WIDTH,
-      render: (v: string) => <span style={{ overflowWrap: 'anywhere' }}>{v}</span>,
+      render: (v: string) => <span style={{overflowWrap: 'anywhere'}}>{v}</span>,
     },
-    { title: 'Команда', dataIndex: 'team_name', key: 'team_name' },
-    { title: 'Крит.', dataIndex: 'criticality', key: 'criticality', render: (v) => <CriticalityBadge value={v} /> },
+    {title: 'Команда', dataIndex: 'team_name', key: 'team_name'},
+    {title: 'Крит.', dataIndex: 'criticality', key: 'criticality', render: (v) => <CriticalityBadge value={v}/>},
   ];
-  if (showDate) cols.push({ title: 'Дата', dataIndex: 'date', key: 'date' });
+  if (showDate) cols.push({title: 'Дата', dataIndex: 'date', key: 'date'});
   cols.push(
-    { title: 'Блок', dataIndex: 'block', key: 'block' },
-    { title: 'Статус', dataIndex: 'status', key: 'status', render: (v) => STATUS_LABEL[v] ?? v },
-    { title: 'Исполнитель', dataIndex: 'user_name', key: 'user_name' },
-    { title: 'Комментарий', dataIndex: 'comment', key: 'comment' },
+    {title: 'Блок', dataIndex: 'block', key: 'block'},
+    {title: 'Статус', dataIndex: 'status', key: 'status', render: (v) => STATUS_LABEL[v] ?? v},
+    {title: 'Исполнитель', dataIndex: 'user_name', key: 'user_name'},
+    {title: 'Комментарий', dataIndex: 'comment', key: 'comment'},
   );
   return cols;
 }
 
 function StatsSection({
-  title,
-  response,
-  showDate,
-  offset,
-  pageSize,
-  pageSizeOptions,
-  onPageChange,
-  onPageSizeChange,
-}: {
+                        title,
+                        response,
+                        showDate,
+                        offset,
+                        pageSize,
+                        pageSizeOptions,
+                        onPageChange,
+                        onPageSizeChange,
+                      }: {
   title: string;
   response: ActiveAssignmentsResponse | undefined;
   showDate: boolean;
@@ -95,29 +101,30 @@ function StatsSection({
 }) {
   const items = response?.items ?? [];
   const total = response?.total ?? 0;
-  const statusCounts = response?.stats.status ?? { new: 0, planned: 0 };
-  const critCounts = response?.stats.criticality ?? { high: 0, medium: 0, low: 0 };
+  const statusCounts = response?.stats.status ?? {new: 0, planned: 0};
+  const critCounts = response?.stats.criticality ?? {high: 0, medium: 0, low: 0};
 
   return (
-    <Card style={{ marginBottom: 16 }}>
-      <Typography.Title level={4} style={{ marginTop: 0 }}>
+    <Card style={{marginBottom: 16}}>
+      <Typography.Title level={4} style={{marginTop: 0}}>
         {title}
       </Typography.Title>
-      <Space size={8} wrap style={{ marginBottom: 14 }}>
-        <StatTile label="Всего" value={total} primary />
+      <Space size={8} wrap style={{marginBottom: 14}}>
+        <StatTile label="Всего" value={total} primary/>
         <StatGroupLabel>Статус</StatGroupLabel>
-        <StatTile label="Новый" value={statusCounts.new} accent="#1668dc" />
-        <StatTile label="Запланировано" value={statusCounts.planned} accent="#d89614" />
+        <StatTile label="Новый" value={statusCounts.new} accent="#1668dc"/>
+        <StatTile label="Запланировано" value={statusCounts.planned} accent="#d89614"/>
         <StatGroupLabel>Критичность</StatGroupLabel>
-        <StatTile label="Высокая" value={critCounts.high} accent="#d32029" />
-        <StatTile label="Средняя" value={critCounts.medium} accent="#d89614" />
-        <StatTile label="Низкая" value={critCounts.low} accent="#49aa19" />
+        <StatTile label="Высокая" value={critCounts.high} accent="#d32029"/>
+        <StatTile label="Средняя" value={critCounts.medium} accent="#d89614"/>
+        <StatTile label="Низкая" value={critCounts.low} accent="#49aa19"/>
       </Space>
       {total > 0 ? (
         <>
-          <Table rowKey="id" columns={buildColumns(showDate)} dataSource={items} pagination={false} size="small" scroll={{ x: 'max-content' }} />
+          <Table rowKey="id" columns={buildColumns(showDate)} dataSource={items} pagination={false} size="small"
+                 scroll={{x: 'max-content'}}/>
           {total > pageSize && (
-            <div style={{ textAlign: 'center', marginTop: 16 }}>
+            <div style={{textAlign: 'center', marginTop: 16}}>
               <Pagination
                 current={offset / pageSize + 1}
                 pageSize={pageSize}
@@ -136,14 +143,14 @@ function StatsSection({
           )}
         </>
       ) : (
-        <Empty description="Нет активных работ" />
+        <Empty description="Нет активных работ"/>
       )}
     </Card>
   );
 }
 
 export function StatisticsPage() {
-  const { data: teams } = useTeams();
+  const {data: teams} = useTeams();
   const isMobile = useIsMobile();
 
   const [selectedTeamIds, setSelectedTeamIds] = useState<number[]>(() => readStoredJson(STORAGE_STATS_TEAMS, []));
@@ -183,25 +190,25 @@ export function StatisticsPage() {
   }, [periodFrom, periodTo, periodPagination.reset]);
 
   const today = dayjs().format(API_DATE_FORMAT);
-  const { data: todayData } = useActiveAssignments(today, today, selectedTeamIds, todayPagination.offset, pageSize);
-  const { data: periodData } = useActiveAssignments(periodFrom, periodTo, selectedTeamIds, periodPagination.offset, pageSize);
+  const {data: todayData} = useActiveAssignments(today, today, selectedTeamIds, todayPagination.offset, pageSize);
+  const {data: periodData} = useActiveAssignments(periodFrom, periodTo, selectedTeamIds, periodPagination.offset, pageSize);
 
   return (
     <>
       <Typography.Title level={2}>Статистика</Typography.Title>
 
-      <Card style={{ marginBottom: 16 }}>
+      <Card style={{marginBottom: 16}}>
         <FilterGrid isMobile={isMobile}>
           <FilterField label="КОМАНДА" isMobile={isMobile} mobileSpan="full">
             <Select
               mode="multiple"
               allowClear
-              showSearch={{ optionFilterProp: 'label' }}
+              showSearch={{optionFilterProp: 'label'}}
               placeholder="Все команды"
-              style={{ minWidth: isMobile ? '100%' : 280, width: isMobile ? '100%' : undefined }}
+              style={{minWidth: isMobile ? '100%' : 280, width: isMobile ? '100%' : undefined}}
               value={selectedTeamIds}
               onChange={handleTeamsChange}
-              options={teams?.map((t) => ({ value: t.id, label: t.name }))}
+              options={teams?.map((t) => ({value: t.id, label: t.name}))}
             />
           </FilterField>
         </FilterGrid>
@@ -218,7 +225,7 @@ export function StatisticsPage() {
         onPageSizeChange={handlePageSizeChange}
       />
 
-      <Card style={{ marginBottom: 16 }}>
+      <Card style={{marginBottom: 16}}>
         <FilterGrid isMobile={isMobile}>
           <FilterField label="ПЕРИОД" isMobile={isMobile} mobileSpan="full">
             <DatePicker.RangePicker
@@ -228,7 +235,7 @@ export function StatisticsPage() {
               minDate={dayjs('2000-01-01')}
               maxDate={dayjs('2099-12-31')}
               allowClear
-              style={isMobile ? { width: '100%' } : undefined}
+              style={isMobile ? {width: '100%'} : undefined}
             />
           </FilterField>
         </FilterGrid>

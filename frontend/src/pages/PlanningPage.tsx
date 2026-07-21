@@ -58,17 +58,17 @@ import {usePlanningFilters} from './planning/usePlanningFilters';
 import {createPlanningGridViewKey, usePlanningGridTodayCenter} from './planning/usePlanningGridTodayCenter';
 import {TOP_BAR_HEIGHT} from "../components/AppShell.tsx";
 
-const DependencyGraphModal = lazy(() => import('./planning/DependencyGraphModal').then((m) => ({ default: m.DependencyGraphModal })));
+const DependencyGraphModal = lazy(() => import('./planning/DependencyGraphModal').then((m) => ({default: m.DependencyGraphModal})));
 
 const TASK_STATUS_OPTIONS = [
-  { value: 'new', label: 'Новый' },
-  { value: 'done', label: 'Выполнено' },
-  { value: 'cancelled', label: 'Отменено' },
+  {value: 'new', label: 'Новый'},
+  {value: 'done', label: 'Выполнено'},
+  {value: 'cancelled', label: 'Отменено'},
 ];
 const CRITICALITY_OPTIONS = [
-  { value: 'low', label: 'Низкая' },
-  { value: 'medium', label: 'Средняя' },
-  { value: 'high', label: 'Высокая' },
+  {value: 'low', label: 'Низкая'},
+  {value: 'medium', label: 'Средняя'},
+  {value: 'high', label: 'Высокая'},
 ];
 
 function dateRange(from: Dayjs, to: Dayjs): Dayjs[] {
@@ -82,14 +82,14 @@ function dateRange(from: Dayjs, to: Dayjs): Dayjs[] {
 }
 
 export function PlanningPage() {
-  const { teamId: teamIdParam } = useParams();
+  const {teamId: teamIdParam} = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const jump = location.state as { jumpTaskId?: number; jumpDate?: string } | null;
-  const { data: teams } = useTeams();
-  const { data: me } = useMe();
+  const {data: teams} = useTeams();
+  const {data: me} = useMe();
   const isUser = me?.role === 'user';
-  const { token } = theme.useToken();
+  const {token} = theme.useToken();
   const teamId = teamIdParam ? Number(teamIdParam) : undefined;
   const isMobile = useIsMobile();
   const selectTeamRoute = useStoredTeamRoute('/planning', teamId, teams);
@@ -100,11 +100,16 @@ export function PlanningPage() {
   const [showCompleted, setShowCompleted] = useState(false);
   const pagination = usePaginationState(DEFAULT_PAGE_SIZE);
   const {page, pageSize} = pagination;
-  const { data: segments } = useSegments();
-  const [taskModal, setTaskModal] = useState<{ open: boolean; task: Task | null }>({ open: false, task: null });
+  const {data: segments} = useSegments();
+  const [taskModal, setTaskModal] = useState<{ open: boolean; task: Task | null }>({open: false, task: null});
   const [depJumpTaskId, setDepJumpTaskId] = useState<number | null>(null);
-  const [graphModal, setGraphModal] = useState<{ open: boolean; taskId?: number }>({ open: false });
-  const [assignmentModal, setAssignmentModal] = useState<{ open: boolean; task: Task | null; date: string | null; assignment: Assignment | null }>({
+  const [graphModal, setGraphModal] = useState<{ open: boolean; taskId?: number }>({open: false});
+  const [assignmentModal, setAssignmentModal] = useState<{
+    open: boolean;
+    task: Task | null;
+    date: string | null;
+    assignment: Assignment | null
+  }>({
     open: false,
     task: null,
     date: null,
@@ -121,10 +126,13 @@ export function PlanningPage() {
   const freezeDays = useMemo(() => new Set(freezeDaysList ?? []), [freezeDaysList]);
 
   const statusMutation = useMutation({
-    mutationFn: ({ taskId, status }: { taskId: number; status: string }) => apiMutate(`/api/tasks/${taskId}/status`, 'PATCH', { status }).then(() => ({ taskId, status })),
-    onSuccess: ({ taskId, status }) => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
+    mutationFn: ({taskId, status}: {
+      taskId: number;
+      status: string
+    }) => apiMutate(`/api/tasks/${taskId}/status`, 'PATCH', {status}).then(() => ({taskId, status})),
+    onSuccess: ({taskId, status}) => {
+      queryClient.invalidateQueries({queryKey: ['tasks']});
+      queryClient.invalidateQueries({queryKey: ['active-assignments']});
       const task = taskData?.tasks.find((t) => t.id === taskId);
       if (status === 'done' || status === 'cancelled') {
         message.success(`«${task?.name ?? taskId}» — ${TASK_STATUS_LABELS[status] ?? status}`);
@@ -134,16 +142,16 @@ export function PlanningPage() {
   });
 
   const reorderMutation = useMutation({
-    mutationFn: (taskIds: number[]) => apiMutate(`/api/tasks/${teamId}/reorder`, 'PATCH', { task_ids: taskIds }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+    mutationFn: (taskIds: number[]) => apiMutate(`/api/tasks/${teamId}/reorder`, 'PATCH', {task_ids: taskIds}),
+    onSuccess: () => queryClient.invalidateQueries({queryKey: ['tasks']}),
     onError: (e: Error) => message.error(e.message),
   });
 
   const priorityMutation = useMutation({
-    mutationFn: ({ taskId, position }: { taskId: number; position: 'start' | 'end' }) =>
-      apiMutate(`/api/task/${taskId}/priority`, 'PATCH', { position }),
+    mutationFn: ({taskId, position}: { taskId: number; position: 'start' | 'end' }) =>
+      apiMutate(`/api/task/${taskId}/priority`, 'PATCH', {position}),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({queryKey: ['tasks']});
       message.success('Приоритет изменён');
     },
     onError: (e: Error) => message.error(e.message),
@@ -170,6 +178,7 @@ export function PlanningPage() {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') setSelectedAssignmentIds((prev) => (prev.size > 0 ? new Set() : prev));
     }
+
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
@@ -201,7 +210,7 @@ export function PlanningPage() {
     isPending: depsPending,
     isError: depsError,
   } = useTaskDeps(teamId ?? 0, depsTaskIds);
-  const { data: todayActive } = useTodayActive(teamId ?? 0, today);
+  const {data: todayActive} = useTodayActive(teamId ?? 0, today);
 
   const hasTasks = taskIds.length > 0;
   const planningDataError = tasksError || freezeDaysError || (hasTasks && (assignmentsError || depsError));
@@ -223,8 +232,8 @@ export function PlanningPage() {
     return map;
   }, [assignments]);
 
-  const { data: jumpTask } = useTaskById(teamId ?? 0, jump?.jumpTaskId ?? null);
-  const { data: jumpAssignments } = useAssignments(
+  const {data: jumpTask} = useTaskById(teamId ?? 0, jump?.jumpTaskId ?? null);
+  const {data: jumpAssignments} = useAssignments(
     teamId ?? 0,
     jump?.jumpDate ? dayjs(jump.jumpDate).subtract(60, 'day').format(API_DATE_FORMAT) : '',
     jump?.jumpDate ? dayjs(jump.jumpDate).add(60, 'day').format(API_DATE_FORMAT) : '',
@@ -234,18 +243,18 @@ export function PlanningPage() {
   useEffect(() => {
     if (!jump?.jumpTaskId || !jump.jumpDate || !jumpTask) return;
     const assignment = (jumpAssignments ?? []).find((a) => a.date === jump.jumpDate) ?? null;
-    setAssignmentModal({ open: true, task: jumpTask, date: jump.jumpDate, assignment });
-    navigate(location.pathname, { replace: true, state: null });
+    setAssignmentModal({open: true, task: jumpTask, date: jump.jumpDate, assignment});
+    navigate(location.pathname, {replace: true, state: null});
   }, [jump, jumpTask, jumpAssignments, navigate, location.pathname]);
 
   // Открытие задачи-зависимости, недоступной прямо на странице (другая страница пагинации,
   // отфильтрована поиском/статусом) — тот же приём "резолвить по id, затем открыть модалку",
   // что и jumpTask выше, но без перехода по роуту (мы уже на PlanningPage).
-  const { data: depJumpTask, isFetched: depJumpFetched } = useTaskById(teamId ?? 0, depJumpTaskId);
+  const {data: depJumpTask, isFetched: depJumpFetched} = useTaskById(teamId ?? 0, depJumpTaskId);
   useEffect(() => {
     if (!depJumpTaskId || !depJumpFetched) return;
     if (depJumpTask) {
-      setTaskModal({ open: true, task: depJumpTask });
+      setTaskModal({open: true, task: depJumpTask});
     } else {
       message.info('Задача не найдена');
     }
@@ -272,16 +281,19 @@ export function PlanningPage() {
 
   const saveRescheduledAssignment = useSaveAssignmentMutation({successMessage: 'Назначение перенесено'});
   const rescheduleMutation = {
-    mutate: ({ assignmentId, newDate }: { assignmentId: number; newDate: string }) => {
+    mutate: ({assignmentId, newDate}: { assignmentId: number; newDate: string }) => {
       const existing = (assignments ?? []).find((a) => a.id === assignmentId);
       if (!existing) return message.error('Назначение не найдено');
       saveRescheduledAssignment.mutate(assignmentToPayload(existing, {date: newDate}));
     },
   };
 
-  const saveAssignmentStatus = useSaveAssignmentMutation({includeTasks: true, successMessage: 'Статус назначения обновлён'});
+  const saveAssignmentStatus = useSaveAssignmentMutation({
+    includeTasks: true,
+    successMessage: 'Статус назначения обновлён'
+  });
   const assignmentStatusMutation = {
-    mutate: ({ assignmentId, status }: { assignmentId: number; status: Assignment['status'] }) => {
+    mutate: ({assignmentId, status}: { assignmentId: number; status: Assignment['status'] }) => {
       const existing = (assignments ?? []).find((a) => a.id === assignmentId);
       if (!existing) return message.error('Назначение не найдено');
       saveAssignmentStatus.mutate(assignmentToPayload(existing, {status}));
@@ -301,9 +313,9 @@ export function PlanningPage() {
           failed.push(id);
         }
       }
-      return { total: ids.length, failed };
+      return {total: ids.length, failed};
     },
-    onSuccess: ({ total, failed }) => {
+    onSuccess: ({total, failed}) => {
       invalidateAssignmentData(queryClient);
       setSelectedAssignmentIds(new Set(failed));
       if (failed.length === 0) message.success(`Удалено назначений: ${total}`);
@@ -314,11 +326,11 @@ export function PlanningPage() {
   const bulkRescheduleMutation = useMutation({
     mutationFn: async (moves: { assignmentId: number; taskId: number; newDate: string }[]) => {
       await apiMutate('/api/assignments/bulk-reschedule', 'POST', {
-        moves: moves.map((move) => ({ assignment_id: move.assignmentId, new_date: move.newDate })),
+        moves: moves.map((move) => ({assignment_id: move.assignmentId, new_date: move.newDate})),
       });
-      return { total: moves.length };
+      return {total: moves.length};
     },
-    onSuccess: ({ total }) => {
+    onSuccess: ({total}) => {
       invalidateAssignmentData(queryClient);
       setSelectedAssignmentIds(new Set());
       message.success(`Перенесено назначений: ${total}`);
@@ -337,14 +349,14 @@ export function PlanningPage() {
   const chipDragSuppressRef = useAssignmentDrag({
     isTaskLocked,
     getOccupant: (taskId, date) => assignmentByKey.get(`${taskId}-${date}`),
-    onDrop: (assignmentId, _taskId, newDate) => rescheduleMutation.mutate({ assignmentId, newDate }),
+    onDrop: (assignmentId, _taskId, newDate) => rescheduleMutation.mutate({assignmentId, newDate}),
     onDropMany: (moves) => bulkRescheduleMutation.mutate(moves),
-    colors: { success: token.colorSuccess, error: token.colorError, selected: token.colorPrimary },
+    colors: {success: token.colorSuccess, error: token.colorError, selected: token.colorPrimary},
     selectedAssignmentIds,
     getAssignment: (id) => assignmentById.get(id),
   });
 
-  const panSuppressRef = useTableDragScroll({ isTaskLocked });
+  const panSuppressRef = useTableDragScroll({isTaskLocked});
 
   const selectSuppressRef = useAssignmentSelection({
     selectedAssignmentIds,
@@ -389,7 +401,7 @@ export function PlanningPage() {
   function handleDepNavigate(dep: DepBadgeEntry) {
     const row = document.querySelector<HTMLElement>(`[data-planning-grid] .ant-table-tbody tr[data-task-row-id="${dep.id}"]`);
     if (row) {
-      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.scrollIntoView({behavior: 'smooth', block: 'center'});
       const cells = Array.from(row.querySelectorAll<HTMLElement>('td'));
       cells.forEach((cell) => {
         cell.style.setProperty('--highlight-pulse-color', token.colorPrimary);
@@ -437,17 +449,18 @@ export function PlanningPage() {
       <>
         <Typography.Title level={2}>Планирование</Typography.Title>
         <Card>
-          <Select style={{ minWidth: 260 }} placeholder="-- Выберите команду --" showSearch={{ optionFilterProp: 'label' }} onChange={handleTeamSelect} options={teams?.map((t) => ({ value: t.id, label: t.name }))} />
+          <Select style={{minWidth: 260}} placeholder="-- Выберите команду --" showSearch={{optionFilterProp: 'label'}}
+                  onChange={handleTeamSelect} options={teams?.map((t) => ({value: t.id, label: t.name}))}/>
         </Card>
-        <div style={{ marginTop: 24 }}>
-          <Empty description="Выберите команду для начала планирования" />
+        <div style={{marginTop: 24}}>
+          <Empty description="Выберите команду для начала планирования"/>
         </div>
       </>
     );
   }
 
-  const statusCounts = { new: 0, planned: 0 };
-  const critCounts = { high: 0, medium: 0, low: 0 };
+  const statusCounts = {new: 0, planned: 0};
+  const critCounts = {high: 0, medium: 0, low: 0};
   (todayActive ?? []).forEach((a) => {
     if (a.status in statusCounts) statusCounts[a.status as keyof typeof statusCounts]++;
     if (a.criticality in critCounts) critCounts[a.criticality as keyof typeof critCounts]++;
@@ -457,12 +470,13 @@ export function PlanningPage() {
     <>
       <Typography.Title level={2}>Планирование</Typography.Title>
 
-      <Card style={{ marginBottom: 16 }}>
-        <Select style={{ minWidth: 260 }} value={teamId} showSearch={{ optionFilterProp: 'label' }} onChange={handleTeamSelect} options={teams?.map((t) => ({ value: t.id, label: t.name }))} />
+      <Card style={{marginBottom: 16}}>
+        <Select style={{minWidth: 260}} value={teamId} showSearch={{optionFilterProp: 'label'}}
+                onChange={handleTeamSelect} options={teams?.map((t) => ({value: t.id, label: t.name}))}/>
       </Card>
 
-      <Card style={{ marginBottom: 16 }}>
-        <Typography.Title level={5} style={{ marginTop: 0 }}>
+      <Card style={{marginBottom: 16}}>
+        <Typography.Title level={5} style={{marginTop: 0}}>
           Фильтры
         </Typography.Title>
         <FilterGrid isMobile={isMobile}>
@@ -474,12 +488,12 @@ export function PlanningPage() {
               minDate={dayjs('2000-01-01')}
               maxDate={dayjs('2099-12-31')}
               allowClear
-              style={isMobile ? { width: '100%' } : undefined}
+              style={isMobile ? {width: '100%'} : undefined}
             />
           </FilterField>
           <FilterField label="ПОИСК ПО ОПИСАНИЮ" isMobile={isMobile}>
             <Input.Search
-              style={{ width: isMobile ? '100%' : 220 }}
+              style={{width: isMobile ? '100%' : 220}}
               placeholder="Введите текст..."
               allowClear
               value={search}
@@ -487,26 +501,29 @@ export function PlanningPage() {
             />
           </FilterField>
           <FilterField label="КРИТИЧНОСТЬ" isMobile={isMobile}>
-            <Select mode="multiple" style={{ width: isMobile ? '100%' : 180 }} placeholder="Все" value={critFilter} onChange={setCritFilter} options={CRITICALITY_OPTIONS} />
+            <Select mode="multiple" style={{width: isMobile ? '100%' : 180}} placeholder="Все" value={critFilter}
+                    onChange={setCritFilter} options={CRITICALITY_OPTIONS}/>
           </FilterField>
           <FilterField label="СЕГМЕНТ" isMobile={isMobile}>
             <Select
               mode="multiple"
-              style={{ width: isMobile ? '100%' : 180 }}
+              style={{width: isMobile ? '100%' : 180}}
               placeholder="Все"
               value={segmentFilter}
               onChange={setSegmentFilter}
-              options={segments?.map((s) => ({ value: s.id, label: s.name }))}
+              options={segments?.map((s) => ({value: s.id, label: s.name}))}
             />
           </FilterField>
           <FilterField label="СТАТУС" isMobile={isMobile}>
-            <Select mode="multiple" style={{ width: isMobile ? '100%' : 180 }} placeholder="Все" value={statusFilter} onChange={setStatusFilter} options={ASSIGNMENT_STATUS_OPTIONS} />
+            <Select mode="multiple" style={{width: isMobile ? '100%' : 180}} placeholder="Все" value={statusFilter}
+                    onChange={setStatusFilter} options={ASSIGNMENT_STATUS_OPTIONS}/>
           </FilterField>
           <FilterField label="СТАТУС РАБОТЫ" isMobile={isMobile}>
-            <Select mode="multiple" style={{ width: isMobile ? '100%' : 180 }} placeholder="Все" value={taskStatusFilter} onChange={setTaskStatusFilter} options={TASK_STATUS_OPTIONS} />
+            <Select mode="multiple" style={{width: isMobile ? '100%' : 180}} placeholder="Все" value={taskStatusFilter}
+                    onChange={setTaskStatusFilter} options={TASK_STATUS_OPTIONS}/>
           </FilterField>
           <FilterField isMobile={isMobile} mobileSpan="full">
-            <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+            <div style={{display: 'flex', alignItems: 'center', height: '100%'}}>
               <Checkbox
                 checked={showCompleted}
                 onChange={(e) => setShowCompleted(e.target.checked)}
@@ -518,29 +535,36 @@ export function PlanningPage() {
         </FilterGrid>
       </Card>
 
-      <Space size={8} wrap style={{ marginBottom: 14 }}>
-        <StatTile label="На сегодня" value={todayActive?.length ?? 0} primary />
+      <Space size={8} wrap style={{marginBottom: 14}}>
+        <StatTile label="На сегодня" value={todayActive?.length ?? 0} primary/>
         <StatGroupLabel>Статус</StatGroupLabel>
-        <StatTile label="Новый" value={statusCounts.new} accent="#1668dc" />
-        <StatTile label="Запланировано" value={statusCounts.planned} accent="#d89614" />
+        <StatTile label="Новый" value={statusCounts.new} accent="#1668dc"/>
+        <StatTile label="Запланировано" value={statusCounts.planned} accent="#d89614"/>
         <StatGroupLabel>Критичность</StatGroupLabel>
-        <StatTile label="Высокая" value={critCounts.high} accent="#d32029" />
-        <StatTile label="Средняя" value={critCounts.medium} accent="#d89614" />
-        <StatTile label="Низкая" value={critCounts.low} accent="#49aa19" />
+        <StatTile label="Высокая" value={critCounts.high} accent="#d32029"/>
+        <StatTile label="Средняя" value={critCounts.medium} accent="#d89614"/>
+        <StatTile label="Низкая" value={critCounts.low} accent="#49aa19"/>
       </Space>
 
       <Card>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 12,
+          flexWrap: 'wrap',
+          gap: 8
+        }}>
           <Space wrap>
-            <Button type="primary" onClick={() => setTaskModal({ open: true, task: null })}>
+            <Button type="primary" onClick={() => setTaskModal({open: true, task: null})}>
               Добавить работу
             </Button>
-            <Button icon={<ApartmentOutlined />} onClick={() => setGraphModal({ open: true })}>
+            <Button icon={<ApartmentOutlined/>} onClick={() => setGraphModal({open: true})}>
               Граф зависимостей
             </Button>
             {selectedAssignmentIds.size > 0 && (
-              <Space size={8} style={{ paddingLeft: 8, borderLeft: `1px solid ${token.colorBorder}` }}>
-                <span style={{ color: token.colorTextSecondary }}>Выбрано: {selectedAssignmentIds.size}</span>
+              <Space size={8} style={{paddingLeft: 8, borderLeft: `1px solid ${token.colorBorder}`}}>
+                <span style={{color: token.colorTextSecondary}}>Выбрано: {selectedAssignmentIds.size}</span>
                 <Popconfirm
                   title={`Удалить ${selectedAssignmentIds.size} назначений?`}
                   okText="Удалить"
@@ -555,7 +579,11 @@ export function PlanningPage() {
               </Space>
             )}
           </Space>
-          <span style={{ fontFamily: "'JetBrains Mono Variable', monospace", color: token.colorTextSecondary, fontSize: '0.9rem' }}>
+          <span style={{
+            fontFamily: "'JetBrains Mono Variable', monospace",
+            color: token.colorTextSecondary,
+            fontSize: '0.9rem'
+          }}>
             Всего работ: {taskData?.total ?? 0} | Отображено: {filteredTasks.length}
           </span>
         </div>
@@ -568,28 +596,31 @@ export function PlanningPage() {
             description="Обновите страницу или повторите попытку позже."
           />
         ) : !planningDataReady ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
-            <Spin size="large" description="Загрузка таблицы..." />
+          <div style={{display: 'flex', justifyContent: 'center', padding: '48px 0'}}>
+            <Spin size="large" description="Загрузка таблицы..."/>
           </div>
         ) : filteredTasks.length === 0 ? (
-          <Empty description="Нет запланированных работ" />
+          <Empty description="Нет запланированных работ"/>
         ) : (
-          <div data-planning-grid style={{ cursor: 'grab' }} onContextMenu={(e) => e.preventDefault()}>
+          <div data-planning-grid style={{cursor: 'grab'}} onContextMenu={(e) => e.preventDefault()}>
             <Table
               rowKey="id"
               columns={columns}
               dataSource={filteredTasks}
               pagination={false}
               size="small"
-              scroll={{ x: 'max-content' }}
-              sticky={{ offsetHeader: isMobile ? TOP_BAR_HEIGHT : 0 }}
-              onRow={(task) => ({ 'data-task-row-id': task.id, 'data-task-row-criticality': task.criticality }) as HTMLAttributes<HTMLElement>}
+              scroll={{x: 'max-content'}}
+              sticky={{offsetHeader: isMobile ? TOP_BAR_HEIGHT : 0}}
+              onRow={(task) => ({
+                'data-task-row-id': task.id,
+                'data-task-row-criticality': task.criticality
+              }) as HTMLAttributes<HTMLElement>}
             />
           </div>
         )}
 
         {taskData && taskData.total > pageSize && (
-          <div style={{ textAlign: 'center', marginTop: 16 }}>
+          <div style={{textAlign: 'center', marginTop: 16}}>
             <Pagination
               current={page}
               pageSize={pageSize}
@@ -613,7 +644,7 @@ export function PlanningPage() {
         teamId={teamId}
         task={taskModal.task}
         existingDepIds={taskModal.task ? (depsByTask.get(taskModal.task.id) ?? []).map((d) => d.dep_id) : []}
-        onClose={() => setTaskModal({ open: false, task: null })}
+        onClose={() => setTaskModal({open: false, task: null})}
       />
       <AssignmentModal
         open={assignmentModal.open}
@@ -623,7 +654,7 @@ export function PlanningPage() {
         assignment={assignmentModal.assignment}
         taskAssignments={assignmentModal.task ? (assignmentsByTask.get(assignmentModal.task.id) ?? jumpAssignments ?? []) : []}
         freezeDays={freezeDays}
-        onClose={() => setAssignmentModal({ open: false, task: null, date: null, assignment: null })}
+        onClose={() => setAssignmentModal({open: false, task: null, date: null, assignment: null})}
       />
       {graphModal.open && (
         <Suspense fallback={null}>
@@ -631,9 +662,9 @@ export function PlanningPage() {
             open={graphModal.open}
             teamId={teamId}
             taskId={graphModal.taskId}
-            onClose={() => setGraphModal({ open: false })}
+            onClose={() => setGraphModal({open: false})}
             onNavigate={(taskId) => {
-              setGraphModal({ open: false });
+              setGraphModal({open: false});
               setDepJumpTaskId(taskId);
             }}
           />

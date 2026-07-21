@@ -43,11 +43,11 @@ export interface AssignmentFormValues {
 }
 
 const STATUS_OPTIONS = [
-  { value: 'new', label: 'Новый' },
-  { value: 'planned', label: 'Запланировано' },
-  { value: 'rollback', label: 'Откат' },
-  { value: 'success', label: 'Успешно' },
-  { value: 'cancelled', label: 'Отменено' },
+  {value: 'new', label: 'Новый'},
+  {value: 'planned', label: 'Запланировано'},
+  {value: 'rollback', label: 'Откат'},
+  {value: 'success', label: 'Успешно'},
+  {value: 'cancelled', label: 'Отменено'},
 ];
 
 function confirmOverwrite(dates: string[]): Promise<boolean> {
@@ -64,16 +64,16 @@ function confirmOverwrite(dates: string[]): Promise<boolean> {
 }
 
 function AutoScheduleGrid({
-  templateBlocks,
-  autoAssignDates,
-  baseDate,
-  freezeDays,
-  taskAssignments,
-  currentAssignmentId,
-  selected,
-  onPick,
-  onPlace,
-}: {
+                            templateBlocks,
+                            autoAssignDates,
+                            baseDate,
+                            freezeDays,
+                            taskAssignments,
+                            currentAssignmentId,
+                            selected,
+                            onPick,
+                            onPlace,
+                          }: {
   templateBlocks: BlockTemplateEntry[];
   autoAssignDates: Record<number, string>;
   baseDate: string;
@@ -84,7 +84,7 @@ function AutoScheduleGrid({
   onPick: (blockId: number) => void;
   onPlace: (dateStr: string) => void;
 }) {
-  const { token } = theme.useToken();
+  const {token} = theme.useToken();
   const dates = getAutoScheduleDateRange(baseDate, autoAssignDates);
   const today = dayjs().format(API_DATE_FORMAT);
   const dragRef = useAutoScheduleDragScroll<HTMLDivElement>();
@@ -119,88 +119,100 @@ function AutoScheduleGrid({
   const opaqueHeaderBg = `linear-gradient(${token.colorFillAlter}, ${token.colorFillAlter}), linear-gradient(${token.colorBgContainer}, ${token.colorBgContainer})`;
 
   return (
-    <div ref={dragRef} style={{ overflowX: 'auto', border: `1px solid ${token.colorBorder}`, borderRadius: token.borderRadiusSM }}>
-      <table style={{ borderCollapse: 'collapse', width: 'max-content', fontSize: token.fontSize }}>
+    <div ref={dragRef}
+         style={{overflowX: 'auto', border: `1px solid ${token.colorBorder}`, borderRadius: token.borderRadiusSM}}>
+      <table style={{borderCollapse: 'collapse', width: 'max-content', fontSize: token.fontSize}}>
         <thead>
-          <tr>
-            <th style={{ ...headerCellBase, ...fixedColStyle, zIndex: 2, background: undefined, backgroundImage: opaqueHeaderBg }}>
-              Дата
-              {dates.length > 0 && <span style={headerSplitStyle} />}
-            </th>
-            {dates.map((dateStr, i) => {
-              const d = dayjs(dateStr);
-              const isWeekend = d.day() === 0 || d.day() === 6;
-              const isFreeze = freezeDays.has(dateStr);
-              const isToday = dateStr === today;
-              const headerTint = getHeaderTint(token, { isToday, isFreeze, isWeekend });
-              return (
-                <th
-                  key={dateStr}
-                  style={{
-                    ...headerCellBase,
-                    minWidth: 56,
-                    fontFamily: "'JetBrains Mono Variable', monospace",
-                    ...headerTint,
-                  }}
-                >
-                  {d.format(DISPLAY_DATE_SHORT_FORMAT)}
-                  {i < dates.length - 1 && <span style={headerSplitStyle} />}
-                </th>
-              );
-            })}
-          </tr>
+        <tr>
+          <th style={{
+            ...headerCellBase, ...fixedColStyle,
+            zIndex: 2,
+            background: undefined,
+            backgroundImage: opaqueHeaderBg
+          }}>
+            Дата
+            {dates.length > 0 && <span style={headerSplitStyle}/>}
+          </th>
+          {dates.map((dateStr, i) => {
+            const d = dayjs(dateStr);
+            const isWeekend = d.day() === 0 || d.day() === 6;
+            const isFreeze = freezeDays.has(dateStr);
+            const isToday = dateStr === today;
+            const headerTint = getHeaderTint(token, {isToday, isFreeze, isWeekend});
+            return (
+              <th
+                key={dateStr}
+                style={{
+                  ...headerCellBase,
+                  minWidth: 56,
+                  fontFamily: "'JetBrains Mono Variable', monospace",
+                  ...headerTint,
+                }}
+              >
+                {d.format(DISPLAY_DATE_SHORT_FORMAT)}
+                {i < dates.length - 1 && <span style={headerSplitStyle}/>}
+              </th>
+            );
+          })}
+        </tr>
         </thead>
         <tbody>
-          <tr>
-            <td style={{ ...bodyCellBase, ...fixedColStyle, zIndex: 1, background: token.colorBgContainer, fontWeight: token.fontWeightStrong }}>Блок</td>
-            {dates.map((dateStr) => {
-              const isOccupied = taskAssignments.some((a) => a.date === dateStr && a.id !== currentAssignmentId);
-              const blocksHere = templateBlocks.filter((b) => autoAssignDates[b.id] === dateStr);
-              const d = dayjs(dateStr);
-              const cellTint = getCellTint(token, {
-                isToday: dateStr === today,
-                isFreeze: freezeDays.has(dateStr),
-                isWeekend: d.day() === 0 || d.day() === 6,
-              });
-              return (
-                <td
-                  key={dateStr}
-                  onClick={() => onPlace(dateStr)}
-                  style={{
-                    ...bodyCellBase,
-                    ...cellTint,
-                    height: 58,
-                    verticalAlign: 'top',
-                    cursor: 'pointer',
-                    borderLeft: `1px solid ${token.colorBorder}`,
-                    boxShadow: isOccupied ? `inset 0 0 0 2px ${token.colorWarning}` : undefined,
-                  }}
-                >
-                  {blocksHere.map((b) => (
-                    <span
-                      key={b.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onPick(b.id);
-                      }}
-                      style={{
-                        display: 'inline-block',
-                        background: selected === b.id ? token.colorWarning : token.colorPrimary,
-                        color: '#fff',
-                        borderRadius: 3,
-                        padding: '2px 6px',
-                        margin: 2,
-                        fontSize: '0.75rem',
-                        cursor: 'pointer',
-                      }}
-                    >
+        <tr>
+          <td style={{
+            ...bodyCellBase, ...fixedColStyle,
+            zIndex: 1,
+            background: token.colorBgContainer,
+            fontWeight: token.fontWeightStrong
+          }}>Блок
+          </td>
+          {dates.map((dateStr) => {
+            const isOccupied = taskAssignments.some((a) => a.date === dateStr && a.id !== currentAssignmentId);
+            const blocksHere = templateBlocks.filter((b) => autoAssignDates[b.id] === dateStr);
+            const d = dayjs(dateStr);
+            const cellTint = getCellTint(token, {
+              isToday: dateStr === today,
+              isFreeze: freezeDays.has(dateStr),
+              isWeekend: d.day() === 0 || d.day() === 6,
+            });
+            return (
+              <td
+                key={dateStr}
+                onClick={() => onPlace(dateStr)}
+                style={{
+                  ...bodyCellBase,
+                  ...cellTint,
+                  height: 58,
+                  verticalAlign: 'top',
+                  cursor: 'pointer',
+                  borderLeft: `1px solid ${token.colorBorder}`,
+                  boxShadow: isOccupied ? `inset 0 0 0 2px ${token.colorWarning}` : undefined,
+                }}
+              >
+                {blocksHere.map((b) => (
+                  <span
+                    key={b.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onPick(b.id);
+                    }}
+                    style={{
+                      display: 'inline-block',
+                      background: selected === b.id ? token.colorWarning : token.colorPrimary,
+                      color: '#fff',
+                      borderRadius: 3,
+                      padding: '2px 6px',
+                      margin: 2,
+                      fontSize: '0.75rem',
+                      cursor: 'pointer',
+                    }}
+                  >
                       {b.name}
                     </span>
-                  ))}
-                </td>
-              );
-            })}
-          </tr>
+                ))}
+              </td>
+            );
+          })}
+        </tr>
         </tbody>
       </table>
     </div>
@@ -208,15 +220,15 @@ function AutoScheduleGrid({
 }
 
 export function AssignmentModal({
-  open,
-  teamId,
-  task,
-  date,
-  assignment,
-  taskAssignments,
-  freezeDays,
-  onClose,
-}: {
+                                  open,
+                                  teamId,
+                                  task,
+                                  date,
+                                  assignment,
+                                  taskAssignments,
+                                  freezeDays,
+                                  onClose,
+                                }: {
   open: boolean;
   teamId: number;
   task: Task | null;
@@ -229,10 +241,10 @@ export function AssignmentModal({
   const [form] = Form.useForm<AssignmentFormValues>();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
-  const { token } = theme.useToken();
-  const { data: teamBlocks } = useTeamBlocks(teamId, task?.segment_id);
-  const { data: users } = useTeamAssignees(teamId);
-  const { data: allTeamTemplates } = useTeamTemplates(teamId);
+  const {token} = theme.useToken();
+  const {data: teamBlocks} = useTeamBlocks(teamId, task?.segment_id);
+  const {data: users} = useTeamAssignees(teamId);
+  const {data: allTeamTemplates} = useTeamTemplates(teamId);
   // Шаблоны команды сужаются до сегмента задачи — назначение/автопланирование должно предлагать
   // только шаблоны, относящиеся к тому же сегменту работ, что и сама задача (см. design.md).
   // useMemo сохраняет стабильную ссылку на массив между рендерами (иначе .filter() создавал бы
@@ -286,7 +298,7 @@ export function AssignmentModal({
       const conflictDates = dates.filter((d) => taskAssignments.some((a) => a.date === d && a.id !== assignment?.id));
       if (conflictDates.length > 0) {
         const proceed = await confirmOverwrite(conflictDates);
-        if (!proceed) return { cancelled: true };
+        if (!proceed) return {cancelled: true};
       }
 
       const timeSpent = values.time_spent ? values.time_spent.format(TIME_FORMAT) : null;
@@ -305,7 +317,7 @@ export function AssignmentModal({
           });
         }),
       );
-      return { cancelled: false };
+      return {cancelled: false};
     },
     onSuccess: (result) => {
       if (result.cancelled) return;
@@ -325,7 +337,7 @@ export function AssignmentModal({
 
   const autoAssignMissingTemplate = autoAssignEnabled && !selectedTemplateId;
   const isTerminal = task ? task.task_status === 'done' || task.task_status === 'cancelled' : false;
-  const { data: me } = useMe();
+  const {data: me} = useMe();
   const isUser = me?.role === 'user';
   const readOnly = isTerminal || (isUser && !!assignment && assignment.status !== 'new');
   const [historyOpen, setHistoryOpen] = useHistoryToggle(open, false);
@@ -341,7 +353,7 @@ export function AssignmentModal({
     const current = users?.find((u) => u.id === currentUserId);
     if (current) eligibleUsers.push(current);
   }
-  const assigneeOptions = eligibleUsers.map((u) => ({ value: u.id, label: formatDisplayName(u) }));
+  const assigneeOptions = eligibleUsers.map((u) => ({value: u.id, label: formatDisplayName(u)}));
 
   return (
     <Modal
@@ -351,115 +363,125 @@ export function AssignmentModal({
       width={isMobile ? '95%' : (autoAssignEnabled ? 640 : 520) + (historyOpen ? 320 : 0)}
       footer={
         <Space>
-          {assignment && <HistoryToggleButton open={historyOpen} onClick={() => setHistoryOpen((v) => !v)} />}
+          {assignment && <HistoryToggleButton open={historyOpen} onClick={() => setHistoryOpen((v) => !v)}/>}
           {assignment && !readOnly && (
-            <Popconfirm title="Удалить эту запись?" onConfirm={() => assignment && deleteMutation.mutate(assignment.id)} okText="Удалить" cancelText="Отмена">
+            <Popconfirm title="Удалить эту запись?" onConfirm={() => assignment && deleteMutation.mutate(assignment.id)}
+                        okText="Удалить" cancelText="Отмена">
               <Button danger loading={deleteMutation.isPending}>
                 Удалить
               </Button>
             </Popconfirm>
           )}
           {!readOnly && (
-            <Button type="primary" onClick={() => form.submit()} loading={isSaving} disabled={autoAssignMissingTemplate}>
+            <Button type="primary" onClick={() => form.submit()} loading={isSaving}
+                    disabled={autoAssignMissingTemplate}>
               {assignment ? 'Обновить' : 'Создать'}
             </Button>
           )}
         </Space>
       }
     >
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
-      <Form form={form} layout="vertical" disabled={readOnly} onFinish={(v) => (autoAssignEnabled ? autoSaveMutation.mutate(v) : saveAssignment(v))} style={{ flex: 1, minWidth: 0 }}>
-        <Space.Compact block>
-          <Form.Item name="date" label="Дата" style={{ flex: 1 }} rules={[{ required: true }]}>
-            <DatePicker style={{ width: '100%' }} format={DISPLAY_DATE_FORMAT} minDate={dayjs('2000-01-01')} maxDate={dayjs('2099-12-31')} allowClear={false} />
-          </Form.Item>
-          <Form.Item name="time_spent" label="Затраченное время" style={{ flex: 1 }}>
-            <TimePicker style={{ width: '100%' }} format={TIME_FORMAT} allowClear />
-          </Form.Item>
-        </Space.Compact>
+      <div style={{display: 'flex', flexDirection: isMobile ? 'column' : 'row'}}>
+        <Form form={form} layout="vertical" disabled={readOnly}
+              onFinish={(v) => (autoAssignEnabled ? autoSaveMutation.mutate(v) : saveAssignment(v))}
+              style={{flex: 1, minWidth: 0}}>
+          <Space.Compact block>
+            <Form.Item name="date" label="Дата" style={{flex: 1}} rules={[{required: true}]}>
+              <DatePicker style={{width: '100%'}} format={DISPLAY_DATE_FORMAT} minDate={dayjs('2000-01-01')}
+                          maxDate={dayjs('2099-12-31')} allowClear={false}/>
+            </Form.Item>
+            <Form.Item name="time_spent" label="Затраченное время" style={{flex: 1}}>
+              <TimePicker style={{width: '100%'}} format={TIME_FORMAT} allowClear/>
+            </Form.Item>
+          </Space.Compact>
 
-        {watchedDate && freezeDays.has(watchedDate.format(API_DATE_FORMAT)) && (
-          <Alert type="error" showIcon title="Эта дата — день фриза, изменения в этот день не выкатываются" style={{ marginBottom: 16 }} />
-        )}
+          {watchedDate && freezeDays.has(watchedDate.format(API_DATE_FORMAT)) && (
+            <Alert type="error" showIcon title="Эта дата — день фриза, изменения в этот день не выкатываются"
+                   style={{marginBottom: 16}}/>
+          )}
 
-        <div style={{ display: 'flex', gap: 24, marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span>Автоназначение</span>
-            <Switch checked={autoAssignEnabled} onChange={handleAutoAssignToggle} />
+          <div style={{display: 'flex', gap: 24, marginBottom: 16}}>
+            <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
+              <span>Автоназначение</span>
+              <Switch checked={autoAssignEnabled} onChange={handleAutoAssignToggle}/>
+            </div>
           </div>
-        </div>
 
-        {!autoAssignEnabled && (
-          <Form.Item name="block_ids" label="Блок">
-            <Select mode="multiple" showSearch={{optionFilterProp: "label"}} placeholder="Поиск блока..." options={teamBlocks?.map((b) => ({ value: b.id, label: b.name }))} />
-          </Form.Item>
-        )}
+          {!autoAssignEnabled && (
+            <Form.Item name="block_ids" label="Блок">
+              <Select mode="multiple" showSearch={{optionFilterProp: "label"}} placeholder="Поиск блока..."
+                      options={teamBlocks?.map((b) => ({value: b.id, label: b.name}))}/>
+            </Form.Item>
+          )}
 
-        {autoAssignEnabled && (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: '0.8rem', marginBottom: 4 }}>Автораспределение по графику</div>
-              <Select
-                style={{ width: '100%' }}
-                status={autoAssignMissingTemplate ? 'error' : undefined}
-                showSearch={{ optionFilterProp: 'label' }}
-                placeholder="— выберите шаблон —"
-                value={selectedTemplateId ?? undefined}
-                onChange={(v) => {
-                  setSelectedTemplateId(v);
-                  setAutoAssignSelected(null);
-                  recomputeSchedule(v, (watchedDate ?? dayjs()).format(API_DATE_FORMAT));
-                }}
-                options={templates?.map((t) => ({ value: t.id, label: t.name }))}
-              />
-              {autoAssignMissingTemplate && (
-                <div style={{ color: token.colorError, fontSize: '0.75rem', marginTop: 4 }}>Выберите график раскатки</div>
+          {autoAssignEnabled && (
+            <div style={{marginBottom: 16}}>
+              <div style={{marginBottom: 8}}>
+                <div style={{fontSize: '0.8rem', marginBottom: 4}}>Автораспределение по графику</div>
+                <Select
+                  style={{width: '100%'}}
+                  status={autoAssignMissingTemplate ? 'error' : undefined}
+                  showSearch={{optionFilterProp: 'label'}}
+                  placeholder="— выберите шаблон —"
+                  value={selectedTemplateId ?? undefined}
+                  onChange={(v) => {
+                    setSelectedTemplateId(v);
+                    setAutoAssignSelected(null);
+                    recomputeSchedule(v, (watchedDate ?? dayjs()).format(API_DATE_FORMAT));
+                  }}
+                  options={templates?.map((t) => ({value: t.id, label: t.name}))}
+                />
+                {autoAssignMissingTemplate && (
+                  <div style={{color: token.colorError, fontSize: '0.75rem', marginTop: 4}}>Выберите график
+                    раскатки</div>
+                )}
+              </div>
+              {selectedTemplateId && watchedDate && (
+                <>
+                  <AutoScheduleGrid
+                    templateBlocks={selectedTemplateBlocks}
+                    autoAssignDates={autoAssignDates}
+                    baseDate={watchedDate.format(API_DATE_FORMAT)}
+                    freezeDays={freezeDays}
+                    taskAssignments={taskAssignments}
+                    currentAssignmentId={assignment?.id ?? null}
+                    selected={autoAssignSelected}
+                    onPick={(id) => setAutoAssignSelected((prev) => (prev === id ? null : id))}
+                    onPlace={(d) => {
+                      if (autoAssignSelected === null) return;
+                      setAutoAssignDates((prev) => ({...prev, [autoAssignSelected]: d}));
+                      setAutoAssignSelected(null);
+                    }}
+                  />
+                  <div style={{marginTop: 6, fontSize: '0.8rem', opacity: 0.7}}>Нажмите на блок, затем на нужную дату —
+                    блок переместится туда.
+                  </div>
+                </>
               )}
             </div>
-            {selectedTemplateId && watchedDate && (
-              <>
-                <AutoScheduleGrid
-                  templateBlocks={selectedTemplateBlocks}
-                  autoAssignDates={autoAssignDates}
-                  baseDate={watchedDate.format(API_DATE_FORMAT)}
-                  freezeDays={freezeDays}
-                  taskAssignments={taskAssignments}
-                  currentAssignmentId={assignment?.id ?? null}
-                  selected={autoAssignSelected}
-                  onPick={(id) => setAutoAssignSelected((prev) => (prev === id ? null : id))}
-                  onPlace={(d) => {
-                    if (autoAssignSelected === null) return;
-                    setAutoAssignDates((prev) => ({ ...prev, [autoAssignSelected]: d }));
-                    setAutoAssignSelected(null);
-                  }}
+          )}
+
+          <Form.Item name="status" label="Статус">
+            <Select disabled={autoAssignEnabled || isUser} options={STATUS_OPTIONS}/>
+          </Form.Item>
+
+          {!autoAssignEnabled && (
+            <>
+              <Form.Item name="user_id" label="Исполнитель">
+                <Select
+                  allowClear
+                  showSearch={{optionFilterProp: 'label'}}
+                  placeholder="Не выбран"
+                  options={assigneeOptions}
                 />
-                <div style={{ marginTop: 6, fontSize: '0.8rem', opacity: 0.7 }}>Нажмите на блок, затем на нужную дату — блок переместится туда.</div>
-              </>
-            )}
-          </div>
-        )}
-
-        <Form.Item name="status" label="Статус">
-          <Select disabled={autoAssignEnabled || isUser} options={STATUS_OPTIONS} />
-        </Form.Item>
-
-        {!autoAssignEnabled && (
-          <>
-            <Form.Item name="user_id" label="Исполнитель">
-              <Select
-                allowClear
-                showSearch={{ optionFilterProp: 'label' }}
-                placeholder="Не выбран"
-                options={assigneeOptions}
-              />
-            </Form.Item>
-            <Form.Item name="comment" label="Комментарий">
-              <Input maxLength={45} placeholder="Комментарий..." />
-            </Form.Item>
-          </>
-        )}
-      </Form>
-      <HistoryPanel kind="assignment" entityId={assignment?.id ?? null} open={historyOpen} />
+              </Form.Item>
+              <Form.Item name="comment" label="Комментарий">
+                <Input maxLength={45} placeholder="Комментарий..."/>
+              </Form.Item>
+            </>
+          )}
+        </Form>
+        <HistoryPanel kind="assignment" entityId={assignment?.id ?? null} open={historyOpen}/>
       </div>
     </Modal>
   );

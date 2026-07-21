@@ -38,7 +38,7 @@ export interface Segment {
 }
 
 export function useUsers() {
-  return useQuery<User[]>({ queryKey: queryKeys.users.all, queryFn: () => apiGet('/api/users') });
+  return useQuery<User[]>({queryKey: queryKeys.users.all, queryFn: () => apiGet('/api/users')});
 }
 
 export function useTeamAssignees(teamId: number) {
@@ -64,17 +64,17 @@ export function usePaginatedUsers(offset: number, limit: number, search: string)
 }
 
 export function useBlocks() {
-  return useQuery<Block[]>({ queryKey: queryKeys.blocks, queryFn: () => apiGet('/api/blocks') });
+  return useQuery<Block[]>({queryKey: queryKeys.blocks, queryFn: () => apiGet('/api/blocks')});
 }
 
 export function useBlockTemplates() {
-  return useQuery<BlockTemplate[]>({ queryKey: queryKeys.blockTemplates, queryFn: () => apiGet('/api/block-templates') });
+  return useQuery<BlockTemplate[]>({queryKey: queryKeys.blockTemplates, queryFn: () => apiGet('/api/block-templates')});
 }
 
 export function useFreezeDays() {
-  return useQuery<string[]>({ queryKey: queryKeys.freezeDays, queryFn: () => apiGet('/api/freeze-days') });
+  return useQuery<string[]>({queryKey: queryKeys.freezeDays, queryFn: () => apiGet('/api/freeze-days')});
 }
 
 export function useSegments() {
-  return useQuery<Segment[]>({ queryKey: queryKeys.segments, queryFn: () => apiGet('/api/segments') });
+  return useQuery<Segment[]>({queryKey: queryKeys.segments, queryFn: () => apiGet('/api/segments')});
 }

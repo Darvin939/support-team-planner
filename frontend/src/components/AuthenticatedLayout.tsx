@@ -6,8 +6,8 @@ import {MyAccountModal} from './MyAccountModal';
 import {useMe} from '../hooks/useMe';
 import {formatDisplayName} from '../hooks/useUserNames';
 
-export function AuthenticatedLayout({ isDark, onToggleTheme }: { isDark: boolean; onToggleTheme: () => void }) {
-  const { data: me, isLoading, isError } = useMe();
+export function AuthenticatedLayout({isDark, onToggleTheme}: { isDark: boolean; onToggleTheme: () => void }) {
+  const {data: me, isLoading, isError} = useMe();
   const navigate = useNavigate();
   const location = useLocation();
   const [profileModalOpen, setProfileModalOpen] = useState(false);
@@ -20,8 +20,8 @@ export function AuthenticatedLayout({ isDark, onToggleTheme }: { isDark: boolean
 
   if (isLoading || !me) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Spin size="large" />
+      <div style={{minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+        <Spin size="large"/>
       </div>
     );
   }
@@ -29,7 +29,7 @@ export function AuthenticatedLayout({ isDark, onToggleTheme }: { isDark: boolean
   const basePath = '/' + location.pathname.split('/')[1];
 
   async function handleLogout() {
-    await fetch('/logout', { method: 'POST', credentials: 'same-origin' });
+    await fetch('/logout', {method: 'POST', credentials: 'same-origin'});
     window.location.href = '/login';
   }
 
@@ -45,9 +45,9 @@ export function AuthenticatedLayout({ isDark, onToggleTheme }: { isDark: boolean
         onLogout={handleLogout}
         onOpenProfile={() => setProfileModalOpen(true)}
       >
-        <Outlet />
+        <Outlet/>
       </AppShell>
-      <MyAccountModal open={profileModalOpen} onClose={() => setProfileModalOpen(false)} />
+      <MyAccountModal open={profileModalOpen} onClose={() => setProfileModalOpen(false)}/>
     </>
   );
 }

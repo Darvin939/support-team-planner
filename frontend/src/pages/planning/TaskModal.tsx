@@ -21,15 +21,15 @@ interface TaskFormValues {
 }
 
 const CRITICALITY_ORDER = ['low', 'medium', 'high'] as const;
-const TERMINAL_STATUS_LABEL: Record<string, string> = { done: 'Выполнена', cancelled: 'Отменена' };
+const TERMINAL_STATUS_LABEL: Record<string, string> = {done: 'Выполнена', cancelled: 'Отменена'};
 
 export function TaskModal({
-  open,
-  teamId,
-  task,
-  existingDepIds,
-  onClose,
-}: {
+                            open,
+                            teamId,
+                            task,
+                            existingDepIds,
+                            onClose,
+                          }: {
   open: boolean;
   teamId: number;
   task: Task | null;
@@ -41,15 +41,18 @@ export function TaskModal({
   const [depIds, setDepIds] = useState<Set<number>>(new Set());
   const [depSearch, setDepSearch] = useState('');
   const debouncedDepSearch = useDebouncedValue(depSearch, 500);
-  const { data: activeTasks, isLoading: depsLoading } = useActiveTasksList(teamId, depSearch ? debouncedDepSearch : '', existingDepIds);
-  const { data: segments } = useSegments();
+  const {
+    data: activeTasks,
+    isLoading: depsLoading
+  } = useActiveTasksList(teamId, depSearch ? debouncedDepSearch : '', existingDepIds);
+  const {data: segments} = useSegments();
   const isTerminal = task ? task.task_status === 'done' || task.task_status === 'cancelled' : false;
-  const { data: me } = useMe();
+  const {data: me} = useMe();
   const isUser = me?.role === 'user';
   const canDelete = !!task && !isTerminal && !(isUser && task.has_active_assignments);
   const [historyOpen, setHistoryOpen] = useHistoryToggle(open, isTerminal);
   const isMobile = useIsMobile();
-  const { token } = theme.useToken();
+  const {token} = theme.useToken();
 
   useEffect(() => {
     if (!open) return;
@@ -75,8 +78,8 @@ export function TaskModal({
         dependency_ids: [...depIds],
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['task-deps'] });
+      queryClient.invalidateQueries({queryKey: ['tasks']});
+      queryClient.invalidateQueries({queryKey: ['task-deps']});
       message.success('Сохранено');
       onClose();
     },
@@ -86,7 +89,7 @@ export function TaskModal({
   const deleteMutation = useMutation({
     mutationFn: () => apiMutate(`/api/task/${task!.id}`, 'DELETE'),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({queryKey: ['tasks']});
       message.success('Задача удалена');
       onClose();
     },
@@ -127,9 +130,10 @@ export function TaskModal({
       width={isMobile ? '95%' : historyOpen ? 820 : 520}
       footer={
         <Space>
-          {task && <HistoryToggleButton open={historyOpen} onClick={() => setHistoryOpen((v) => !v)} />}
+          {task && <HistoryToggleButton open={historyOpen} onClick={() => setHistoryOpen((v) => !v)}/>}
           {canDelete && (
-            <Popconfirm title="Удалить всю работу со всеми назначениями?" onConfirm={() => deleteMutation.mutate()} okText="Удалить" cancelText="Отмена">
+            <Popconfirm title="Удалить всю работу со всеми назначениями?" onConfirm={() => deleteMutation.mutate()}
+                        okText="Удалить" cancelText="Отмена">
               <Button danger loading={deleteMutation.isPending}>
                 Удалить
               </Button>
@@ -143,15 +147,16 @@ export function TaskModal({
         </Space>
       }
     >
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
-        <Form form={form} layout="vertical" disabled={isTerminal} onFinish={(v) => saveMutation.mutate(v)} style={{ flex: 1, minWidth: 0 }}>
+      <div style={{display: 'flex', flexDirection: isMobile ? 'column' : 'row'}}>
+        <Form form={form} layout="vertical" disabled={isTerminal} onFinish={(v) => saveMutation.mutate(v)}
+              style={{flex: 1, minWidth: 0}}>
           {isTerminal ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 16 }}>
-              <div style={{ overflowWrap: 'anywhere' }}>
+            <div style={{display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 16}}>
+              <div style={{overflowWrap: 'anywhere'}}>
                 <strong>Имя:</strong> {task?.name}
               </div>
               <div>
-                <div style={{ marginBottom: 4 }}>
+                <div style={{marginBottom: 4}}>
                   <strong>Описание:</strong>
                 </div>
                 {task?.description ? (
@@ -170,7 +175,7 @@ export function TaskModal({
                     {linkify(task.description)}
                   </div>
                 ) : (
-                  <span style={{ color: token.colorTextTertiary }}>—</span>
+                  <span style={{color: token.colorTextTertiary}}>—</span>
                 )}
               </div>
               <div>
@@ -182,37 +187,47 @@ export function TaskModal({
             </div>
           ) : (
             <>
-              <Form.Item name="name" label="Имя" rules={[{ required: true, message: 'Введите имя' }]}>
-                <Input />
+              <Form.Item name="name" label="Имя" rules={[{required: true, message: 'Введите имя'}]}>
+                <Input/>
               </Form.Item>
               <Form.Item name="description" label="Описание">
-                <Input.TextArea rows={4} />
+                <Input.TextArea rows={4}/>
               </Form.Item>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <Form.Item name="criticality" label="Критичность" rules={[{ required: true, message: 'Выберите критичность' }]} style={{ flex: 1, minWidth: 0 }}>
+              <div style={{display: 'flex', gap: 12}}>
+                <Form.Item name="criticality" label="Критичность"
+                           rules={[{required: true, message: 'Выберите критичность'}]} style={{flex: 1, minWidth: 0}}>
                   <Select
-                    options={CRITICALITY_ORDER.map((value) => ({ value, label: CRITICALITY_LABELS[value] }))}
+                    options={CRITICALITY_ORDER.map((value) => ({value, label: CRITICALITY_LABELS[value]}))}
                   />
                 </Form.Item>
-                <Form.Item name="segment_id" label="Сегмент" rules={[{ required: true, message: 'Выберите сегмент' }]} style={{ flex: 1, minWidth: 0 }}>
-                  <Select placeholder="Выберите сегмент" options={segments?.map((s) => ({ value: s.id, label: s.name }))} />
+                <Form.Item name="segment_id" label="Сегмент" rules={[{required: true, message: 'Выберите сегмент'}]}
+                           style={{flex: 1, minWidth: 0}}>
+                  <Select placeholder="Выберите сегмент"
+                          options={segments?.map((s) => ({value: s.id, label: s.name}))}/>
                 </Form.Item>
               </div>
             </>
           )}
           {!isTerminal && (
             <Form.Item label="Зависит от">
-              <Input.Search placeholder="Поиск..." value={depSearch} onChange={(e) => setDepSearch(e.target.value)} style={{ marginBottom: 8 }} allowClear />
-              <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid rgba(128,128,128,0.3)', borderRadius: 6, padding: '4px 8px' }}>
+              <Input.Search placeholder="Поиск..." value={depSearch} onChange={(e) => setDepSearch(e.target.value)}
+                            style={{marginBottom: 8}} allowClear/>
+              <div style={{
+                maxHeight: 160,
+                overflowY: 'auto',
+                border: '1px solid rgba(128,128,128,0.3)',
+                borderRadius: 6,
+                padding: '4px 8px'
+              }}>
                 {filteredDeps.length === 0 && (
-                  <span style={{ color: 'rgba(128,128,128,0.8)' }}>{depsLoading ? 'Загрузка...' : 'Нет совпадений'}</span>
+                  <span style={{color: 'rgba(128,128,128,0.8)'}}>{depsLoading ? 'Загрузка...' : 'Нет совпадений'}</span>
                 )}
                 {filteredDeps.map((t) => (
-                  <div key={t.id} style={{ padding: '4px 0' }}>
+                  <div key={t.id} style={{padding: '4px 0'}}>
                     <Checkbox checked={depIds.has(t.id)} onChange={() => toggleDep(t.id)}>
                       <Space size={6}>
-                        <CriticalityBadge value={t.criticality} />
-                        <TaskStatusBadge value={t.task_status} />
+                        <CriticalityBadge value={t.criticality}/>
+                        <TaskStatusBadge value={t.task_status}/>
                         {t.name}
                       </Space>
                     </Checkbox>
@@ -222,7 +237,7 @@ export function TaskModal({
             </Form.Item>
           )}
         </Form>
-        <HistoryPanel kind="task" entityId={task?.id ?? null} open={historyOpen} />
+        <HistoryPanel kind="task" entityId={task?.id ?? null} open={historyOpen}/>
       </div>
     </Modal>
   );

@@ -1,14 +1,31 @@
 import {useMemo, useState} from 'react';
 import type {TableColumnsType} from 'antd';
-import {DeleteOutlined, EditOutlined} from '@ant-design/icons';
 import {
-  Button, Card, Col, Form, Input, InputNumber, message, Modal, Pagination,
-  Popconfirm, Row, Select, Space, Table, Tag
+  Button,
+  Card,
+  Col,
+  Form,
+  Input,
+  InputNumber,
+  message,
+  Modal,
+  Pagination,
+  Popconfirm,
+  Row,
+  Select,
+  Space,
+  Table,
+  Tag
 } from 'antd';
+import {DeleteOutlined, EditOutlined} from '@ant-design/icons';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import {
-  type Block, type BlockTemplate, type Segment,
-  useBlocks, useBlockTemplates, useSegments,
+  type Block,
+  type BlockTemplate,
+  type Segment,
+  useBlocks,
+  useBlockTemplates,
+  useSegments,
 } from '../../hooks/useSettingsData';
 import {useCrudMutations} from '../../hooks/useCrudMutations';
 import {apiMutate} from '../../lib/apiMutate';

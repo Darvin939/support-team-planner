@@ -1,69 +1,69 @@
 @font-face {
-  font-family: 'InterVariable';
-  src: url('/fonts/InterVariable.woff2') format('woff2');
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
+    font-family: 'InterVariable';
+    src: url('/fonts/InterVariable.woff2') format('woff2');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
 }
 
 @font-face {
-  font-family: 'JetBrains Mono Variable';
-  src: url('/fonts/JetBrainsMono-Variable.woff2') format('woff2');
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
+    font-family: 'JetBrains Mono Variable';
+    src: url('/fonts/JetBrainsMono-Variable.woff2') format('woff2');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
 }
 
 * {
-  box-sizing: border-box;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(128, 128, 128, 0.35) transparent;
+    box-sizing: border-box;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(128, 128, 128, 0.35) transparent;
 }
 
 body {
-  margin: 0;
+    margin: 0;
 }
 
 #root {
-  min-height: 100svh;
+    min-height: 100svh;
 }
 
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+    width: 10px;
+    height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+    background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: rgba(128, 128, 128, 0.35);
-  border-radius: 6px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
+    background-color: rgba(128, 128, 128, 0.35);
+    border-radius: 6px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(128, 128, 128, 0.5);
+    background-color: rgba(128, 128, 128, 0.5);
 }
 
 td[data-schedule-cell]:hover:not(.assignment-drag-over):not(.assignment-drag-invalid):not(.assignment-lasso-pending) {
-  box-shadow: inset 0 0 0 1000px rgba(128, 128, 128, 0.07);
+    box-shadow: inset 0 0 0 1000px rgba(128, 128, 128, 0.07);
 }
 
 .assignment-drag-ghost {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 2000;
-  pointer-events: none;
-  opacity: 0.85;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 2000;
+    pointer-events: none;
+    opacity: 0.85;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
 }
 
 .assignment-drag-source {
-  opacity: 0.35;
+    opacity: 0.35;
 }
 
 /* .assignment-drag-over / .assignment-drag-invalid carry no color here — the
@@ -73,28 +73,28 @@ td[data-schedule-cell]:hover:not(.assignment-drag-over):not(.assignment-drag-inv
    for the td[data-schedule-cell]:hover :not() exclusion above. */
 
 .assignment-select-rect {
-  position: fixed;
-  z-index: 2000;
-  pointer-events: none;
-  border-radius: 2px;
-  /* border/background цвет — инлайн из JS через colorPrimary (useAssignmentSelection.ts),
-     по той же причине, что и у .assignment-drag-over выше. */
+    position: fixed;
+    z-index: 2000;
+    pointer-events: none;
+    border-radius: 2px;
+    /* border/background цвет — инлайн из JS через colorPrimary (useAssignmentSelection.ts),
+       по той же причине, что и у .assignment-drag-over выше. */
 }
 
 .task-row-drag-ghost {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 2000;
-  pointer-events: none;
-  opacity: 0.85;
-  padding: 4px 9px;
-  border: 1px solid;
-  border-radius: 4px;
-  font-weight: 500;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
-  background: rgba(128, 128, 128, 0.15);
-  backdrop-filter: blur(4px);
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 2000;
+    pointer-events: none;
+    opacity: 0.85;
+    padding: 4px 9px;
+    border: 1px solid;
+    border-radius: 4px;
+    font-weight: 500;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+    background: rgba(128, 128, 128, 0.15);
+    backdrop-filter: blur(4px);
 }
 
 /* Отдельный плавающий элемент, а не box-shadow на самой строке — ячейки грида (getCellTint)
@@ -102,12 +102,12 @@ td[data-schedule-cell]:hover:not(.assignment-drag-over):not(.assignment-drag-inv
    везде, кроме зазоров между ячейками. Этот индикатор рендерится в document.body поверх всего,
    поэтому фон ячеек на него не влияет. */
 .task-row-drag-indicator {
-  position: fixed;
-  height: 3px;
-  z-index: 2000;
-  pointer-events: none;
-  border-radius: 2px;
-  transform: translateY(-1.5px);
+    position: fixed;
+    height: 3px;
+    z-index: 2000;
+    pointer-events: none;
+    border-radius: 2px;
+    transform: translateY(-1.5px);
 }
 
 /* Цвет пульса задаётся инлайн из PlanningPage.tsx через --highlight-pulse-color (живой
@@ -115,9 +115,14 @@ td[data-schedule-cell]:hover:not(.assignment-drag-over):not(.assignment-drag-inv
    здесь не подстроился бы под смену light/dark темы. Применяется к td, а не tr, поскольку фон
    ячеек (getCellTint) непрозрачен и рисуется поверх box-shadow родительской строки. */
 @keyframes task-row-highlight-pulse {
-  0% { box-shadow: inset 0 0 0 1000px color-mix(in srgb, var(--highlight-pulse-color) 22%, transparent); }
-  100% { box-shadow: inset 0 0 0 1000px transparent; }
+    0% {
+        box-shadow: inset 0 0 0 1000px color-mix(in srgb, var(--highlight-pulse-color) 22%, transparent);
+    }
+    100% {
+        box-shadow: inset 0 0 0 1000px transparent;
+    }
 }
+
 .task-row-highlight-pulse {
-  animation: task-row-highlight-pulse 1.6s ease-out;
+    animation: task-row-highlight-pulse 1.6s ease-out;
 }

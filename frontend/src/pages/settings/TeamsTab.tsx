@@ -22,12 +22,12 @@ export function TeamsTab() {
   const pagination = usePaginationState(DEFAULT_PAGE_SIZE);
   const {page, pageSize} = pagination;
   const {data, isLoading} = usePaginatedTeams(pagination.offset, pageSize, debouncedSearch);
-  const { data: templates } = useBlockTemplates();
+  const {data: templates} = useBlockTemplates();
   const [modalTeam, setModalTeam] = useState<Team | 'new' | null>(null);
   const [form] = Form.useForm<TeamFormValues>();
   const isMobile = useIsMobile();
 
-  const { saveMutation, deleteMutation } = useCrudMutations<Team, TeamFormValues>({
+  const {saveMutation, deleteMutation} = useCrudMutations<Team, TeamFormValues>({
     queryKey: ['teams'],
     baseUrl: '/api/teams',
     modalEntity: modalTeam,
@@ -51,7 +51,7 @@ export function TeamsTab() {
       title: 'Действия', key: 'actions', width: 120,
       render: (_, team) => <Space>
         <Button aria-label="Редактировать команду" size="small" onClick={() => openModal(team)}>
-          <EditOutlined />
+          <EditOutlined/>
         </Button>
         <Popconfirm
           title="Удалить команду?"
@@ -61,7 +61,7 @@ export function TeamsTab() {
           cancelText="Отмена"
         >
           <Button aria-label="Удалить команду" size="small" danger>
-            <DeleteOutlined />
+            <DeleteOutlined/>
           </Button>
         </Popconfirm>
       </Space>,
@@ -71,27 +71,31 @@ export function TeamsTab() {
   function openModal(team: Team | 'new') {
     setModalTeam(team);
     if (team === 'new') {
-      form.setFieldsValue({ name: '', template_ids: [] });
+      form.setFieldsValue({name: '', template_ids: []});
     } else {
-      form.setFieldsValue({ name: team.name, template_ids: team.templates?.map((t) => t.id) ?? [] });
+      form.setFieldsValue({name: team.name, template_ids: team.templates?.map((t) => t.id) ?? []});
     }
   }
 
   return (
     <>
-      <Space wrap style={{ marginBottom: 16, display: 'flex', width: '100%' }}>
+      <Space wrap style={{marginBottom: 16, display: 'flex', width: '100%'}}>
         <Button type="primary" onClick={() => openModal('new')}>
           Добавить команду
         </Button>
         <Input.Search allowClear value={search} placeholder="Поиск по названию команды"
-          onChange={(event) => { setSearch(event.target.value); pagination.reset(); }} style={{width: 420, maxWidth: '100%'}} />
+                      onChange={(event) => {
+                        setSearch(event.target.value);
+                        pagination.reset();
+                      }} style={{width: 420, maxWidth: '100%'}}/>
       </Space>
 
       <Table<Team> rowKey="id" columns={columns} dataSource={data?.teams ?? []} loading={isLoading}
-        pagination={false} scroll={{x: 720}} sticky={{ offsetHeader: isMobile ? TOP_BAR_HEIGHT : 0 }} />
+                   pagination={false} scroll={{x: 720}} sticky={{offsetHeader: isMobile ? TOP_BAR_HEIGHT : 0}}/>
       {(data?.total ?? 0) > pageSize && <Pagination current={page} pageSize={pageSize} total={data?.total ?? 0}
-        showSizeChanger pageSizeOptions={PAGE_SIZE_OPTIONS} style={{marginTop: 16, textAlign: 'right'}}
-        onChange={pagination.onChange} />}
+                                                    showSizeChanger pageSizeOptions={PAGE_SIZE_OPTIONS}
+                                                    style={{marginTop: 16, textAlign: 'right'}}
+                                                    onChange={pagination.onChange}/>}
 
       <Modal
         title={modalTeam === 'new' ? 'Добавить команду' : 'Редактирование команды'}
@@ -102,13 +106,14 @@ export function TeamsTab() {
         confirmLoading={saveMutation.isPending}
       >
         <Form form={form} layout="vertical" onFinish={(v) => saveMutation.mutate(v)}>
-          <Form.Item name="name" label="Название команды" rules={[{ required: true, message: 'Введите название команды' }]}>
-            <Input placeholder="Название команды" />
+          <Form.Item name="name" label="Название команды"
+                     rules={[{required: true, message: 'Введите название команды'}]}>
+            <Input placeholder="Название команды"/>
           </Form.Item>
           <Form.Item name="template_ids" label="Разрешённые шаблоны блоков">
             <Checkbox.Group
-              options={templates?.map((t) => ({ value: t.id, label: t.name }))}
-              style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
+              options={templates?.map((t) => ({value: t.id, label: t.name}))}
+              style={{display: 'flex', flexDirection: 'column', gap: 4}}
             />
           </Form.Item>
         </Form>

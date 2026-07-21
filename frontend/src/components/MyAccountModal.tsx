@@ -6,12 +6,12 @@ interface MyPasswordFormValues {
   password: string | null;
 }
 
-export function MyAccountModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function MyAccountModal({open, onClose}: { open: boolean; onClose: () => void }) {
   const [form] = Form.useForm<MyPasswordFormValues>();
 
   const saveMutation = useMutation({
     mutationFn: (values: MyPasswordFormValues) =>
-      apiMutate('/api/me', 'PUT', { password: values.password || null }),
+      apiMutate('/api/me', 'PUT', {password: values.password || null}),
     onSuccess: () => {
       message.success('Сохранено');
       form.resetFields();
@@ -31,7 +31,7 @@ export function MyAccountModal({ open, onClose }: { open: boolean; onClose: () =
     >
       <Form form={form} layout="vertical" onFinish={(v) => saveMutation.mutate(v)}>
         <Form.Item name="password" label="Пароль (оставьте пустым, чтобы не менять)">
-          <Input.Password placeholder="Новый пароль" />
+          <Input.Password placeholder="Новый пароль"/>
         </Form.Item>
       </Form>
     </Modal>

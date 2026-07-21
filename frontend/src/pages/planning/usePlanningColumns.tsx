@@ -1,4 +1,13 @@
-import {useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent as ReactMouseEvent, type ReactNode, type SetStateAction} from 'react';
+import {
+  type Dispatch,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+  type SetStateAction,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react';
 import type {Dayjs} from 'dayjs';
 import type {MenuProps, TableColumnsType} from 'antd';
 import {Button, Dropdown, Modal, theme} from 'antd';
@@ -19,10 +28,10 @@ import {
 } from '@ant-design/icons';
 import type {Assignment, Task, TaskDep} from '../../hooks/usePlanningData';
 import type {AssignmentStatus} from '../../domain/types';
+import {ASSIGNMENT_STATUS_LABELS, TASK_STATUS_LABELS} from '../../domain/types';
 import {CriticalityBadge, DepBadge, type DepBadgeEntry, ScheduleChip} from '../../components/planningBadges';
 import {linkify} from '../../lib/linkify';
 import {API_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT} from '../../lib/dateFormats';
-import {ASSIGNMENT_STATUS_LABELS, TASK_STATUS_LABELS} from '../../domain/types';
 import {NAME_COLUMN_WIDTH} from '../../lib/layout';
 import {getCellTint, getHeaderTint} from './cellTint';
 import taskTransitionsJson from '../../data/taskTransitions.json';
@@ -32,19 +41,19 @@ import taskTransitionsJson from '../../data/taskTransitions.json';
 const VALID_TASK_TRANSITIONS: Record<string, string[]> = taskTransitionsJson;
 
 export const ASSIGNMENT_STATUS_OPTIONS = [
-  { value: 'new', label: 'Новый' },
-  { value: 'planned', label: 'Запланировано' },
-  { value: 'rollback', label: 'Откат' },
-  { value: 'success', label: 'Успешно' },
-  { value: 'cancelled', label: 'Отменено' },
+  {value: 'new', label: 'Новый'},
+  {value: 'planned', label: 'Запланировано'},
+  {value: 'rollback', label: 'Откат'},
+  {value: 'success', label: 'Успешно'},
+  {value: 'cancelled', label: 'Отменено'},
 ];
 
 const ASSIGNMENT_STATUS_ICONS: Record<AssignmentStatus, ReactNode> = {
-  new: <PlusCircleOutlined />,
-  planned: <CalendarOutlined />,
-  rollback: <UndoOutlined />,
-  success: <CheckCircleOutlined />,
-  cancelled: <CloseCircleOutlined />,
+  new: <PlusCircleOutlined/>,
+  planned: <CalendarOutlined/>,
+  rollback: <UndoOutlined/>,
+  success: <CheckCircleOutlined/>,
+  cancelled: <CloseCircleOutlined/>,
 };
 
 type GlobalToken = ReturnType<typeof theme.useToken>['token'];
@@ -83,27 +92,27 @@ interface UsePlanningColumnsOptions {
  * drag-and-drop, контекстное меню статуса назначения). Вынесено из PlanningPage.tsx как есть,
  * без изменения логики — см. openspec/changes/split-planning-page-columns. */
 export function usePlanningColumns({
-  dates,
-  assignmentByKey,
-  depsByTask,
-  today,
-  token,
-  freezeDays,
-  isUser,
-  chipDragSuppressRef,
-  panSuppressRef,
-  selectSuppressRef,
-  selectedAssignmentIds,
-  onToggleAssignment,
-  onClearSelection,
-  priorityMutation,
-  statusMutation,
-  assignmentStatusMutation,
-  setGraphModal,
-  setTaskModal,
-  setAssignmentModal,
-  onDepNavigate,
-}: UsePlanningColumnsOptions): TableColumnsType<Task> {
+                                     dates,
+                                     assignmentByKey,
+                                     depsByTask,
+                                     today,
+                                     token,
+                                     freezeDays,
+                                     isUser,
+                                     chipDragSuppressRef,
+                                     panSuppressRef,
+                                     selectSuppressRef,
+                                     selectedAssignmentIds,
+                                     onToggleAssignment,
+                                     onClearSelection,
+                                     priorityMutation,
+                                     statusMutation,
+                                     assignmentStatusMutation,
+                                     setGraphModal,
+                                     setTaskModal,
+                                     setAssignmentModal,
+                                     onDepNavigate,
+                                   }: UsePlanningColumnsOptions): TableColumnsType<Task> {
   const [openContextMenu, setOpenContextMenu] = useState<string | null>(null);
   const suppressNextActivationRef = useRef(false);
 
@@ -148,10 +157,10 @@ export function usePlanningColumns({
       width: NAME_COLUMN_WIDTH,
       onCell: (task) => {
         if (task.task_status === 'done') {
-          return { style: { background: `color-mix(in srgb, ${token.colorSuccess} 16%, ${token.colorBgContainer})` } };
+          return {style: {background: `color-mix(in srgb, ${token.colorSuccess} 16%, ${token.colorBgContainer})`}};
         }
         if (task.task_status === 'cancelled') {
-          return { style: { background: `color-mix(in srgb, ${token.colorError} 16%, ${token.colorBgContainer})` } };
+          return {style: {background: `color-mix(in srgb, ${token.colorError} 16%, ${token.colorBgContainer})`}};
         }
         return {};
       },
@@ -174,45 +183,46 @@ export function usePlanningColumns({
         const menuItems: MenuProps['items'] = [
           ...(transitions.length > 0
             ? [
-                {
-                  key: 'status-group',
-                  type: 'group' as const,
-                  label: 'Статус',
-                  children: transitions.map((s) => ({
-                    key: s,
-                    label: TASK_STATUS_LABELS[s] ?? s,
-                    icon: s === 'done' ? <CheckOutlined /> : <CloseOutlined />,
-                  })),
-                },
-              ]
+              {
+                key: 'status-group',
+                type: 'group' as const,
+                label: 'Статус',
+                children: transitions.map((s) => ({
+                  key: s,
+                  label: TASK_STATUS_LABELS[s] ?? s,
+                  icon: s === 'done' ? <CheckOutlined/> : <CloseOutlined/>,
+                })),
+              },
+            ]
             : []),
           ...(isTerminal
             ? []
             : [
-                {
-                  key: 'priority-group',
-                  type: 'group' as const,
-                  label: 'Приоритет',
-                  children: [
-                    { key: 'start', label: 'В начало уровня критичности', icon: <VerticalAlignTopOutlined /> },
-                    { key: 'end', label: 'В конец уровня критичности', icon: <VerticalAlignBottomOutlined /> },
-                  ],
-                },
-              ]),
+              {
+                key: 'priority-group',
+                type: 'group' as const,
+                label: 'Приоритет',
+                children: [
+                  {key: 'start', label: 'В начало уровня критичности', icon: <VerticalAlignTopOutlined/>},
+                  {key: 'end', label: 'В конец уровня критичности', icon: <VerticalAlignBottomOutlined/>},
+                ],
+              },
+            ]),
           {
             key: 'graph-group',
             type: 'group' as const,
             label: 'Граф',
-            children: [{ key: 'graph', label: 'Граф зависимостей по этой работе', icon: <ApartmentOutlined /> }],
+            children: [{key: 'graph', label: 'Граф зависимостей по этой работе', icon: <ApartmentOutlined/>}],
           },
         ];
+
         function handleMenuClick(key: string) {
           if (key === 'start' || key === 'end') {
-            priorityMutation.mutate({ taskId: task.id, position: key });
+            priorityMutation.mutate({taskId: task.id, position: key});
             return;
           }
           if (key === 'graph') {
-            setGraphModal({ open: true, taskId: task.id });
+            setGraphModal({open: true, taskId: task.id});
             return;
           }
           if (key === 'done' || key === 'cancelled') {
@@ -220,75 +230,91 @@ export function usePlanningColumns({
               title: `Перевести работу в статус «${TASK_STATUS_LABELS[key]}»?`,
               okText: 'Перевести',
               cancelText: 'Отмена',
-              onOk: () => statusMutation.mutate({ taskId: task.id, status: key }),
+              onOk: () => statusMutation.mutate({taskId: task.id, status: key}),
             });
           }
         }
+
         return (
           <Dropdown
             open={openContextMenu === `task-${task.id}`}
             onOpenChange={(open) => setOpenContextMenu(open ? `task-${task.id}` : null)}
             trigger={['contextMenu']}
-            menu={{ items: menuItems, onClick: ({ key }) => handleMenuClick(key) }}
+            menu={{items: menuItems, onClick: ({key}) => handleMenuClick(key)}}
           >
-          <div title={isTerminal ? TASK_STATUS_LABELS[task.task_status] : undefined} style={{ maxWidth: NAME_COLUMN_WIDTH }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Button
-                type="text"
-                size="small"
-                disabled={isTerminal}
-                style={{ cursor: isTerminal ? 'default' : 'grab' }}
-                data-task-row-handle={isTerminal ? undefined : 'true'}
-                data-task-row-id={task.id}
-                onMouseDown={(e) => e.preventDefault()}
-                title={isTerminal ? 'Работа завершена — приоритет менять нельзя' : 'Перетащить для изменения приоритета'}
-              >
-                <HolderOutlined />
-              </Button>
-              <Button
-                type="text"
-                size="small"
-                onClick={() => setTaskModal({ open: true, task })}
-                title={isTerminal ? 'Просмотр' : 'Редактировать'}
-              >
-                {isTerminal ? <InfoCircleOutlined /> : <EditOutlined />}
-              </Button>
-              <CriticalityBadge value={task.criticality} />
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <span style={{ display: 'block', fontWeight: 500, overflowWrap: 'anywhere' }} data-task-row-name>{task.name}</span>
-                <div
-                  data-task-row-segment
-                  title={`Сегмент: ${task.segment_name}`}
-                  style={{
-                    marginTop: 2,
-                    color: token.colorTextTertiary,
-                    fontSize: '0.72rem',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
+            <div title={isTerminal ? TASK_STATUS_LABELS[task.task_status] : undefined}
+                 style={{maxWidth: NAME_COLUMN_WIDTH}}>
+              <div style={{display: 'flex', alignItems: 'center', gap: 6}}>
+                <Button
+                  type="text"
+                  size="small"
+                  disabled={isTerminal}
+                  style={{cursor: isTerminal ? 'default' : 'grab'}}
+                  data-task-row-handle={isTerminal ? undefined : 'true'}
+                  data-task-row-id={task.id}
+                  onMouseDown={(e) => e.preventDefault()}
+                  title={isTerminal ? 'Работа завершена — приоритет менять нельзя' : 'Перетащить для изменения приоритета'}
                 >
-                  Сегмент: {task.segment_name}
+                  <HolderOutlined/>
+                </Button>
+                <Button
+                  type="text"
+                  size="small"
+                  onClick={() => setTaskModal({open: true, task})}
+                  title={isTerminal ? 'Просмотр' : 'Редактировать'}
+                >
+                  {isTerminal ? <InfoCircleOutlined/> : <EditOutlined/>}
+                </Button>
+                <CriticalityBadge value={task.criticality}/>
+                <div style={{minWidth: 0, flex: 1}}>
+                  <span style={{display: 'block', fontWeight: 500, overflowWrap: 'anywhere'}}
+                        data-task-row-name>{task.name}</span>
+                  <div
+                    data-task-row-segment
+                    title={`Сегмент: ${task.segment_name}`}
+                    style={{
+                      marginTop: 2,
+                      color: token.colorTextTertiary,
+                      fontSize: '0.72rem',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Сегмент: {task.segment_name}
+                  </div>
                 </div>
               </div>
+              {taskDeps.length > 0 &&
+                  <div style={{display: 'flex', alignItems: 'center', gap: 5, marginTop: 4, flexWrap: 'wrap'}}>
+                      <span>Связи:</span>
+                    {deleted.length > 0 &&
+                        <DepBadge kind="deleted" deps={deleted.map(toDepEntry)} onNavigate={onDepNavigate}/>}
+                    {cancelled.length > 0 &&
+                        <DepBadge kind="cancelled" deps={cancelled.map(toDepEntry)} onNavigate={onDepNavigate}/>}
+                    {pending.length > 0 &&
+                        <DepBadge kind="pending" deps={pending.map(toDepEntry)} onNavigate={onDepNavigate}/>}
+                    {done.length > 0 && <DepBadge kind="done" deps={done.map(toDepEntry)} onNavigate={onDepNavigate}/>}
+                  </div>
+              }
+              {task.description && (
+                <div
+                  style={{
+                    marginTop: 4,
+                    padding: '5px 8px',
+                    border: `1px solid ${token.colorBorder}`,
+                    borderRadius: 2,
+                    background: token.colorFillTertiary,
+                    fontSize: '0.85rem',
+                    color: token.colorTextSecondary,
+                    whiteSpace: 'pre-wrap',
+                    overflowWrap: 'anywhere'
+                  }}
+                >
+                  {linkify(task.description)}
+                </div>
+              )}
             </div>
-            {taskDeps.length > 0 &&
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4, flexWrap: 'wrap' }}>
-                <span>Связи:</span>
-                {deleted.length > 0 && <DepBadge kind="deleted" deps={deleted.map(toDepEntry)} onNavigate={onDepNavigate} />}
-                {cancelled.length > 0 && <DepBadge kind="cancelled" deps={cancelled.map(toDepEntry)} onNavigate={onDepNavigate} />}
-                {pending.length > 0 && <DepBadge kind="pending" deps={pending.map(toDepEntry)} onNavigate={onDepNavigate} />}
-                {done.length > 0 && <DepBadge kind="done" deps={done.map(toDepEntry)} onNavigate={onDepNavigate} />}
-              </div>
-            }
-            {task.description && (
-              <div
-                style={{ marginTop: 4, padding: '5px 8px', border: `1px solid ${token.colorBorder}`, borderRadius: 2, background: token.colorFillTertiary, fontSize: '0.85rem', color: token.colorTextSecondary, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
-              >
-                {linkify(task.description)}
-              </div>
-            )}
-          </div>
           </Dropdown>
         );
       },
@@ -299,14 +325,14 @@ export function usePlanningColumns({
       const isWeekend = d.day() === 0 || d.day() === 6;
       const isToday = dateStr === today;
       const isFreeze = freezeDays.has(dateStr);
-      const headerTint = getHeaderTint(token, { isToday, isFreeze, isWeekend });
-      const cellTint = getCellTint(token, { isToday, isFreeze, isWeekend });
+      const headerTint = getHeaderTint(token, {isToday, isFreeze, isWeekend});
+      const cellTint = getCellTint(token, {isToday, isFreeze, isWeekend});
       return {
         title: d.format(DISPLAY_DATE_SHORT_FORMAT),
         key: dateStr,
         width: 96,
         onHeaderCell: () => ({
-          style: { ...headerTint, fontFamily: "'JetBrains Mono Variable', monospace" },
+          style: {...headerTint, fontFamily: "'JetBrains Mono Variable', monospace"},
         }),
         onCell: (task) => {
           const assignment = assignmentByKey.get(`${task.id}-${dateStr}`);
@@ -320,7 +346,7 @@ export function usePlanningColumns({
               padding: 3,
               borderLeft: `1px solid ${token.colorBorder}`,
               cursor: task.task_status === 'done' || task.task_status === 'cancelled' ? 'not-allowed' : 'pointer',
-              ...(isSelected ? { boxShadow: `inset 0 0 0 2px ${token.colorPrimary}` } : {}),
+              ...(isSelected ? {boxShadow: `inset 0 0 0 2px ${token.colorPrimary}`} : {}),
             },
             onClick: (e: ReactMouseEvent<HTMLElement>) => {
               if (chipDragSuppressRef.current || panSuppressRef.current || selectSuppressRef.current) return;
@@ -334,7 +360,7 @@ export function usePlanningColumns({
                 onClearSelection();
                 return;
               }
-              setAssignmentModal({ open: true, task, date: dateStr, assignment: clickedAssignment });
+              setAssignmentModal({open: true, task, date: dateStr, assignment: clickedAssignment});
             },
           };
         },
@@ -343,7 +369,7 @@ export function usePlanningColumns({
           const isTerminal = task.task_status === 'done' || task.task_status === 'cancelled';
           if (!assignment) return null;
           const locked = isUser && assignment.status !== 'new';
-          if (isTerminal || locked) return <ScheduleChip assignment={assignment} draggable={false} />;
+          if (isTerminal || locked) return <ScheduleChip assignment={assignment} draggable={false}/>;
           const statusItems: MenuProps['items'] = [
             {
               key: 'status-group',
@@ -363,14 +389,14 @@ export function usePlanningColumns({
               trigger={['contextMenu']}
               menu={{
                 items: statusItems,
-                onClick: ({ key, domEvent }) => {
+                onClick: ({key, domEvent}) => {
                   domEvent.stopPropagation();
-                  assignmentStatusMutation.mutate({ assignmentId: assignment.id, status: key as AssignmentStatus });
+                  assignmentStatusMutation.mutate({assignmentId: assignment.id, status: key as AssignmentStatus});
                 },
               }}
             >
               <div>
-                <ScheduleChip assignment={assignment} draggable />
+                <ScheduleChip assignment={assignment} draggable/>
               </div>
             </Dropdown>
           );

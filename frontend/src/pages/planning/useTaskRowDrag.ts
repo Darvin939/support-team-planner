@@ -106,7 +106,7 @@ export function useTaskRowDrag(options: { onDrop: (newOrder: number[]) => void; 
           .filter((r) => r !== draggedRow)
           .map((el) => {
             const rect = el.getBoundingClientRect();
-            return { id: Number(el.dataset.taskRowId), mid: rect.top + rect.height / 2, el };
+            return {id: Number(el.dataset.taskRowId), mid: rect.top + rect.height / 2, el};
           });
 
         const nameEl = draggedRow?.querySelector<HTMLElement>('[data-task-row-name]');

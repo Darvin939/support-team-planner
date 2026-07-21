@@ -7,8 +7,8 @@ import {API_DATE_FORMAT, TIME_FORMAT} from '../../lib/dateFormats';
 import type {AssignmentFormValues} from './AssignmentModal';
 
 export function useAssignmentModalState({
-  open, assignment, date, teamBlocks, templates, freezeDays, form,
-}: {
+                                          open, assignment, date, teamBlocks, templates, freezeDays, form,
+                                        }: {
   open: boolean;
   assignment: Assignment | null;
   date: string | null;

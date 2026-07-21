@@ -6,12 +6,12 @@ import {apiMutate} from '../lib/apiMutate';
  * (`TEntity | 'new' | null` state): POST when the modal entity is `'new'`, PUT otherwise, DELETE
  * by id — with the same invalidate+toast/error shape every migrated tab already used inline. */
 export function useCrudMutations<TEntity extends { id: number }, TValues>({
-  queryKey,
-  baseUrl,
-  modalEntity,
-  onSaveSuccess,
-  deleteSuccessMessage,
-}: {
+                                                                            queryKey,
+                                                                            baseUrl,
+                                                                            modalEntity,
+                                                                            onSaveSuccess,
+                                                                            deleteSuccessMessage,
+                                                                          }: {
   queryKey: unknown[];
   baseUrl: string;
   modalEntity: TEntity | 'new' | null;
@@ -28,7 +28,7 @@ export function useCrudMutations<TEntity extends { id: number }, TValues>({
       return apiMutate(url, isNew ? 'POST' : 'PUT', values);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({queryKey});
       message.success('Сохранено');
       onSaveSuccess();
     },
@@ -38,11 +38,11 @@ export function useCrudMutations<TEntity extends { id: number }, TValues>({
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiMutate(`${baseUrl}/${id}`, 'DELETE'),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({queryKey});
       if (deleteSuccessMessage) message.success(deleteSuccessMessage);
     },
     onError: (e: Error) => message.error(e.message),
   });
 
-  return { saveMutation, deleteMutation };
+  return {saveMutation, deleteMutation};
 }

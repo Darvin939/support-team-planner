@@ -18,27 +18,30 @@ function stripe(base: string, accent: string): string {
  * vanilla-JS version. `current.freeze` in the original ignores weekend (no
  * `.current.freeze.weekend` rule existed), so this mirrors that exactly.
  */
-export function getCellTint(token: GlobalToken, { isToday, isFreeze, isWeekend }: CellTintFlags): { background?: string; backgroundImage?: string } {
+export function getCellTint(token: GlobalToken, {isToday, isFreeze, isWeekend}: CellTintFlags): {
+  background?: string;
+  backgroundImage?: string
+} {
   const errorStripeAccent = `color-mix(in srgb, ${token.colorError} 8%, transparent)`;
   const warningStripeBase = `color-mix(in srgb, ${token.colorWarning} 5%, transparent)`;
 
   if (isToday && isFreeze) {
-    return { backgroundImage: stripe('transparent', errorStripeAccent) };
+    return {backgroundImage: stripe('transparent', errorStripeAccent)};
   }
   if (isToday && isWeekend) {
-    return { background: `color-mix(in srgb, ${token.colorWarning} 8%, transparent)` };
+    return {background: `color-mix(in srgb, ${token.colorWarning} 8%, transparent)`};
   }
   if (isToday) {
-    return { background: `color-mix(in srgb, ${token.colorPrimary} 6%, transparent)` };
+    return {background: `color-mix(in srgb, ${token.colorPrimary} 6%, transparent)`};
   }
   if (isFreeze && isWeekend) {
-    return { backgroundImage: stripe(warningStripeBase, errorStripeAccent) };
+    return {backgroundImage: stripe(warningStripeBase, errorStripeAccent)};
   }
   if (isFreeze) {
-    return { backgroundImage: stripe('transparent', errorStripeAccent) };
+    return {backgroundImage: stripe('transparent', errorStripeAccent)};
   }
   if (isWeekend) {
-    return { background: `color-mix(in srgb, ${token.colorWarning} 6%, transparent)` };
+    return {background: `color-mix(in srgb, ${token.colorWarning} 6%, transparent)`};
   }
   return {};
 }
@@ -51,7 +54,11 @@ export function getCellTint(token: GlobalToken, { isToday, isFreeze, isWeekend }
  * edge of the header cell — which the original had only on the header, not the
  * body. Same today+freeze-ignores-weekend precedence as getCellTint.
  */
-export function getHeaderTint(token: GlobalToken, { isToday, isFreeze, isWeekend }: CellTintFlags): { background?: string; backgroundImage?: string; boxShadow?: string } {
+export function getHeaderTint(token: GlobalToken, {isToday, isFreeze, isWeekend}: CellTintFlags): {
+  background?: string;
+  backgroundImage?: string;
+  boxShadow?: string
+} {
   if (isToday && isFreeze) {
     return {
       background: `color-mix(in srgb, ${token.colorError} 7%, transparent)`,
@@ -77,7 +84,7 @@ export function getHeaderTint(token: GlobalToken, { isToday, isFreeze, isWeekend
     };
   }
   if (isWeekend) {
-    return { background: `color-mix(in srgb, ${token.colorWarning} 7%, transparent)` };
+    return {background: `color-mix(in srgb, ${token.colorWarning} 7%, transparent)`};
   }
   return {};
 }

@@ -10,7 +10,7 @@ export const HISTORY_PAGE_SIZE = 10;
 export type HistoryKind = 'task' | 'assignment';
 
 export function useEntityHistory(kind: HistoryKind, entityId: number | null, offset: number, enabled = true) {
-  return useQuery<{history: HistoryEntry[]; total: number}>({
+  return useQuery<{ history: HistoryEntry[]; total: number }>({
     queryKey: queryKeys.entityHistory(kind, entityId, offset),
     enabled: enabled && entityId !== null,
     queryFn: () => apiGet(buildApiUrl(`/api/${kind}/${entityId}/history`, {offset, limit: HISTORY_PAGE_SIZE})),
@@ -18,12 +18,12 @@ export function useEntityHistory(kind: HistoryKind, entityId: number | null, off
 }
 
 export function HistoryEntries({
-  entries,
-  loading,
-  showAssignmentContext,
-  compact = false,
-  emptySimple = false,
-}: {
+                                 entries,
+                                 loading,
+                                 showAssignmentContext,
+                                 compact = false,
+                                 emptySimple = false,
+                               }: {
   entries: HistoryEntry[] | undefined;
   loading: boolean;
   showAssignmentContext: boolean;
@@ -39,9 +39,9 @@ export function HistoryEntries({
     borderRadius: token.borderRadiusSM,
   };
 
-  if (loading) return <Spin />;
+  if (loading) return <Spin/>;
   if (entries && entries.length === 0) {
-    return <Empty description="Изменений пока нет" image={emptySimple ? Empty.PRESENTED_IMAGE_SIMPLE : undefined} />;
+    return <Empty description="Изменений пока нет" image={emptySimple ? Empty.PRESENTED_IMAGE_SIMPLE : undefined}/>;
   }
   if (!entries) return null;
 

@@ -16,12 +16,16 @@ export function useHistoryToggle(modalOpen: boolean, autoOpen: boolean) {
   return [open, setOpen] as const;
 }
 
-export function HistoryToggleButton({ open, onClick }: { open: boolean; onClick: () => void }) {
+export function HistoryToggleButton({open, onClick}: { open: boolean; onClick: () => void }) {
   return <Button onClick={onClick}>{open ? '✕ Скрыть историю' : '🕓 История'}</Button>;
 }
 
-export function HistoryPanel({ kind, entityId, open }: { kind: 'task' | 'assignment'; entityId: number | null; open: boolean }) {
-  const { token } = theme.useToken();
+export function HistoryPanel({kind, entityId, open}: {
+  kind: 'task' | 'assignment';
+  entityId: number | null;
+  open: boolean
+}) {
+  const {token} = theme.useToken();
   const pagination = usePaginationState(HISTORY_PAGE_SIZE);
   const isMobile = useIsMobile();
 
@@ -37,14 +41,31 @@ export function HistoryPanel({ kind, entityId, open }: { kind: 'task' | 'assignm
     <div
       style={
         isMobile
-          ? { width: '100%', borderTop: `1px solid ${token.colorBorder}`, paddingTop: 16, marginTop: 16, maxHeight: 320, overflowY: 'auto' }
-          : { width: 300, flexShrink: 0, borderLeft: `1px solid ${token.colorBorder}`, paddingLeft: 16, marginLeft: 16, maxHeight: 520, overflowY: 'auto' }
+          ? {
+            width: '100%',
+            borderTop: `1px solid ${token.colorBorder}`,
+            paddingTop: 16,
+            marginTop: 16,
+            maxHeight: 320,
+            overflowY: 'auto'
+          }
+          : {
+            width: 300,
+            flexShrink: 0,
+            borderLeft: `1px solid ${token.colorBorder}`,
+            paddingLeft: 16,
+            marginLeft: 16,
+            maxHeight: 520,
+            overflowY: 'auto'
+          }
       }
     >
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>История изменений</div>
-      <HistoryEntries entries={data?.history} loading={isLoading} showAssignmentContext={kind === 'task'} compact emptySimple />
+      <div style={{fontWeight: 600, marginBottom: 8}}>История изменений</div>
+      <HistoryEntries entries={data?.history} loading={isLoading} showAssignmentContext={kind === 'task'} compact
+                      emptySimple/>
       {data && <OffsetPagination style={{marginTop: 12, textAlign: 'center'}} offset={pagination.offset}
-        pageSize={HISTORY_PAGE_SIZE} total={data.total} onOffsetChange={pagination.setOffset} />}
+                                 pageSize={HISTORY_PAGE_SIZE} total={data.total}
+                                 onOffsetChange={pagination.setOffset}/>}
     </div>
   );
 }

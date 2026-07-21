@@ -111,14 +111,14 @@ export function useAssignmentDrag(options: {
       e.preventDefault();
 
       const assignmentId = Number(chip.dataset.assignmentId);
-      const { selectedAssignmentIds, getAssignment, isTaskLocked } = optionsRef.current;
+      const {selectedAssignmentIds, getAssignment, isTaskLocked} = optionsRef.current;
       let bulkSnapshot: BulkItem[] | null = null;
       if (selectedAssignmentIds.has(assignmentId) && selectedAssignmentIds.size > 1) {
         bulkSnapshot = [];
         selectedAssignmentIds.forEach((id) => {
           const a = getAssignment(id);
           if (a && !isTaskLocked(a.task_id)) {
-            bulkSnapshot!.push({ assignmentId: a.id, taskId: a.task_id, date: a.date });
+            bulkSnapshot!.push({assignmentId: a.id, taskId: a.task_id, date: a.date});
           }
         });
       }
@@ -217,7 +217,7 @@ export function useAssignmentDrag(options: {
       });
 
       if (targetDate && targetDate !== state.sourceDate && targetTaskId === state.taskId) {
-        const { success, error } = optionsRef.current.colors;
+        const {success, error} = optionsRef.current.colors;
         if (state.bulkSnapshot) {
           const deltaDays = dayjs(targetDate).diff(dayjs(state.sourceDate), 'day');
           const movingIds = new Set(state.bulkSnapshot.map((item) => item.assignmentId));
@@ -227,10 +227,10 @@ export function useAssignmentDrag(options: {
             const shiftedDate = shifted.format(API_DATE_FORMAT);
             const key = `${item.taskId}-${shiftedDate}`;
             targetCounts.set(key, (targetCounts.get(key) ?? 0) + 1);
-            return { item, shifted, shiftedDate, key };
+            return {item, shifted, shiftedDate, key};
           });
           let allValid = true;
-          targets.forEach(({ item, shifted, shiftedDate, key }) => {
+          targets.forEach(({item, shifted, shiftedDate, key}) => {
             const outOfRange = shifted.year() < MIN_YEAR || shifted.year() > MAX_YEAR;
             const occupant = optionsRef.current.getOccupant(item.taskId, shiftedDate);
             const invalid = outOfRange

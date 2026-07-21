@@ -16,7 +16,7 @@ const PlanningPage = lazy(() => import('./pages/PlanningPage').then((m) => ({def
 function PageFallback() {
   return (
     <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh'}}>
-      <Spin size="large" />
+      <Spin size="large"/>
     </div>
   );
 }
@@ -33,18 +33,18 @@ function Shell() {
   return (
     <ConfigProvider theme={isDark ? darkTheme : lightTheme} locale={ruRU}>
       <BrowserRouter>
-        <Suspense fallback={<PageFallback />}>
+        <Suspense fallback={<PageFallback/>}>
           <Routes>
-            <Route path="/login" element={<LoginPage isDark={isDark} onToggleTheme={toggleTheme} />} />
-            <Route element={<AuthenticatedLayout isDark={isDark} onToggleTheme={toggleTheme} />}>
-              <Route path="/statistics" element={<StatisticsPage />} />
-              <Route path="/journal" element={<JournalPage />} />
-              <Route path="/journal/:teamId" element={<JournalPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/planning" element={<PlanningPage />} />
-              <Route path="/planning/:teamId" element={<PlanningPage />} />
+            <Route path="/login" element={<LoginPage isDark={isDark} onToggleTheme={toggleTheme}/>}/>
+            <Route element={<AuthenticatedLayout isDark={isDark} onToggleTheme={toggleTheme}/>}>
+              <Route path="/statistics" element={<StatisticsPage/>}/>
+              <Route path="/journal" element={<JournalPage/>}/>
+              <Route path="/journal/:teamId" element={<JournalPage/>}/>
+              <Route path="/settings" element={<SettingsPage/>}/>
+              <Route path="/planning" element={<PlanningPage/>}/>
+              <Route path="/planning/:teamId" element={<PlanningPage/>}/>
             </Route>
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            <Route path="*" element={<Navigate to="/login" replace/>}/>
           </Routes>
         </Suspense>
       </BrowserRouter>
@@ -55,7 +55,7 @@ function Shell() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Shell />
+      <Shell/>
     </QueryClientProvider>
   );
 }
