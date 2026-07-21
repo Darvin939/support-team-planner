@@ -29,14 +29,12 @@ export function TaskModal({
   task,
   existingDepIds,
   onClose,
-  onDeleted,
 }: {
   open: boolean;
   teamId: number;
   task: Task | null;
   existingDepIds: number[];
   onClose: () => void;
-  onDeleted?: () => void;
 }) {
   const [form] = Form.useForm<TaskFormValues>();
   const queryClient = useQueryClient();
@@ -90,7 +88,6 @@ export function TaskModal({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       message.success('Задача удалена');
-      onDeleted?.();
       onClose();
     },
     onError: (e: Error) => message.error(e.message),

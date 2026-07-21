@@ -1,4 +1,4 @@
-import {type HTMLAttributes, lazy, Suspense, useEffect, useMemo, useRef, useState} from 'react';
+import {type HTMLAttributes, lazy, Suspense, useEffect, useMemo, useState} from 'react';
 import {useLocation, useNavigate, useParams} from 'react-router-dom';
 import {ApartmentOutlined} from '@ant-design/icons';
 import {
@@ -55,6 +55,7 @@ import {invalidateAssignmentData} from '../lib/queryInvalidation';
 import {assignmentToPayload, useSaveAssignmentMutation} from './planning/assignmentMutations';
 import {usePaginationState} from '../hooks/usePaginationState';
 import {usePlanningFilters} from './planning/usePlanningFilters';
+import {createPlanningGridViewKey, usePlanningGridTodayCenter} from './planning/usePlanningGridTodayCenter';
 
 const DependencyGraphModal = lazy(() => import('./planning/DependencyGraphModal').then((m) => ({ default: m.DependencyGraphModal })));
 
@@ -80,15 +81,6 @@ function dateRange(from: Dayjs, to: Dayjs): Dayjs[] {
     cur = cur.add(1, 'day');
   }
   return dates;
-}
-
-function scrollGridToToday(today: string): boolean {
-  const grid = document.querySelector<HTMLElement>('[data-planning-grid] .ant-table-body');
-  const todayCell = document.querySelector<HTMLElement>(`[data-planning-grid] td[data-date="${today}"]`);
-  const infoCell = grid?.querySelector<HTMLElement>('td:first-child') ?? null;
-  if (!grid || !todayCell || !infoCell) return false;
-  grid.scrollLeft = todayCell.offsetLeft - grid.offsetWidth / 2 + todayCell.offsetWidth / 2 - infoCell.offsetWidth / 2;
-  return true;
 }
 
 export function PlanningPage() {
@@ -135,7 +127,6 @@ export function PlanningPage() {
     onSuccess: ({ taskId, status }) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['active-assignments'] });
-      pendingCenterRef.current = true;
       const task = taskData?.tasks.find((t) => t.id === taskId);
       if (status === 'done' || status === 'cancelled') {
         message.success(`«${task?.name ?? taskId}» — ${TASK_STATUS_LABELS[status] ?? status}`);
@@ -166,7 +157,6 @@ export function PlanningPage() {
   });
 
   useEffect(() => {
-    pendingCenterRef.current = true;
     pagination.reset();
   }, [teamId, debouncedSearch, showCompleted, pagination.reset]);
 
@@ -234,16 +224,6 @@ export function PlanningPage() {
     (assignments ?? []).forEach((a) => map.set(a.id, a));
     return map;
   }, [assignments]);
-
-  const pendingCenterRef = useRef(true);
-  const triggerCenterOnNextLoad = () => {
-    pendingCenterRef.current = true;
-  };
-
-  useEffect(() => {
-    if (!planningDataReady || !pendingCenterRef.current) return;
-    if (scrollGridToToday(today)) pendingCenterRef.current = false;
-  }, [planningDataReady, taskData, assignments, deps, freezeDaysList, today]);
 
   const { data: jumpTask } = useTaskById(teamId ?? 0, jump?.jumpTaskId ?? null);
   const { data: jumpAssignments } = useAssignments(
@@ -382,8 +362,29 @@ export function PlanningPage() {
     filteredTasks,
   } = usePlanningFilters(taskData?.tasks, assignmentsByTask);
 
+  const planningViewKey = createPlanningGridViewKey({
+    teamId: teamId ?? 0,
+    dateFrom,
+    dateTo,
+    search: debouncedSearch,
+    showCompleted,
+    page,
+    pageSize,
+    criticalities: critFilter,
+    assignmentStatuses: statusFilter,
+    taskStatuses: taskStatusFilter,
+    segmentIds: segmentFilter,
+    taskIds,
+  });
+  const planningRenderKey = filteredTasks.map((task) => task.id).join(',');
+  usePlanningGridTodayCenter({
+    today,
+    isReady: planningDataReady,
+    viewKey: planningViewKey,
+    renderKey: planningRenderKey,
+  });
+
   function handleTeamSelect(value: number) {
-    pendingCenterRef.current = true;
     selectTeamRoute(value);
   }
 
@@ -470,10 +471,7 @@ export function PlanningPage() {
           <FilterField label="ПЕРИОД" isMobile={isMobile} mobileSpan={2}>
             <DatePicker.RangePicker
               value={range}
-              onChange={(dates) => {
-                pendingCenterRef.current = true;
-                handleRangeChange(dates);
-              }}
+              onChange={handleRangeChange}
               format={DISPLAY_DATE_FORMAT}
               minDate={dayjs('2000-01-01')}
               maxDate={dayjs('2099-12-31')}
@@ -513,10 +511,7 @@ export function PlanningPage() {
             <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
               <Checkbox
                 checked={showCompleted}
-                onChange={(e) => {
-                  pendingCenterRef.current = true;
-                  setShowCompleted(e.target.checked);
-                }}
+                onChange={(e) => setShowCompleted(e.target.checked)}
               >
                 Показать завершённые
               </Checkbox>
@@ -604,7 +599,6 @@ export function PlanningPage() {
               pageSizeOptions={PAGE_SIZE_OPTIONS}
               showSizeChanger
               onChange={(p, size) => {
-                pendingCenterRef.current = true;
                 if (size !== pageSize) {
                   pagination.setPageSize(size);
                 } else {
@@ -622,7 +616,6 @@ export function PlanningPage() {
         task={taskModal.task}
         existingDepIds={taskModal.task ? (depsByTask.get(taskModal.task.id) ?? []).map((d) => d.dep_id) : []}
         onClose={() => setTaskModal({ open: false, task: null })}
-        onDeleted={triggerCenterOnNextLoad}
       />
       <AssignmentModal
         open={assignmentModal.open}
