@@ -95,14 +95,23 @@ export interface OverdueAssignment {
   comment: string | null;
 }
 
+export const OVERDUE_PREVIEW_LIMIT = 30;
+
+interface OverdueAssignmentsResponse {
+  items: OverdueAssignment[];
+  total: number;
+}
+
 export function useOverdueAssignments() {
   const cutoff = dayjs().subtract(3, 'day');
   const start = cutoff.subtract(MAX_PERIOD_DAYS, 'day').format(API_DATE_FORMAT);
   const end = cutoff.format(API_DATE_FORMAT);
-  return useQuery<OverdueAssignment[]>({
-    queryKey: [...queryKeys.assignments.active, 0, start, end],
+  return useQuery<OverdueAssignmentsResponse>({
+    queryKey: [...queryKeys.assignments.active, 'overdue-preview', start, end, OVERDUE_PREVIEW_LIMIT],
     queryFn: () =>
-      apiGet<{ items: OverdueAssignment[] }>(`/api/active-assignments/0?start_date=${start}&end_date=${end}`).then((r) => r.items),
+      apiGet<OverdueAssignmentsResponse>(
+        `/api/active-assignments/0?start_date=${start}&end_date=${end}&offset=0&limit=${OVERDUE_PREVIEW_LIMIT}`
+      ),
     refetchInterval: 5 * 60 * 1000,
   });
 }

@@ -2,7 +2,7 @@ import {useState} from 'react';
 import {useNavigate} from 'react-router-dom';
 import {Badge, Empty, List, Popover, Spin, theme, Typography} from 'antd';
 import dayjs from 'dayjs';
-import {useOverdueAssignments} from '../hooks/usePlanningData';
+import {OVERDUE_PREVIEW_LIMIT, useOverdueAssignments} from '../hooks/usePlanningData';
 import {MAX_PERIOD_DAYS} from '../hooks/useDateRangeFilter';
 import {CriticalityBadge} from './planningBadges';
 import {DISPLAY_DATE_FORMAT} from '../lib/dateFormats';
@@ -25,9 +25,10 @@ export function OverdueNotifications({ compact }: { compact?: boolean }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const { data, isLoading, isError } = useOverdueAssignments();
-  const items = data ?? [];
+  const items = data?.items ?? [];
+  const total = data?.total ?? 0;
 
-  function handleItemClick(item: NonNullable<typeof data>[number]) {
+  function handleItemClick(item: NonNullable<typeof data>['items'][number]) {
     setOpen(false);
     navigate(`/planning/${item.team_id}`, { state: { jumpTaskId: item.task_id, jumpDate: item.date } });
   }
@@ -35,7 +36,7 @@ export function OverdueNotifications({ compact }: { compact?: boolean }) {
   const content = (
     <div style={{ width: 320, maxHeight: 380, overflow: 'auto' }}>
       <Typography.Text strong>
-        Просроченные назначения ({items.length}) за последние {MAX_PERIOD_DAYS} дней
+        Просроченные назначения ({total}) за последние {MAX_PERIOD_DAYS} дней
       </Typography.Text>
       <div style={{ marginTop: 8 }}>
         {isLoading ? (
@@ -66,6 +67,11 @@ export function OverdueNotifications({ compact }: { compact?: boolean }) {
             )}
           />
         )}
+        {!isLoading && !isError && total > items.length && (
+          <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: '0.8rem' }}>
+            Показаны первые {OVERDUE_PREVIEW_LIMIT} из {total}
+          </Typography.Text>
+        )}
       </div>
     </div>
   );
@@ -87,7 +93,7 @@ export function OverdueNotifications({ compact }: { compact?: boolean }) {
           fontSize: '0.88rem',
         }}
       >
-        <Badge count={items.length} color={token.colorError} size="small">
+        <Badge count={total} overflowCount={99} color={token.colorError} size="small">
           <BellIcon />
         </Badge>
         {!compact && <span>Уведомления</span>}
