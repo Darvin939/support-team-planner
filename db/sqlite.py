@@ -67,6 +67,7 @@ _SCHEMA = '''
         criticality text NOT NULL DEFAULT 'medium',
         priority INTEGER NOT NULL DEFAULT 0,
         task_status TEXT NOT NULL DEFAULT 'new',
+        completed_at TEXT,
         is_deleted INTEGER NOT NULL DEFAULT 0,
         FOREIGN key (team_id) REFERENCES teams (id) ON DELETE cascade
     );
@@ -226,6 +227,7 @@ class SQLiteBackend(DBBackend):
         self._migrate_add_segment_columns(conn)
         conn.execute('PRAGMA foreign_keys = ON;')
         conn.executescript(_SCHEMA)
+        self._migrate_add_task_completed_at(conn)
         # Промежуточные статусы задачи (ready/in_progress) упразднены — у задачи остаётся только
         # единое активное состояние (new) и терминальные (done/cancelled). Безусловно, при каждом
         # старте: это нормализация значений, а не разовый бэкфилл, повторный запуск безопасен.
@@ -270,6 +272,25 @@ class SQLiteBackend(DBBackend):
         # быть только следствием миграции, а не осознанным выбором.
         conn.execute("UPDATE users SET is_assignee = 0 WHERE login = 'admin'")
         conn.commit()
+
+    @staticmethod
+    def _migrate_add_task_completed_at(conn) -> None:
+        """Add the completion timestamp once and backfill only trustworthy history."""
+        columns = {row[1] for row in conn.execute('PRAGMA table_info(tasks)').fetchall()}
+        if 'completed_at' not in columns:
+            conn.execute('ALTER TABLE tasks ADD COLUMN completed_at TEXT')
+            conn.execute('''
+                UPDATE tasks
+                   SET completed_at = (
+                       SELECT MAX(th.changed_at)
+                         FROM task_history th
+                        WHERE th.task_id = tasks.id
+                          AND th.field_name = 'task_status'
+                          AND th.new_value IN ('done', 'cancelled')
+                   )
+                 WHERE task_status IN ('done', 'cancelled')
+            ''')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_tasks_team_completed_at ON tasks (team_id, completed_at)')
 
     @staticmethod
     def _migrate_employees_to_users(conn) -> None:

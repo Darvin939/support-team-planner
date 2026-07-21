@@ -798,21 +798,21 @@ def _fuzzy_search_clause(search, name_col='name', description_col='description')
 
 
 @with_db_connection(commit_on_success=False)
-def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, show_completed=False, task_id=None):
+def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, include_recent_completed=False):
     """Получить задачи команды с пагинацией и поиском"""
-    completed_clause = "" if show_completed else "AND task_status NOT IN ('done', 'cancelled')"
+    completed_clause = (
+        "AND (tasks.task_status NOT IN ('done', 'cancelled') OR "
+        "(tasks.completed_at IS NOT NULL AND tasks.completed_at >= datetime('now', '-30 days')))"
+        if include_recent_completed else "AND tasks.task_status NOT IN ('done', 'cancelled')"
+    )
     params = [team_id]
     search_clause, search_params = _fuzzy_search_clause(search, 'tasks.name', 'tasks.description')
     params += search_params
-    id_clause = ""
-    if task_id:
-        id_clause = "AND tasks.id = ?"
-        params.append(task_id)
     params += [limit, offset]
     # @formatter:off
     return conn.execute(
         f'''SELECT tasks.id, tasks.name, tasks.description, tasks.criticality, tasks.task_status,
-                   tasks.segment_id, segments.name AS segment_name,
+                   tasks.segment_id, segments.name AS segment_name, tasks.completed_at,
                    EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0
                           AND a.status != 'new') AS has_active_assignments
             FROM tasks
@@ -821,7 +821,6 @@ def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, show_compl
               AND tasks.is_deleted = 0
             {completed_clause}
             {search_clause}
-            {id_clause}
             ORDER BY CASE tasks.criticality
                          WHEN 'high'   THEN 0
                          WHEN 'medium' THEN 1
@@ -836,15 +835,76 @@ def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, show_compl
 
 
 @with_db_connection(commit_on_success=False)
-def get_tasks_count_by_team(conn, team_id, search=None, show_completed=False):
+def get_tasks_count_by_team(conn, team_id, search=None, include_recent_completed=False):
     """Получить общее количество задач команды (с учётом поиска)"""
-    completed_clause = "" if show_completed else "AND task_status NOT IN ('done', 'cancelled')"
+    completed_clause = (
+        "AND (task_status NOT IN ('done', 'cancelled') OR "
+        "(completed_at IS NOT NULL AND completed_at >= datetime('now', '-30 days')))"
+        if include_recent_completed else "AND task_status NOT IN ('done', 'cancelled')"
+    )
     params = [team_id]
     search_clause, search_params = _fuzzy_search_clause(search)
     params += search_params
     return conn.execute(
         f"SELECT COUNT(*) FROM tasks WHERE team_id = ? AND is_deleted = 0 {completed_clause} {search_clause}",
         params
+    ).fetchone()[0]
+
+
+@with_db_connection(commit_on_success=False)
+def get_task_by_id(conn, task_id):
+    return conn.execute(
+        '''SELECT tasks.id, tasks.team_id, tasks.name, tasks.description, tasks.criticality,
+                  tasks.task_status, tasks.segment_id, segments.name AS segment_name,
+                  tasks.completed_at,
+                  EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0
+                         AND a.status != 'new') AS has_active_assignments
+             FROM tasks JOIN segments ON tasks.segment_id = segments.id
+            WHERE tasks.id = ? AND tasks.is_deleted = 0''',
+        (task_id,),
+    ).fetchone()
+
+
+def _archive_filter(search, completed_from, completed_to):
+    clauses = ["tasks.task_status IN ('done', 'cancelled')"]
+    params = []
+    search_clause, search_params = _fuzzy_search_clause(search, 'tasks.name', 'tasks.description')
+    if search_clause:
+        clauses.append(search_clause.removeprefix('AND '))
+        params.extend(search_params)
+    if completed_from:
+        clauses.append("tasks.completed_at >= ? || ' 00:00:00'")
+        params.append(completed_from)
+    if completed_to:
+        clauses.append("tasks.completed_at < datetime(?, '+1 day')")
+        params.append(completed_to)
+    return ' AND '.join(clauses), params
+
+
+@with_db_connection(commit_on_success=False)
+def get_archived_tasks_by_team(conn, team_id, offset=0, limit=20, search=None,
+                               completed_from=None, completed_to=None):
+    filters, filter_params = _archive_filter(search, completed_from, completed_to)
+    return conn.execute(
+        f'''SELECT tasks.id, tasks.name, tasks.description, tasks.criticality, tasks.task_status,
+                   tasks.segment_id, segments.name AS segment_name, tasks.completed_at,
+                   EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0
+                          AND a.status != 'new') AS has_active_assignments
+              FROM tasks JOIN segments ON tasks.segment_id = segments.id
+             WHERE tasks.team_id = ? AND tasks.is_deleted = 0 AND {filters}
+             ORDER BY tasks.completed_at IS NULL, tasks.completed_at DESC, tasks.id DESC
+             LIMIT ? OFFSET ?''',
+        [team_id, *filter_params, limit, offset],
+    ).fetchall()
+
+
+@with_db_connection(commit_on_success=False)
+def get_archived_tasks_count_by_team(conn, team_id, search=None, completed_from=None, completed_to=None):
+    filters, filter_params = _archive_filter(search, completed_from, completed_to)
+    return conn.execute(
+        f'''SELECT COUNT(*) FROM tasks
+             WHERE team_id = ? AND is_deleted = 0 AND {filters.replace('tasks.', '')}''',
+        [team_id, *filter_params],
     ).fetchone()[0]
 
 
@@ -1063,7 +1123,35 @@ def update_task_status(conn, task_id, new_status, changed_by=None):
     if current and current['task_status'] != new_status:
         _record_task_history(conn, task_id, 'update', field_name='task_status',
                               old_value=current['task_status'], new_value=new_status, changed_by=changed_by)
-    conn.execute("UPDATE tasks SET task_status = ? WHERE id = ?", (new_status, task_id))
+    old_status = current['task_status'] if current else None
+    old_terminal = old_status in ('done', 'cancelled')
+    new_terminal = new_status in ('done', 'cancelled')
+    if new_terminal and not old_terminal:
+        conn.execute("UPDATE tasks SET task_status = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?",
+                     (new_status, task_id))
+    elif old_terminal and not new_terminal:
+        conn.execute("UPDATE tasks SET task_status = ?, completed_at = NULL WHERE id = ?", (new_status, task_id))
+    else:
+        conn.execute("UPDATE tasks SET task_status = ? WHERE id = ?", (new_status, task_id))
+    return True
+
+
+@with_db_connection()
+def restore_task(conn, task_id, changed_by=None):
+    """Restore a terminal task without changing its related entities."""
+    current = conn.execute(
+        'SELECT task_status, is_deleted FROM tasks WHERE id = ?', (task_id,)
+    ).fetchone()
+    if not current or current['is_deleted']:
+        return False
+    if current['task_status'] not in ('done', 'cancelled'):
+        raise ValueError('Восстановить можно только завершённую или отменённую работу')
+    _record_task_history(conn, task_id, 'update', field_name='task_status',
+                         old_value=current['task_status'], new_value='new', changed_by=changed_by)
+    conn.execute(
+        "UPDATE tasks SET task_status = 'new', completed_at = NULL WHERE id = ?",
+        (task_id,),
+    )
     return True
 
 

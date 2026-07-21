@@ -10,9 +10,11 @@ export const queryKeys = {
   },
   tasks: {
     all: ['tasks'] as const,
-    list: (teamId: number, offset: number, limit: number, search: string, showCompleted: boolean) =>
-      ['tasks', teamId, offset, limit, search, showCompleted] as const,
-    byId: (teamId: number, taskId: number | null) => ['tasks', teamId, 'byId', taskId] as const,
+    list: (teamId: number, offset: number, limit: number, search: string, includeRecentCompleted: boolean) =>
+      ['tasks', teamId, offset, limit, search, includeRecentCompleted] as const,
+    byId: (taskId: number | null) => ['tasks', 'byId', taskId] as const,
+    archive: (teamId: number, offset: number, limit: number, search: string, from: string, to: string) =>
+      ['tasks', teamId, 'archive', offset, limit, search, from, to] as const,
   },
   assignments: {
     all: ['assignments'] as const,

@@ -1,6 +1,6 @@
 import {type HTMLAttributes, lazy, Suspense, useEffect, useMemo, useState} from 'react';
 import {useLocation, useNavigate, useParams} from 'react-router-dom';
-import {ApartmentOutlined} from '@ant-design/icons';
+import {ApartmentOutlined, InboxOutlined} from '@ant-design/icons';
 import {
   Alert,
   Button,
@@ -40,6 +40,7 @@ import {FilterField, FilterGrid} from '../components/FilterGrid';
 import {type DepBadgeEntry} from '../components/planningBadges';
 import {TaskModal} from './planning/TaskModal';
 import {AssignmentModal} from './planning/AssignmentModal';
+import {TaskArchiveModal} from './planning/TaskArchiveModal';
 import {useAssignmentDrag} from './planning/useAssignmentDrag';
 import {useAssignmentSelection} from './planning/useAssignmentSelection';
 import {useTableDragScroll} from './planning/useTableDragScroll';
@@ -98,6 +99,7 @@ export function PlanningPage() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search, 500);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
   const pagination = usePaginationState(DEFAULT_PAGE_SIZE);
   const {page, pageSize} = pagination;
   const {data: segments} = useSegments();
@@ -528,7 +530,7 @@ export function PlanningPage() {
                 checked={showCompleted}
                 onChange={(e) => setShowCompleted(e.target.checked)}
               >
-                Показать завершённые
+                Завершённые за 30 дней
               </Checkbox>
             </div>
           </FilterField>
@@ -561,6 +563,9 @@ export function PlanningPage() {
             </Button>
             <Button icon={<ApartmentOutlined/>} onClick={() => setGraphModal({open: true})}>
               Граф зависимостей
+            </Button>
+            <Button icon={<InboxOutlined/>} onClick={() => setArchiveOpen(true)}>
+              Архив
             </Button>
             {selectedAssignmentIds.size > 0 && (
               <Space size={8} style={{paddingLeft: 8, borderLeft: `1px solid ${token.colorBorder}`}}>
@@ -646,6 +651,8 @@ export function PlanningPage() {
         existingDepIds={taskModal.task ? (depsByTask.get(taskModal.task.id) ?? []).map((d) => d.dep_id) : []}
         onClose={() => setTaskModal({open: false, task: null})}
       />
+      <TaskArchiveModal open={archiveOpen} teamId={teamId} canRestore={!isUser}
+                        onClose={() => setArchiveOpen(false)}/>
       <AssignmentModal
         open={assignmentModal.open}
         teamId={teamId}

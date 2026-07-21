@@ -15,6 +15,7 @@ export interface Task {
   task_status: TaskStatus;
   segment_id: number;
   segment_name: string;
+  completed_at: string | null;
   has_active_assignments: boolean;
 }
 
@@ -41,10 +42,10 @@ export interface TaskDep {
   dep_segment_name: string;
 }
 
-export function useTasks(teamId: number, offset: number, limit: number, search: string, showCompleted: boolean) {
+export function useTasks(teamId: number, offset: number, limit: number, search: string, includeRecentCompleted: boolean) {
   return useQuery<{ tasks: Task[]; total: number }>({
-    queryKey: queryKeys.tasks.list(teamId, offset, limit, search, showCompleted),
-    queryFn: () => apiGet(buildApiUrl(`/api/tasks/${teamId}`, {offset, limit, search, show_completed: showCompleted})),
+    queryKey: queryKeys.tasks.list(teamId, offset, limit, search, includeRecentCompleted),
+    queryFn: () => apiGet(buildApiUrl(`/api/tasks/${teamId}`, {offset, limit, search, include_recent_completed: includeRecentCompleted})),
     enabled: !!teamId,
   });
 }
@@ -124,16 +125,20 @@ export function useOverdueAssignments() {
 
 export function useTaskById(teamId: number, taskId: number | null) {
   return useQuery<Task | null>({
-    queryKey: queryKeys.tasks.byId(teamId, taskId),
-    queryFn: () =>
-      apiGet<{ tasks: Task[] }>(buildApiUrl(`/api/tasks/${teamId}`, {
-        task_id: taskId,
-        show_completed: true,
-        limit: 1
-      })).then(
-        (r) => r.tasks[0] ?? null
-      ),
+    queryKey: queryKeys.tasks.byId(taskId),
+    queryFn: () => apiGet<Task>(`/api/task/${taskId}`),
     enabled: !!teamId && !!taskId,
+  });
+}
+
+export function useTaskArchive(teamId: number, offset: number, limit: number, search: string,
+                               completedFrom: string, completedTo: string, enabled: boolean) {
+  return useQuery<{tasks: Task[]; total: number}>({
+    queryKey: queryKeys.tasks.archive(teamId, offset, limit, search, completedFrom, completedTo),
+    queryFn: () => apiGet(buildApiUrl(`/api/tasks/${teamId}/archive`, {
+      offset, limit, search, completed_from: completedFrom, completed_to: completedTo,
+    })),
+    enabled: enabled && !!teamId,
   });
 }
 

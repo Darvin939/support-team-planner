@@ -501,21 +501,73 @@ def get_assignment_history_api(request: Request, assignment_id: int, offset: int
 
 @app.get('/api/tasks/{team_id}')
 def get_tasks_api(request: Request, team_id: int, offset: int = 0, limit: int = 20, search: str = "",
-                  show_completed: bool = False,
-                  task_id: Optional[int] = None):
+                  include_recent_completed: bool = False):
     """API для получения задач команды с пагинацией"""
     _require_team_access(request, team_id)
     search_val = search.strip() or None
-    tasks = db.get_tasks_by_team(team_id, offset=offset, limit=limit, search=search_val, show_completed=show_completed,
-                                 task_id=task_id)
-    total = db.get_tasks_count_by_team(team_id, search=search_val, show_completed=show_completed)
+    tasks = db.get_tasks_by_team(team_id, offset=offset, limit=limit, search=search_val,
+                                 include_recent_completed=include_recent_completed)
+    total = db.get_tasks_count_by_team(team_id, search=search_val,
+                                       include_recent_completed=include_recent_completed)
     return {
         'tasks': [{'id': t['id'], 'name': t['name'], 'description': t['description'],
                    'criticality': t['criticality'], 'task_status': t['task_status'],
                    'segment_id': t['segment_id'], 'segment_name': t['segment_name'],
+                   'completed_at': t['completed_at'],
                    'has_active_assignments': bool(t['has_active_assignments'])} for t in tasks],
         'total': total
     }
+
+
+def _task_json(task):
+    return {'id': task['id'], 'name': task['name'], 'description': task['description'],
+            'criticality': task['criticality'], 'task_status': task['task_status'],
+            'segment_id': task['segment_id'], 'segment_name': task['segment_name'],
+            'completed_at': task['completed_at'],
+            'has_active_assignments': bool(task['has_active_assignments'])}
+
+
+@app.get('/api/task/{task_id}')
+def get_task_api(request: Request, task_id: int):
+    task = db.get_task_by_id(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail='Работа не найдена')
+    _require_team_access(request, task['team_id'])
+    return _task_json(task)
+
+
+@app.post('/api/task/{task_id}/restore')
+def restore_task_api(request: Request, task_id: int):
+    task = db.get_task_by_id(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail='Работа не найдена')
+    _require_team_access(request, task['team_id'])
+    if request.state.role not in ('editor', 'admin'):
+        raise HTTPException(status_code=403, detail='Недостаточно прав для восстановления работы')
+    try:
+        restored = db.restore_task(task_id, changed_by=request.session.get('user_id'))
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    if not restored:
+        raise HTTPException(status_code=404, detail='Работа не найдена')
+    return {'success': True}
+
+
+@app.get('/api/tasks/{team_id}/archive')
+def get_tasks_archive_api(request: Request, team_id: int, offset: int = 0, limit: int = 20,
+                          search: str = "", completed_from: Optional[date] = None,
+                          completed_to: Optional[date] = None):
+    _require_team_access(request, team_id)
+    if offset < 0 or limit < 1 or limit > 100:
+        raise HTTPException(status_code=422, detail='Некорректная пагинация')
+    if completed_from and completed_to and completed_from > completed_to:
+        raise HTTPException(status_code=422, detail='Начало периода позже окончания')
+    search_val = search.strip() or None
+    date_from = completed_from.isoformat() if completed_from else None
+    date_to = completed_to.isoformat() if completed_to else None
+    tasks = db.get_archived_tasks_by_team(team_id, offset, limit, search_val, date_from, date_to)
+    total = db.get_archived_tasks_count_by_team(team_id, search_val, date_from, date_to)
+    return {'tasks': [_task_json(task) for task in tasks], 'total': total}
 
 
 @app.post('/api/task')
