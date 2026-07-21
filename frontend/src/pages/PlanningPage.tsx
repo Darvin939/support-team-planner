@@ -56,11 +56,9 @@ import {assignmentToPayload, useSaveAssignmentMutation} from './planning/assignm
 import {usePaginationState} from '../hooks/usePaginationState';
 import {usePlanningFilters} from './planning/usePlanningFilters';
 import {createPlanningGridViewKey, usePlanningGridTodayCenter} from './planning/usePlanningGridTodayCenter';
+import {TOP_BAR_HEIGHT} from "../components/AppShell.tsx";
 
 const DependencyGraphModal = lazy(() => import('./planning/DependencyGraphModal').then((m) => ({ default: m.DependencyGraphModal })));
-
-// Must match TOP_BAR_HEIGHT in components/AppShell.tsx (mobile fixed top bar height).
-const TOP_BAR_HEIGHT = 56;
 
 const TASK_STATUS_OPTIONS = [
   { value: 'new', label: 'Новый' },

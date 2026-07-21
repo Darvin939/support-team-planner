@@ -1,13 +1,15 @@
 import {useEffect, useState} from 'react';
 import type {TableColumnsType} from 'antd';
-import {DeleteOutlined, EditOutlined} from '@ant-design/icons';
 import {Button, Checkbox, Form, Input, Modal, Pagination, Popconfirm, Space, Table, Tag} from 'antd';
+import {DeleteOutlined, EditOutlined} from '@ant-design/icons';
 import {type Team, usePaginatedTeams} from '../../hooks/useTeams';
 import {useBlockTemplates} from '../../hooks/useSettingsData';
 import {useCrudMutations} from '../../hooks/useCrudMutations';
 import {DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS} from '../../lib/pagination';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import {usePaginationState} from '../../hooks/usePaginationState';
+import {useIsMobile} from "../../hooks/useIsMobile";
+import {TOP_BAR_HEIGHT} from "../../components/AppShell";
 
 interface TeamFormValues {
   name: string;
@@ -23,6 +25,7 @@ export function TeamsTab() {
   const { data: templates } = useBlockTemplates();
   const [modalTeam, setModalTeam] = useState<Team | 'new' | null>(null);
   const [form] = Form.useForm<TeamFormValues>();
+  const isMobile = useIsMobile();
 
   const { saveMutation, deleteMutation } = useCrudMutations<Team, TeamFormValues>({
     queryKey: ['teams'],
@@ -85,7 +88,7 @@ export function TeamsTab() {
       </Space>
 
       <Table<Team> rowKey="id" columns={columns} dataSource={data?.teams ?? []} loading={isLoading}
-        pagination={false} scroll={{x: 720}} />
+        pagination={false} scroll={{x: 720}} sticky={{ offsetHeader: isMobile ? TOP_BAR_HEIGHT : 0 }} />
       {(data?.total ?? 0) > pageSize && <Pagination current={page} pageSize={pageSize} total={data?.total ?? 0}
         showSizeChanger pageSizeOptions={PAGE_SIZE_OPTIONS} style={{marginTop: 16, textAlign: 'right'}}
         onChange={pagination.onChange} />}

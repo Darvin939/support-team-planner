@@ -1,14 +1,16 @@
 import {useEffect, useState} from 'react';
 import type {TableColumnsType} from 'antd';
-import {DeleteOutlined, EditOutlined, LockOutlined} from '@ant-design/icons';
 import {Button, Form, Input, Modal, Pagination, Popconfirm, Select, Space, Switch, Table, Tag, Tooltip} from 'antd';
-import {type User, usePaginatedUsers} from '../../hooks/useSettingsData';
+import {DeleteOutlined, EditOutlined, LockOutlined} from '@ant-design/icons';
+import {usePaginatedUsers, type User} from '../../hooks/useSettingsData';
 import {useMe} from '../../hooks/useMe';
 import {useCrudMutations} from '../../hooks/useCrudMutations';
 import {DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS} from '../../lib/pagination';
 import {useTeams} from '../../hooks/useTeams';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import {usePaginationState} from '../../hooks/usePaginationState';
+import {useIsMobile} from "../../hooks/useIsMobile";
+import {TOP_BAR_HEIGHT} from "../../components/AppShell";
 
 interface UserFormValues {
   last_name: string | null;
@@ -40,6 +42,7 @@ export function UsersTab() {
   const isAdmin = me?.role === 'admin';
   const [modalUser, setModalUser] = useState<User | 'new' | null>(null);
   const [form] = Form.useForm<UserFormValues>();
+  const isMobile = useIsMobile();
 
   const { saveMutation, deleteMutation } = useCrudMutations<User, UserFormValues>({
     queryKey: ['users'],
@@ -122,7 +125,8 @@ export function UsersTab() {
         <Input.Search allowClear value={search} placeholder="Поиск по логину, ФИО или роли"
           onChange={(event) => { setSearch(event.target.value); pagination.reset(); }} style={{width: 420, maxWidth: '100%'}} />
       </Space>
-      <Table<User> rowKey="id" columns={columns} dataSource={data?.users ?? []} loading={isLoading} pagination={false} scroll={{x: 1080}} />
+      <Table<User> rowKey="id" columns={columns} dataSource={data?.users ?? []} loading={isLoading}
+                   pagination={false} scroll={{x: 1080}} sticky={{ offsetHeader: isMobile ? TOP_BAR_HEIGHT : 0 }} />
       {(data?.total ?? 0) > pageSize && <Pagination current={page} pageSize={pageSize} total={data?.total ?? 0}
         showSizeChanger pageSizeOptions={PAGE_SIZE_OPTIONS} style={{marginTop: 16, textAlign: 'right'}}
         onChange={pagination.onChange} />}

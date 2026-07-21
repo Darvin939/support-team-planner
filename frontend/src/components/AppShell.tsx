@@ -5,7 +5,8 @@ import {chrome} from '../theme';
 import {useIsMobile} from '../hooks/useIsMobile';
 import {OverdueNotifications} from './OverdueNotifications';
 
-const TOP_BAR_HEIGHT = 56;
+export const TOP_BAR_HEIGHT = 56;
+
 const SIDEBAR_WIDTH = 216;
 const SIDEBAR_COLLAPSED_WIDTH = 72;
 const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
