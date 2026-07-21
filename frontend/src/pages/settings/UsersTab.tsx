@@ -113,16 +113,15 @@ export function UsersTab() {
 
   return (
     <>
-      {isAdmin && (
-        <Space style={{ marginBottom: 16, display: 'flex' }}>
+      <Space wrap style={{ marginBottom: 16, display: 'flex', width: '100%' }}>
+        {isAdmin && (
           <Button type="primary" onClick={() => openModal('new')}>
             Добавить пользователя
           </Button>
-        </Space>
-      )}
-
-      <Input.Search allowClear value={search} placeholder="Поиск по логину, ФИО или роли"
-        onChange={(event) => { setSearch(event.target.value); pagination.reset(); }} style={{maxWidth: 420, marginBottom: 16}} />
+        )}
+        <Input.Search allowClear value={search} placeholder="Поиск по логину, ФИО или роли"
+          onChange={(event) => { setSearch(event.target.value); pagination.reset(); }} style={{width: 420, maxWidth: '100%'}} />
+      </Space>
       <Table<User> rowKey="id" columns={columns} dataSource={data?.users ?? []} loading={isLoading} pagination={false} scroll={{x: 1080}} />
       {(data?.total ?? 0) > pageSize && <Pagination current={page} pageSize={pageSize} total={data?.total ?? 0}
         showSizeChanger pageSizeOptions={PAGE_SIZE_OPTIONS} style={{marginTop: 16, textAlign: 'right'}}

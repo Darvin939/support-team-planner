@@ -57,6 +57,28 @@ class TeamAccessApiTest(unittest.TestCase):
             self.assertEqual(200, response.status_code)
             self.assertEqual([1], [team['id'] for team in response.json()])
 
+    def test_paginated_teams_preserve_access_scope_and_search_before_count(self):
+        with self.login('limited', 'password123') as client:
+            allowed = client.get('/api/teams', params={'offset': 0, 'limit': 10, 'search': 'allow'})
+            self.assertEqual(200, allowed.status_code)
+            self.assertEqual(1, allowed.json()['total'])
+            self.assertEqual([1], [team['id'] for team in allowed.json()['teams']])
+
+            denied = client.get('/api/teams', params={'offset': 0, 'limit': 10, 'search': 'denied'})
+            self.assertEqual(200, denied.status_code)
+            self.assertEqual({'teams': [], 'total': 0}, denied.json())
+
+    def test_paginated_teams_return_page_while_plain_request_stays_array(self):
+        with self.login('admin', 'q12345678') as client:
+            plain = client.get('/api/teams')
+            self.assertIsInstance(plain.json(), list)
+            self.assertEqual(2, len(plain.json()))
+
+            page = client.get('/api/teams', params={'offset': 1, 'limit': 1})
+            self.assertEqual(200, page.status_code)
+            self.assertEqual(2, page.json()['total'])
+            self.assertEqual(1, len(page.json()['teams']))
+
     def test_admin_always_sees_all_teams(self):
         with self.login('admin', 'q12345678') as client:
             response = client.get('/api/teams')

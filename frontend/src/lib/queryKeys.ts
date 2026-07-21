@@ -1,6 +1,8 @@
 export const queryKeys = {
   me: ['me'] as const,
   teams: ['teams'] as const,
+  paginatedTeams: (offset: number, limit: number, search: string) =>
+    ['teams', 'paginated', offset, limit, search] as const,
   users: {
     all: ['users'] as const,
     paginated: (offset: number, limit: number, search: string) => ['users', 'paginated', offset, limit, search] as const,

@@ -14,3 +14,17 @@ export function useTeams() {
     queryFn: () => apiGet('/api/teams'),
   });
 }
+
+export interface PaginatedTeamsResponse {
+  teams: Team[];
+  total: number;
+}
+
+export function usePaginatedTeams(offset: number, limit: number, search: string) {
+  const params = new URLSearchParams({offset: String(offset), limit: String(limit)});
+  if (search) params.set('search', search);
+  return useQuery<PaginatedTeamsResponse>({
+    queryKey: queryKeys.paginatedTeams(offset, limit, search),
+    queryFn: () => apiGet(`/api/teams?${params}`),
+  });
+}

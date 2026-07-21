@@ -127,6 +127,61 @@ def get_teams_for_user(conn, user_id, role):
     return [{'id': team['id'], 'name': team['name'], 'templates': templates.get(team['id'], [])} for team in teams]
 
 
+@with_db_connection(commit_on_success=False)
+def get_teams_page_for_user(conn, user_id, role, offset=0, limit=20, search=None):
+    """Вернуть страницу доступных пользователю команд с разрешёнными шаблонами."""
+    needle = (search or '').strip().casefold()
+    restricted = role != 'admin' and conn.execute(
+        'SELECT 1 FROM user_team_access WHERE user_id = ? LIMIT 1', (user_id,)
+    ).fetchone()
+
+    joins = ''
+    where = []
+    params = []
+    if restricted:
+        joins = 'JOIN user_team_access access ON access.team_id = t.id'
+        where.append('access.user_id = ?')
+        params.append(user_id)
+    if needle:
+        where.append('instr(casefold(t.name), ?) > 0')
+        params.append(needle)
+
+    where_clause = f"WHERE {' AND '.join(where)}" if where else ''
+    total = conn.execute(
+        f'SELECT COUNT(*) FROM teams t {joins} {where_clause}', tuple(params)
+    ).fetchone()[0]
+    teams = conn.execute(
+        f'''SELECT t.id, t.name FROM teams t
+            {joins}
+            {where_clause}
+            ORDER BY t.name
+            LIMIT ? OFFSET ?''',
+        (*params, limit, offset),
+    ).fetchall()
+
+    templates = {}
+    team_ids = [team['id'] for team in teams]
+    if team_ids:
+        placeholders = ','.join('?' * len(team_ids))
+        rows = conn.execute(
+            f'''SELECT tt.team_id, bt.id, bt.name FROM team_templates tt
+                JOIN block_templates bt ON tt.template_id = bt.id
+                WHERE tt.team_id IN ({placeholders})
+                ORDER BY bt.name''',
+            team_ids,
+        ).fetchall()
+        for row in rows:
+            templates.setdefault(row['team_id'], []).append({'id': row['id'], 'name': row['name']})
+
+    return {
+        'teams': [
+            {'id': team['id'], 'name': team['name'], 'templates': templates.get(team['id'], [])}
+            for team in teams
+        ],
+        'total': total,
+    }
+
+
 @with_db_connection()
 def grant_team_access_if_restricted(conn, user_id, role, team_id):
     if role == 'admin':

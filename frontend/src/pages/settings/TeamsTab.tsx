@@ -1,9 +1,13 @@
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
+import type {TableColumnsType} from 'antd';
 import {DeleteOutlined, EditOutlined} from '@ant-design/icons';
-import {Button, Card, Checkbox, Form, Input, Modal, Popconfirm, Space, Tag} from 'antd';
-import {type Team, useTeams} from '../../hooks/useTeams';
+import {Button, Checkbox, Form, Input, Modal, Pagination, Popconfirm, Space, Table, Tag} from 'antd';
+import {type Team, usePaginatedTeams} from '../../hooks/useTeams';
 import {useBlockTemplates} from '../../hooks/useSettingsData';
 import {useCrudMutations} from '../../hooks/useCrudMutations';
+import {DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS} from '../../lib/pagination';
+import {useDebouncedValue} from '../../hooks/useDebouncedValue';
+import {usePaginationState} from '../../hooks/usePaginationState';
 
 interface TeamFormValues {
   name: string;
@@ -11,7 +15,11 @@ interface TeamFormValues {
 }
 
 export function TeamsTab() {
-  const { data: teams } = useTeams();
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search.trim(), 350);
+  const pagination = usePaginationState(DEFAULT_PAGE_SIZE);
+  const {page, pageSize} = pagination;
+  const {data, isLoading} = usePaginatedTeams(pagination.offset, pageSize, debouncedSearch);
   const { data: templates } = useBlockTemplates();
   const [modalTeam, setModalTeam] = useState<Team | 'new' | null>(null);
   const [form] = Form.useForm<TeamFormValues>();
@@ -24,6 +32,39 @@ export function TeamsTab() {
     deleteSuccessMessage: 'Команда удалена',
   });
 
+  useEffect(() => {
+    if (data && data.teams.length === 0 && data.total > 0 && page > 1) pagination.setPage(page - 1);
+  }, [data, page, pagination]);
+
+  const columns: TableColumnsType<Team> = [
+    {title: 'Название', dataIndex: 'name', key: 'name'},
+    {
+      title: 'Шаблоны', key: 'templates',
+      render: (_, team) => team.templates?.length
+        ? <Space wrap>{team.templates.map((template) => <Tag key={template.id}>{template.name}</Tag>)}</Space>
+        : '—',
+    },
+    {
+      title: 'Действия', key: 'actions', width: 120,
+      render: (_, team) => <Space>
+        <Button aria-label="Редактировать команду" size="small" onClick={() => openModal(team)}>
+          <EditOutlined />
+        </Button>
+        <Popconfirm
+          title="Удалить команду?"
+          description="Все связанные данные будут удалены!"
+          onConfirm={() => deleteMutation.mutate(team.id)}
+          okText="Удалить"
+          cancelText="Отмена"
+        >
+          <Button aria-label="Удалить команду" size="small" danger>
+            <DeleteOutlined />
+          </Button>
+        </Popconfirm>
+      </Space>,
+    },
+  ];
+
   function openModal(team: Team | 'new') {
     setModalTeam(team);
     if (team === 'new') {
@@ -35,44 +76,19 @@ export function TeamsTab() {
 
   return (
     <>
-      <Space style={{ marginBottom: 16 }}>
+      <Space wrap style={{ marginBottom: 16, display: 'flex', width: '100%' }}>
         <Button type="primary" onClick={() => openModal('new')}>
           Добавить команду
         </Button>
+        <Input.Search allowClear value={search} placeholder="Поиск по названию команды"
+          onChange={(event) => { setSearch(event.target.value); pagination.reset(); }} style={{width: 420, maxWidth: '100%'}} />
       </Space>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {teams?.map((team) => (
-          <Card key={team.id} size="small">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <b>{team.name}</b>
-              <Space>
-                <Button size="small" onClick={() => openModal(team)}>
-                  <EditOutlined />
-                </Button>
-                <Popconfirm
-                  title="Удалить команду?"
-                  description="Все связанные данные будут удалены!"
-                  onConfirm={() => deleteMutation.mutate(team.id)}
-                  okText="Удалить"
-                  cancelText="Отмена"
-                >
-                  <Button size="small" danger>
-                    <DeleteOutlined />
-                  </Button>
-                </Popconfirm>
-              </Space>
-            </div>
-            {team.templates && team.templates.length > 0 && (
-              <div style={{ marginTop: 8 }}>
-                {team.templates.map((t) => (
-                  <Tag key={t.id}>{t.name}</Tag>
-                ))}
-              </div>
-            )}
-          </Card>
-        ))}
-      </div>
+      <Table<Team> rowKey="id" columns={columns} dataSource={data?.teams ?? []} loading={isLoading}
+        pagination={false} scroll={{x: 720}} />
+      {(data?.total ?? 0) > pageSize && <Pagination current={page} pageSize={pageSize} total={data?.total ?? 0}
+        showSizeChanger pageSizeOptions={PAGE_SIZE_OPTIONS} style={{marginTop: 16, textAlign: 'right'}}
+        onChange={pagination.onChange} />}
 
       <Modal
         title={modalTeam === 'new' ? 'Добавить команду' : 'Редактирование команды'}

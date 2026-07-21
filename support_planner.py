@@ -729,8 +729,15 @@ def get_team_history_api(request: Request, team_id: int, offset: int = 0, limit:
 # === API для команд ===
 
 @app.get('/api/teams')
-def get_teams_api(request: Request):
+def get_teams_api(request: Request, offset: Optional[int] = None, limit: Optional[int] = None,
+                  search: Optional[str] = None):
     """Получить все команды с разрешёнными шаблонами"""
+    if offset is not None or limit is not None or search is not None:
+        safe_offset = max(offset or 0, 0)
+        safe_limit = min(max(limit or 20, 1), 100)
+        return db.get_teams_page_for_user(
+            request.session['user_id'], request.state.role, safe_offset, safe_limit, search,
+        )
     return db.get_teams_for_user(request.session['user_id'], request.state.role)
 
 
