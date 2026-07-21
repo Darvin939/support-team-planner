@@ -27,6 +27,8 @@ const ROLE_OPTIONS = [
   { value: 'admin', label: 'Администратор' },
 ];
 
+const VISIBLE_TEAM_LIMIT = 3;
+
 export function UsersTab() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search.trim(), 350);
@@ -65,6 +67,31 @@ export function UsersTab() {
     {title: 'Роль', dataIndex: 'role', key: 'role', render: (role: string) => ROLE_OPTIONS.find((item) => item.value === role)?.label ?? role},
     {title: 'Логин', dataIndex: 'login', key: 'login', render: (login: string | null) => login || '—'},
     {
+      title: 'Команды', key: 'teams', width: 360,
+      render: (_, user) => {
+        if (user.team_ids.length === 0) return <Tag color="blue">Все команды</Tag>;
+
+        const selectedTeamIds = new Set(user.team_ids);
+        const teamNames = (teams ?? [])
+          .filter((team) => selectedTeamIds.has(team.id))
+          .map((team) => team.name);
+        if (teamNames.length === 0) return '—';
+
+        const visibleTeamNames = teamNames.slice(0, VISIBLE_TEAM_LIMIT);
+        const hiddenCount = teamNames.length - visibleTeamNames.length;
+        return (
+          <Space wrap>
+            {visibleTeamNames.map((teamName) => <Tag key={teamName}>{teamName}</Tag>)}
+            {hiddenCount > 0 && (
+              <Tooltip title={teamNames.join(', ')}>
+                <Tag>+{hiddenCount}</Tag>
+              </Tooltip>
+            )}
+          </Space>
+        );
+      },
+    },
+    {
       title: 'Действия', key: 'actions', width: 120,
       render: (_, user) => isAdmin ? <Space>
         <Button aria-label="Редактировать пользователя" size="small" onClick={() => openModal(user)}><EditOutlined /></Button>
@@ -96,7 +123,7 @@ export function UsersTab() {
 
       <Input.Search allowClear value={search} placeholder="Поиск по логину, ФИО или роли"
         onChange={(event) => { setSearch(event.target.value); pagination.reset(); }} style={{maxWidth: 420, marginBottom: 16}} />
-      <Table<User> rowKey="id" columns={columns} dataSource={data?.users ?? []} loading={isLoading} pagination={false} scroll={{x: 720}} />
+      <Table<User> rowKey="id" columns={columns} dataSource={data?.users ?? []} loading={isLoading} pagination={false} scroll={{x: 1080}} />
       {(data?.total ?? 0) > pageSize && <Pagination current={page} pageSize={pageSize} total={data?.total ?? 0}
         showSizeChanger pageSizeOptions={PAGE_SIZE_OPTIONS} style={{marginTop: 16, textAlign: 'right'}}
         onChange={pagination.onChange} />}

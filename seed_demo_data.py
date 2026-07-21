@@ -1,9 +1,8 @@
-"""
-Одноразовый скрипт наполнения свежей database.db демо-данными:
-3 команды (в одной — 20+ задач), сегменты, блоки, шаблоны блоков, пользователи,
-случайные зависимости между задачами, задачи со случайными именами/описаниями
-(короткие/длинные/со ссылками) и назначения в разных статусах в периоде
-+/- неделя от сегодняшнего дня.
+"""Наполняет свежую database.db объёмными воспроизводимыми демо-данными.
+
+Создаёт 50 команд, 3 сегмента и соответствующие шаблоны блоков, 60
+пользователей разных ролей с доступами к командам, от 1 до 50 работ на
+команду и назначения в диапазоне +/- 2 недели от текущего дня.
 
 Запуск: python seed_demo_data.py
 """
@@ -13,16 +12,17 @@ from datetime import date, timedelta
 import auth
 import db
 
-random.seed(42)
 
+RANDOM_SEED = 42
+TEAM_COUNT = 50
+USER_COUNT = 60
 TODAY = date.today()
 
-
-def d(offset):
-    return (TODAY + timedelta(days=offset)).isoformat()
-
-
-# === Генерация случайных имён/описаний задач ===
+SEGMENT_TEMPLATES = {
+    'ФЛ': ('ЕФС ФЛ', ['GF', *[f'Б{i}' for i in range(1, 13)]]),
+    'Сотрудники': ('ЕФС Сотр', ['SB', 'GF', 'BF']),
+    'ППРБ': ('ППРБ', ['SK', 'MG']),
+}
 
 VERBS = [
     'Обновление', 'Исправление', 'Доработка', 'Оптимизация', 'Внедрение',
@@ -35,227 +35,239 @@ OBJECTS = [
     'формы заявки', 'справочников', 'интерфейса оператора', 'шаблонов писем',
     'кэша сессий', 'логирования ошибок', 'фоновых заданий', 'валидации реквизитов',
     'интеграции с CRM', 'экспорта в 1С', 'мобильного приложения', 'личного кабинета',
-    'системы уведомлений', 'модуля отчётности', 'процесса согласования', 'справочника тарифов',
 ]
 DETAILS = [
-    'после смены тарифной политики', 'по итогам ретроспективы релиза', 'в рамках квартального плана',
-    'по заявке от службы поддержки', 'после инцидента на проде', 'для повышения отказоустойчивости',
-    'в связи с изменением требований комплаенс', 'по результатам нагрузочного тестирования',
+    'после смены тарифной политики', 'по итогам ретроспективы релиза',
+    'в рамках квартального плана', 'по заявке от службы поддержки',
+    'после инцидента на проде', 'для повышения отказоустойчивости',
     'после аудита безопасности', 'для соответствия новым регламентам',
 ]
-LINKS = [
-    'https://jira.example.com/browse/SUP-{n}',
-    'https://wiki.example.com/pages/task-{n}',
-    'https://confluence.example.com/display/SUP/TASK-{n}',
-    'https://github.example.com/support-team/tasks/issues/{n}',
-    'https://tracker.example.com/tickets/{n}',
+COMMENTS = [
+    None, None, '', 'Ожидает подтверждения', 'Требуется согласование',
+    'Плановое обновление', 'Проверить мониторинг после установки',
+    'Инструкция: https://wiki.example.com/release/runbook',
 ]
-LONG_FILLER = [
-    'Необходимо провести анализ текущей реализации и выявить узкие места.',
-    'Требуется согласование с командой безопасности перед выкладкой в прод.',
-    'Изменения затрагивают несколько смежных систем, требуется дополнительное регрессионное тестирование.',
-    'После внедрения нужно обновить документацию и уведомить смежные команды.',
-    'В случае отката необходимо предусмотреть план восстановления данных.',
-    'Затронуты клиенты сегмента B2B, важно минимизировать простой сервиса.',
-    'Работа выполняется поэтапно: подготовка, тестирование на стенде, выкладка на прод.',
-    'Ожидается влияние на производительность, требуется мониторинг метрик после релиза.',
+LAST_NAMES = [
+    'Иванов', 'Петрова', 'Сидоров', 'Кузнецова', 'Смирнов', 'Новикова',
+    'Морозов', 'Волкова', 'Соколова', 'Лебедев', 'Козлов', 'Орлова',
+    'Макаров', 'Захарова', 'Фёдоров', 'Михайлова', 'Беляев', 'Тарасова',
+]
+FIRST_NAMES = [
+    'Иван', 'Мария', 'Алексей', 'Ольга', 'Дмитрий', 'Екатерина',
+    'Сергей', 'Анна', 'Николай', 'Елена', 'Андрей', 'Наталья',
+]
+MIDDLE_NAMES = [
+    'Иванович', 'Сергеевна', 'Алексеевич', 'Дмитриевна', 'Андреевич',
+    'Павловна', 'Игоревич', 'Олеговна', None,
 ]
 
 
-def random_name(i):
-    verb = random.choice(VERBS)
-    obj = random.choice(OBJECTS)
-    short = f'{verb} {obj}'
-    style = random.choice(['short', 'short', 'long', 'link'])
-    if style == 'short':
-        return f'{short} №{i}'
-    if style == 'long':
-        detail = random.choice(DETAILS)
-        return f'{short} {detail} №{i}'
-    ticket = random.choice(LINKS).format(n=1000 + i)
-    return f'{short} (см. {ticket}) №{i}'
+def day(offset):
+    return (TODAY + timedelta(days=offset)).isoformat()
+
+
+def random_name(number, segment_name):
+    base = f'{random.choice(VERBS)} {random.choice(OBJECTS)}'
+    style = random.choice(['short', 'short', 'detail', 'link'])
+    if style == 'detail':
+        base += f' {random.choice(DETAILS)}'
+    elif style == 'link':
+        base += f' (https://jira.example.com/browse/DEMO-{1000 + number})'
+    return f'[{segment_name}] {base} №{number}'
 
 
 def random_description(team_name):
-    style = random.choice(['short', 'long', 'link', 'link'])
-    if style == 'short':
-        return random.choice([
-            'Срочная правка, без деталей.', 'См. задачу в трекере.', 'Стандартная доработка.',
-            f'Демо-задача для команды «{team_name}».',
-        ])
-    if style == 'long':
-        sentences = random.sample(LONG_FILLER, k=random.randint(3, 5))
-        intro = f'Демо-задача для команды «{team_name}».'
-        return ' '.join([intro] + sentences)
-    n_links = random.randint(1, 2)
-    links = [random.choice(LINKS).format(n=random.randint(1000, 9999)) for _ in range(n_links)]
-    return f'Подробности и обсуждение: {", ".join(links)}.'
+    return random.choice([
+        None,
+        '',
+        'Стандартная доработка.',
+        f'Демо-работа команды «{team_name}».',
+        'Необходимо провести анализ, согласовать окно и проверить метрики после релиза.',
+        'Подробности: https://wiki.example.com/release и https://tracker.example.com/demo.',
+    ])
 
 
-def main():
-    print(f'Сегодня: {TODAY.isoformat()}')
-
-    # === Сегменты ===
-    segment_names = ['Розница', 'Корпоративные клиенты', 'Онлайн-банк']
-    segment_ids = {name: db.create_segment(name) for name in segment_names}
-    print('Сегменты:', segment_ids)
-
-    # === Блоки ===
-    block_names = ['ГФ', 'Б1', 'Б2', 'ПРОД', 'ГИС']
+def create_segments_and_templates():
+    segment_ids = {name: db.create_segment(name) for name in SEGMENT_TEMPLATES}
+    block_names = list(dict.fromkeys(
+        block for _, blocks in SEGMENT_TEMPLATES.values() for block in blocks
+    ))
     block_ids = {name: db.create_block(name) for name in block_names}
-    print('Блоки:', block_ids)
 
-    # === Шаблоны блоков (привязаны к сегменту) ===
-    templates = [
-        ('Стандартный релиз', 'Розница', [
-            ('ГФ', -2), ('Б1', 0), ('Б2', 1), ('ПРОД', 3),
-        ]),
-        ('Ускоренный релиз', 'Онлайн-банк', [
-            ('ГФ', -1), ('ПРОД', 1),
-        ]),
-        ('Корпоративный релиз', 'Корпоративные клиенты', [
-            ('ГФ', -3), ('Б1', -1), ('ГИС', 0), ('ПРОД', 2),
-        ]),
-    ]
     template_ids = {}
-    for name, segment_name, entries in templates:
-        entries_payload = [{'block_id': block_ids[b], 'shift_days': off} for b, off in entries]
-        tmpl_id = db.create_template(name, segment_ids[segment_name], entries_payload)
-        template_ids[name] = tmpl_id
-    print('Шаблоны:', template_ids)
+    for segment_name, (template_name, blocks) in SEGMENT_TEMPLATES.items():
+        entries = [
+            {'block_id': block_ids[block], 'shift_days': index}
+            for index, block in enumerate(blocks)
+        ]
+        template_ids[segment_name] = db.create_template(
+            template_name, segment_ids[segment_name], entries,
+        )
+    return segment_ids, block_ids, template_ids
 
-    # === Команды (3 шт), каждой назначаем 1-2 шаблона ===
-    teams = [
-        ('Поддержка Розницы', ['Стандартный релиз']),
-        ('Поддержка Онлайн-банка', ['Ускоренный релиз', 'Стандартный релиз']),
-        ('Поддержка Корпоративных клиентов', ['Корпоративный релиз']),
-    ]
-    team_ids = {}
-    for name, tmpl_names in teams:
-        tids = [template_ids[t] for t in tmpl_names]
-        team_ids[name] = db.create_team(name, tids)
-    print('Команды:', team_ids)
 
-    # === Пользователи ===
-    users_data = [
+def create_teams(template_ids):
+    all_template_ids = list(template_ids.values())
+    return {
+        f'Команда поддержки {number:02d}': db.create_team(
+            f'Команда поддержки {number:02d}', all_template_ids,
+        )
+        for number in range(1, TEAM_COUNT + 1)
+    }
+
+
+def create_users(team_ids):
+    """Создаёт пользователей и возвращает исполнителей по каждой команде."""
+    teams = list(team_ids.values())
+    password_hash = auth.hash_password('password123')
+    fixed_users = [
         ('Иванов', 'Иван', 'Иванович', 'editor', 'ivanov', True),
         ('Петрова', 'Мария', 'Сергеевна', 'user', 'petrova', True),
-        ('Сидоров', 'Алексей', 'Викторович', 'user', 'sidorov', True),
-        ('Кузнецова', 'Ольга', 'Дмитриевна', 'user', 'kuznetsova', True),
-        ('Смирнов', 'Дмитрий', 'Андреевич', 'editor', 'smirnov', True),
-        ('Новикова', 'Екатерина', 'Павловна', 'user', 'novikova', True),
-        ('Морозов', 'Сергей', 'Игоревич', 'admin', 'morozov', False),
     ]
-    user_ids = {}
-    for last, first, middle, role, login, is_assignee in users_data:
-        uid = db.create_user(last, first, middle, auth.hash_password('password123'), role, login, is_assignee)
-        user_ids[login] = uid
-    print('Пользователи:', user_ids)
+    users = []
 
-    assignee_pool = [uid for login, uid in user_ids.items()
-                      if any(u[5] for u in users_data if u[4] == login)]
+    for number in range(1, USER_COUNT + 1):
+        if number <= len(fixed_users):
+            last, first, middle, role, login, is_assignee = fixed_users[number - 1]
+        else:
+            last = random.choice(LAST_NAMES)
+            first = random.choice(FIRST_NAMES)
+            middle = random.choice(MIDDLE_NAMES)
+            if number == USER_COUNT:
+                role = 'admin'  # гарантируем наличие всех трёх ролей
+            else:
+                # Первые 50 записей остаются user/editor: так каждая команда ниже
+                # гарантированно получает хотя бы одного реального исполнителя.
+                role_pool = ['user', 'editor'] if number <= TEAM_COUNT else ['user', 'editor', 'admin']
+                weights = [75, 25] if number <= TEAM_COUNT else [70, 25, 5]
+                role = random.choices(role_pool, weights=weights, k=1)[0]
+            login = f'demo{number:02d}'
+            is_assignee = role != 'admin' and (number <= TEAM_COUNT or random.random() < 0.9)
 
-    # === Задачи и назначения ===
-    task_status_pool = ['new', 'new', 'new', 'new', 'done', 'cancelled']
-    assignment_status_pool = ['new', 'planned', 'planned', 'success', 'success', 'rollback']
-    criticalities = ['high', 'medium', 'low']
+        # Администраторы имеют глобальный доступ; остальные получают 1-8 команд.
+        if role == 'admin':
+            allowed_teams = None
+        else:
+            required_team = teams[(number - 1) % len(teams)]
+            extra_teams = random.sample(
+                [team_id for team_id in teams if team_id != required_team],
+                random.randint(0, 7),
+            )
+            allowed_teams = [required_team, *extra_teams]
+        user_id = db.create_user(
+            last, first, middle, password_hash, role, login, is_assignee, allowed_teams,
+        )
+        users.append({
+            'id': user_id, 'login': login, 'role': role,
+            'is_assignee': is_assignee, 'teams': set(allowed_teams or teams),
+        })
 
-    team_segment_map = {
-        'Поддержка Розницы': 'Розница',
-        'Поддержка Онлайн-банка': 'Онлайн-банк',
-        'Поддержка Корпоративных клиентов': 'Корпоративные клиенты',
+    assignees_by_team = {
+        team_id: [u['id'] for u in users if u['is_assignee'] and team_id in u['teams']]
+        for team_id in teams
     }
-    team_blocks_map = {
-        'Поддержка Розницы': ['ГФ', 'Б1', 'Б2', 'ПРОД'],
-        'Поддержка Онлайн-банка': ['ГФ', 'ПРОД'],
-        'Поддержка Корпоративных клиентов': ['ГФ', 'Б1', 'ГИС', 'ПРОД'],
-    }
-    task_counts_map = {
-        'Поддержка Розницы': 36,
-        'Поддержка Онлайн-банка': 17,
-        'Поддержка Корпоративных клиентов': 11,
-    }
+    return users, assignees_by_team
 
-    day_offsets = list(range(-7, 8))
 
-    total_tasks = 0
-    total_assignments = 0
-    total_deps = 0
+def assignment_status(task_status, offset):
+    if task_status == 'done':
+        return random.choice(['success', 'success', 'rollback', 'cancelled'])
+    if task_status == 'cancelled':
+        return 'cancelled'
+    if offset > 0:
+        return random.choice(['new', 'planned', 'cancelled'])
+    return random.choice(['new', 'planned', 'success', 'rollback', 'cancelled'])
+
+
+def create_tasks_and_assignments(team_ids, segment_ids, assignees_by_team):
+    total_tasks = total_assignments = total_dependencies = 0
+    global_task_number = 0
+    segment_names = list(SEGMENT_TEMPLATES)
 
     for team_name, team_id in team_ids.items():
-        segment_id = segment_ids[team_segment_map[team_name]]
-        blocks_for_team = team_blocks_map[team_name]
-        n_tasks = task_counts_map[team_name]
-
-        team_task_ids = []
-
-        for i in range(n_tasks):
-            name = random_name(i + 1)
-            description = random_description(team_name)
-            criticality = criticalities[i % len(criticalities)]
-
+        team_tasks = []
+        # Независимое случайное число работ для каждой команды: 1..50.
+        for _ in range(random.randint(1, 50)):
+            global_task_number += 1
+            segment_name = random.choice(segment_names)
             task_id = db.create_or_update_task(
-                None, team_id, name, description,
-                criticality=criticality, segment_id=segment_id,
+                None,
+                team_id,
+                random_name(global_task_number, segment_name),
+                random_description(team_name),
+                criticality=random.choice(['high', 'medium', 'low']),
+                segment_id=segment_ids[segment_name],
             )
+            team_tasks.append(task_id)
             total_tasks += 1
-            team_task_ids.append(task_id)
 
-            task_status = task_status_pool[i % len(task_status_pool)]
+            task_status = random.choices(
+                ['new', 'done', 'cancelled'], weights=[78, 14, 8], k=1,
+            )[0]
             if task_status != 'new':
                 db.update_task_status(task_id, task_status)
 
-            # Число назначений на задачу: 1-3
-            n_assignments = random.choice([1, 1, 2, 2, 3])
-            used_dates = set()
-            for _ in range(n_assignments):
-                offset = random.choice(day_offsets)
-                # избегаем дублей по (task_id, date) — уникальный индекс в БД
-                attempts = 0
-                while offset in used_dates and attempts < 10:
-                    offset = random.choice(day_offsets)
-                    attempts += 1
-                if offset in used_dates:
-                    continue
-                used_dates.add(offset)
-
-                date_str = d(offset)
-                block = random.choice(blocks_for_team)
-                user_id = random.choice(assignee_pool)
-                comment = random.choice([
-                    None, 'Ожидает подтверждения', 'Требуется согласование', 'Плановое обновление',
-                ])
-
-                if task_status in ('done', 'cancelled'):
-                    status = random.choice(['success', 'rollback'])
-                elif offset > 0:
-                    status = random.choice(['new', 'planned'])
-                else:
-                    status = random.choice(assignment_status_pool)
-
+            # От нуля до восьми назначений, даты уникальны в пределах работы.
+            offsets = random.sample(range(-14, 15), random.randint(0, 8))
+            for offset in offsets:
+                status = assignment_status(task_status, offset)
                 time_spent = None
-                if status in ('success', 'rollback'):
-                    time_spent = f'{random.choice([1, 2, 3, 4, 6, 8]):02d}:00'
+                if status in ('success', 'rollback') and random.random() < 0.8:
+                    minutes = random.choice([30, 60, 90, 120, 180, 240, 360, 480])
+                    time_spent = f'{minutes // 60:02d}:{minutes % 60:02d}'
 
+                blocks = SEGMENT_TEMPLATES[segment_name][1]
                 db.create_or_update_assignment(
-                    None, task_id, date_str, block, status, user_id, comment,
+                    None,
+                    task_id,
+                    day(offset),
+                    random.choice([*blocks, None]),
+                    status,
+                    random.choice([*assignees_by_team[team_id], None]),
+                    random.choice(COMMENTS),
                     time_spent=time_spent,
                 )
                 total_assignments += 1
 
-        # === Случайные зависимости между задачами команды ===
-        # Каждая задача может зависеть только от уже созданных ранее задач той же команды —
-        # порядок создания сам по себе гарантирует отсутствие циклов.
-        for idx, task_id in enumerate(team_task_ids):
-            if idx == 0:
-                continue
-            if random.random() < 0.45:
-                n_deps = random.randint(1, min(3, idx))
-                deps = random.sample(team_task_ids[:idx], n_deps)
-                db.set_task_dependencies(task_id, deps)
-                total_deps += len(deps)
+        # Зависимости направлены только назад, поэтому циклы невозможны.
+        for index, task_id in enumerate(team_tasks[1:], start=1):
+            if random.random() < 0.35:
+                dependencies = random.sample(
+                    team_tasks[:index], random.randint(1, min(3, index)),
+                )
+                db.set_task_dependencies(task_id, dependencies)
+                total_dependencies += len(dependencies)
 
-    print(f'Создано задач: {total_tasks}, назначений: {total_assignments}, зависимостей: {total_deps}')
+    return total_tasks, total_assignments, total_dependencies
+
+
+def main():
+    random.seed(RANDOM_SEED)
+    print(f'Сегодня: {TODAY.isoformat()}; seed: {RANDOM_SEED}')
+    # create_user намеренно не коммитит самостоятельно (HTTP-запрос коммитится
+    # middleware). Скрипту также нужно общее соединение на весь запуск.
+    conn = db.get_db_connection()
+    token = db.set_request_connection(conn)
+    try:
+        segment_ids, block_ids, template_ids = create_segments_and_templates()
+        team_ids = create_teams(template_ids)
+        users, assignees_by_team = create_users(team_ids)
+        tasks, assignments, dependencies = create_tasks_and_assignments(
+            team_ids, segment_ids, assignees_by_team,
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        db.clear_request_connection(token)
+        conn.close()
+
+    roles = {role: sum(u['role'] == role for u in users) for role in ('user', 'editor', 'admin')}
+    print(f'Сегменты: {len(segment_ids)}, блоки: {len(block_ids)}, шаблоны: {len(template_ids)}')
+    print(f'Команды: {len(team_ids)}, пользователи: {len(users)} ({roles})')
+    print(f'Работы: {tasks}, назначения: {assignments}, зависимости: {dependencies}')
+    print('Пароль демо-пользователей: password123')
 
 
 if __name__ == '__main__':
