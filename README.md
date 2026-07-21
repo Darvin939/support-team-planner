@@ -111,6 +111,37 @@ cd frontend && npm run dev     # Vite dev-сервер (см. адрес в вы
 ./check.sh   # запускает run.sh в фоне через nohup, если процесс ещё не работает
 ```
 
+### Сборка Linux-дистрибутива
+
+На Linux готовый переносимый каталог приложения создаётся из корня репозитория:
+
+```bash
+./build-distribution.sh
+```
+
+Скрипт всегда выполняет актуальную production-сборку frontend и по умолчанию создаёт
+`build/support-team-planner`. Другой каталог можно указать параметром:
+
+```bash
+./build-distribution.sh --output /tmp/support-team-planner
+```
+
+В дистрибутив входят только необходимые для запуска Python-файлы, `requirements.txt`, скрипты запуска,
+`frontend/dist` и runtime-файл переходов статусов. Локальная `database.db`, `.env`, логи, тесты, кэши,
+виртуальные окружения, `node_modules` и остальные frontend-исходники не копируются.
+
+После переноса каталога на целевую Linux-машину установите зависимости и запустите приложение:
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python3 -m pip install -r requirements.txt
+python3 support_planner.py
+```
+
+При первом запуске `database.db` будет создана в каталоге дистрибутива. Для фонового production-запуска также
+можно использовать включённые `run.sh` и `check.sh`.
+
 Разово наполнить свежую `database.db` демо-данными (команды, сегменты, блоки, задачи, назначения):
 
 ```bash

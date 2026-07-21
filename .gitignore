@@ -29,6 +29,7 @@ config.local.py
 *.db-shm
 
 # Runtime output and temporary files
+build/
 logs/
 *.log
 *.log.*
