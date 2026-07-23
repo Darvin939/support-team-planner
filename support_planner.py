@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import date, timedelta
+from datetime import date
 from typing import Optional, List
 
 from fastapi import FastAPI, Request, Form, HTTPException
@@ -11,9 +11,6 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from api_models import (
-    AssignmentIn,
-    AssignmentRescheduleIn,
-    BulkAssignmentRescheduleIn,
     MyPasswordIn,
     TaskDependencyIn,
     TaskIn,
@@ -26,25 +23,25 @@ import auth
 import db
 from access_control import (
     access_user as _access_user,
-    effective_team_filter as _effective_team_filter,
-    require_assignment_access as _require_assignment_access,
     require_login,
     require_task_access as _require_task_access,
     require_team_access as _require_team_access,
-    require_team_list_access as _require_team_list_access,
 )
-import utils
 from ssl_context import get_cert
 from routers.reference_data import router as reference_data_router
 from routers.freeze_days import router as freeze_days_router
 from routers.teams import router as teams_router
 from routers.users import router as users_router
+from routers.assignments import router as assignments_router
+from query_parsing import parse_int_csv as _parse_int_csv
+from task_rules import task_is_locked as _task_is_locked
 
 app = FastAPI()
 app.include_router(reference_data_router)
 app.include_router(freeze_days_router)
 app.include_router(teams_router)
 app.include_router(users_router)
+app.include_router(assignments_router)
 
 
 def _api_error(message: str, status_code: int, headers=None) -> JSONResponse:
@@ -144,17 +141,6 @@ with open(os.path.join(os.path.dirname(__file__), 'frontend', 'src', 'data', 'ta
     VALID_TASK_TRANSITIONS = {k: set(v) for k, v in json.load(_f).items()}
 
 
-def _task_is_locked(task) -> bool:
-    """Задача в терминальном статусе (выполнено/отменено) или мягко удалена — блокирует
-    редактирование/удаление самой задачи и её назначений."""
-    return task['task_status'] in ('done', 'cancelled') or task['is_deleted']
-
-
-def _parse_int_csv(value: Optional[str]) -> Optional[List[int]]:
-    """Распарсить query-параметр вида '1,2,3' в список int; None/пусто -> None (без фильтрации)."""
-    return [int(x) for x in value.split(',') if x.strip()] if value else None
-
-
 # === Роуты ===
 
 @app.get('/', response_class=HTMLResponse)
@@ -248,124 +234,6 @@ def journal_select():
 def journal_page(team_id: int):
     """Журнал изменений команды (React) — валидность team_id проверяется на клиенте"""
     return _serve_react_index()
-
-
-# === API для назначений ===
-
-@app.get('/api/assignments/{team_id}')
-def get_assignments_api(request: Request, team_id: int, start_date: Optional[str] = None,
-                        end_date: Optional[str] = None,
-                        task_ids: Optional[str] = None):
-    """API для получения назначений команды"""
-    _require_team_access(request, team_id)
-    if not start_date or not end_date:
-        today = date.today()
-        start_date = start_date or (today - timedelta(days=30)).strftime('%Y-%m-%d')
-        end_date = end_date or (today + timedelta(days=60)).strftime('%Y-%m-%d')
-    parsed_task_ids = _parse_int_csv(task_ids)
-    assignments = db.get_assignments_by_team_in_period(team_id, start_date, end_date, task_ids=parsed_task_ids)
-
-    result = []
-    for a in assignments:
-        user_name = utils.format_user_name(a['user_last_name'],
-                                           a['user_first_name'],
-                                           a['user_middle_name'])
-        result.append({
-            'id': a['id'],
-            'task_id': a['task_id'],
-            'date': a['date'],
-            'block': a['block'],
-            'status': a['status'],
-            'user_id': a['user_id'],
-            'user_name': user_name,
-            'comment': a['comment'],
-            'time_spent': a['time_spent']
-        })
-
-    return result
-
-
-@app.post('/api/assignment')
-def save_assignment_api(request: Request, data: AssignmentIn):
-    """API для сохранения назначения"""
-    block = (data.block or '').strip() or None
-    comment = (data.comment or '').strip() or None
-    time_spent = (data.time_spent or '').strip() or None
-
-    if not data.task_id:
-        return JSONResponse({'error': 'Task ID required'}, status_code=400)
-
-    if not db.task_exists(data.task_id):
-        return JSONResponse({'error': 'Task not found'}, status_code=404)
-    team_id = _require_task_access(request, data.task_id)
-    if data.assignment_id:
-        _require_assignment_access(request, data.assignment_id)
-    if data.user_id is not None and not db.user_is_eligible_assignee(data.user_id, team_id):
-        return JSONResponse({'error': 'Пользователь недоступен для назначения в этой команде'}, status_code=400)
-
-    task = db.get_task_status(data.task_id)
-    if task and _task_is_locked(task):
-        return JSONResponse({'error': 'Нельзя изменять назначения завершённой или отменённой задачи'}, status_code=400)
-
-    if request.state.role == 'user':
-        if data.status != 'new':
-            return JSONResponse(
-                {'error': 'Недостаточно прав: можно создавать и изменять назначения только со статусом «Новый»'},
-                status_code=403)
-        if data.assignment_id:
-            existing = db.get_task_status_by_assignment(data.assignment_id)
-            if existing and existing['assignment_status'] != 'new':
-                return JSONResponse(
-                    {'error': 'Недостаточно прав: нельзя изменять назначение в статусе, отличном от «Новый»'},
-                    status_code=403)
-
-    changed_by = request.session.get('user_id')
-    db.create_or_update_assignment(data.assignment_id, data.task_id, data.date, block, data.status, data.user_id,
-                                   comment, time_spent, changed_by=changed_by)
-    return {'success': True}
-
-
-@app.post('/api/assignments/bulk-reschedule')
-def bulk_reschedule_assignments_api(request: Request, data: BulkAssignmentRescheduleIn):
-    """Атомарно перенести несколько назначений на итоговые даты."""
-    for move in data.moves:
-        _require_assignment_access(request, move.assignment_id)
-    try:
-        moved = db.bulk_reschedule_assignments(
-            [move.model_dump() for move in data.moves],
-            role=request.state.role,
-            changed_by=request.session.get('user_id'),
-        )
-    except db.BulkAssignmentRescheduleError as exc:
-        return JSONResponse({'error': str(exc)}, status_code=exc.status_code)
-    except Exception:
-        return JSONResponse({'error': 'Не удалось перенести назначения'}, status_code=500)
-    return {'success': True, 'moved': moved}
-
-
-@app.delete('/api/assignment/{assignment_id}')
-def delete_assignment_api(request: Request, assignment_id: int):
-    """API для удаления назначения"""
-    _require_assignment_access(request, assignment_id)
-    task = db.get_task_status_by_assignment(assignment_id)
-    if task and _task_is_locked(task):
-        return JSONResponse({'error': 'Нельзя изменять назначения завершённой или отменённой задачи'}, status_code=400)
-    if request.state.role == 'user' and task and task['assignment_status'] != 'new':
-        return JSONResponse(
-            {'error': 'Недостаточно прав: нельзя удалить назначение в статусе, отличном от «Новый»'},
-            status_code=403)
-    db.delete_assignment(assignment_id, changed_by=request.session.get('user_id'))
-    return {'success': True}
-
-
-@app.get('/api/assignment/{assignment_id}/history')
-def get_assignment_history_api(request: Request, assignment_id: int, offset: int = 0, limit: int = 20):
-    """История изменений назначения (с пагинацией)"""
-    _require_assignment_access(request, assignment_id)
-    return {
-        'history': db.get_assignment_history(assignment_id, offset=offset, limit=limit),
-        'total': db.get_assignment_history_count(assignment_id)
-    }
 
 
 # === API для задач ===
@@ -647,56 +515,6 @@ def get_team_history_api(request: Request, team_id: int, offset: int = 0, limit:
         'total': db.get_team_history_count(team_id, search=search_val, date_from=date_from_val,
                                            date_to=date_to_val,
                                            changed_by_user_id=changed_by_user_id)
-    }
-
-
-# === API для статистики ===
-
-@app.get('/api/active-assignments/{team_id}')
-def get_active_assignments_api(request: Request, team_id: int, start_date: Optional[str] = None,
-                               end_date: Optional[str] = None,
-                               team_ids: Optional[str] = None, offset: int = 0, limit: Optional[int] = None):
-    """Активные назначения (new/planned) за период, с опциональной пагинацией (limit не задан -> вся выборка)"""
-    today_str = date.today().strftime('%Y-%m-%d')
-    start_date = start_date or today_str
-    end_date = end_date or today_str
-
-    parsed_team_ids = _parse_int_csv(team_ids)
-    if parsed_team_ids:
-        _require_team_list_access(request, parsed_team_ids)
-    elif team_id:
-        _require_team_access(request, team_id)
-    else:
-        parsed_team_ids = _effective_team_filter(request)
-    assignments = db.get_active_assignments_in_period(team_id, start_date, end_date, team_ids=parsed_team_ids,
-                                                      offset=offset, limit=limit)
-    stats = db.get_active_assignments_stats(team_id, start_date, end_date, team_ids=parsed_team_ids)
-
-    items = []
-    for a in assignments:
-        user_name = utils.format_user_name(
-            a['user_last_name'], a['user_first_name'], a['user_middle_name']
-        )
-        items.append({
-            'id': a['id'],
-            'task_id': a['task_id'],
-            'task_name': a['task_name'],
-            'criticality': a['criticality'],
-            'date': a['date'],
-            'block': a['block'],
-            'status': a['status'],
-            'user_name': user_name,
-            'comment': a['comment'],
-            'team_id': a['team_id'],
-            'team_name': a['team_name'],
-        })
-    return {
-        'items': items,
-        'total': stats['total'],
-        'stats': {
-            'status': {'new': stats['status_new'], 'planned': stats['status_planned']},
-            'criticality': {'high': stats['crit_high'], 'medium': stats['crit_medium'], 'low': stats['crit_low']},
-        },
     }
 
 
