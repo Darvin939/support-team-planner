@@ -77,6 +77,26 @@ class ApiErrorFormatTest(unittest.TestCase):
         self.assertEqual(401, response.status_code)
         self.assertEqual({'error': 'Не авторизован'}, response.json())
 
+    def test_reference_data_validation_and_duplicate_errors_are_stable(self):
+        with self.login() as client:
+            empty = client.post('/api/blocks', json={'name': ' '})
+            created = client.post('/api/blocks', json={'name': 'Contract block'})
+            duplicate = client.post('/api/blocks', json={'name': 'Contract block'})
+        self.assertEqual((400, {'error': 'Name required'}), (empty.status_code, empty.json()))
+        self.assertEqual(200, created.status_code)
+        self.assertEqual(400, duplicate.status_code)
+        self.assertIn('error', duplicate.json())
+
+    def test_reference_data_not_found_error_is_stable(self):
+        with self.login() as client:
+            segment = client.post('/api/segments', json={'name': 'Contract segment'}).json()
+            response = client.put(
+                '/api/block-templates/999999',
+                json={'name': 'Missing', 'segment_id': segment['id'], 'entries': []},
+            )
+        self.assertEqual(404, response.status_code)
+        self.assertEqual({'error': 'Template not found'}, response.json())
+
 
 if __name__ == '__main__':
     unittest.main()

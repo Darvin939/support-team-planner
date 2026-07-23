@@ -70,6 +70,20 @@ class ApiModelsContractTest(unittest.TestCase):
             entries['items']['$ref'],
         )
 
+    def test_reference_data_paths_and_methods_are_stable(self):
+        paths = app.openapi()['paths']
+        expected = {
+            '/api/blocks': {'get', 'post'},
+            '/api/blocks/{block_id}': {'delete'},
+            '/api/block-templates': {'get', 'post'},
+            '/api/block-templates/{template_id}': {'put', 'delete'},
+            '/api/segments': {'get', 'post'},
+            '/api/segments/{segment_id}': {'put', 'delete'},
+        }
+        for path, methods in expected.items():
+            with self.subTest(path=path):
+                self.assertEqual(methods, set(paths[path]))
+
 
 if __name__ == '__main__':
     unittest.main()

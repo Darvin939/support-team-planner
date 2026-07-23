@@ -13,13 +13,10 @@ from starlette.middleware.sessions import SessionMiddleware
 from api_models import (
     AssignmentIn,
     AssignmentRescheduleIn,
-    BlockIn,
-    BlockTemplateIn,
     BulkAssignmentRescheduleIn,
     FreezeDayIn,
     FreezeDayMonthIn,
     MyPasswordIn,
-    SegmentIn,
     TaskDependencyIn,
     TaskIn,
     TaskPriorityIn,
@@ -42,8 +39,10 @@ from access_control import (
 )
 import utils
 from ssl_context import get_cert
+from routers.reference_data import router as reference_data_router
 
 app = FastAPI()
+app.include_router(reference_data_router)
 
 
 def _api_error(message: str, status_code: int, headers=None) -> JSONResponse:
@@ -891,128 +890,6 @@ def get_active_assignments_api(request: Request, team_id: int, start_date: Optio
             'criticality': {'high': stats['crit_high'], 'medium': stats['crit_medium'], 'low': stats['crit_low']},
         },
     }
-
-
-# === API для блоков ===
-
-@app.get('/api/blocks')
-def get_blocks_api():
-    """Получить все блоки"""
-    return db.get_all_blocks()
-
-
-@app.post('/api/blocks')
-def create_block_api(data: BlockIn):
-    """Создать блок"""
-    name = (data.name or '').strip()
-    if not name:
-        return JSONResponse({'error': 'Name required'}, status_code=400)
-    try:
-        block_id = db.create_block(name)
-        return {'id': block_id, 'success': True}
-    except db.IntegrityConstraintError as e:
-        return JSONResponse({'error': str(e)}, status_code=400)
-
-
-@app.delete('/api/blocks/{block_id}')
-def delete_block_api(block_id: int):
-    """Удалить блок"""
-    db.delete_block(block_id)
-    return {'success': True}
-
-
-# === API для шаблонов блоков ===
-
-@app.get('/api/block-templates')
-def get_templates_api():
-    """Получить все шаблоны блоков"""
-    return db.get_all_templates()
-
-
-@app.post('/api/block-templates')
-def create_template_api(data: BlockTemplateIn):
-    """Создать шаблон блоков"""
-    name = (data.name or '').strip()
-    if not name:
-        return JSONResponse({'error': 'Name required'}, status_code=400)
-    if not data.segment_id or not any(s['id'] == data.segment_id for s in db.get_all_segments()):
-        return JSONResponse({'error': 'Указан несуществующий сегмент'}, status_code=400)
-    entries = [{'block_id': e.block_id, 'shift_days': e.shift_days} for e in (data.entries or [])]
-    try:
-        tmpl_id = db.create_template(name, data.segment_id, entries)
-        return {'id': tmpl_id, 'success': True}
-    except db.IntegrityConstraintError as e:
-        return JSONResponse({'error': str(e)}, status_code=400)
-
-
-@app.put('/api/block-templates/{template_id}')
-def update_template_api(template_id: int, data: BlockTemplateIn):
-    """Обновить шаблон блоков"""
-    name = (data.name or '').strip()
-    if not name:
-        return JSONResponse({'error': 'Name required'}, status_code=400)
-    if not data.segment_id or not any(s['id'] == data.segment_id for s in db.get_all_segments()):
-        return JSONResponse({'error': 'Указан несуществующий сегмент'}, status_code=400)
-    t = db.get_template_by_id(template_id)
-    if not t:
-        return JSONResponse({'error': 'Template not found'}, status_code=404)
-    entries = [{'block_id': e.block_id, 'shift_days': e.shift_days} for e in (data.entries or [])]
-    try:
-        db.update_template(template_id, name, data.segment_id, entries)
-        return {'success': True}
-    except db.IntegrityConstraintError as e:
-        return JSONResponse({'error': str(e)}, status_code=400)
-
-
-@app.delete('/api/block-templates/{template_id}')
-def delete_template_api(template_id: int):
-    """Удалить шаблон блоков"""
-    db.delete_template(template_id)
-    return {'success': True}
-
-
-# === API для сегментов ===
-
-@app.get('/api/segments')
-def get_segments_api():
-    """Получить все сегменты"""
-    return db.get_all_segments()
-
-
-@app.post('/api/segments')
-def create_segment_api(data: SegmentIn):
-    """Создать сегмент"""
-    name = (data.name or '').strip()
-    if not name:
-        return JSONResponse({'error': 'Name required'}, status_code=400)
-    try:
-        segment_id = db.create_segment(name)
-        return {'id': segment_id, 'success': True}
-    except db.IntegrityConstraintError as e:
-        return JSONResponse({'error': str(e)}, status_code=400)
-
-
-@app.put('/api/segments/{segment_id}')
-def update_segment_api(segment_id: int, data: SegmentIn):
-    """Обновить сегмент"""
-    name = (data.name or '').strip()
-    if not name:
-        return JSONResponse({'error': 'Name required'}, status_code=400)
-    try:
-        db.update_segment(segment_id, name)
-        return {'success': True}
-    except db.IntegrityConstraintError as e:
-        return JSONResponse({'error': str(e)}, status_code=400)
-
-
-@app.delete('/api/segments/{segment_id}')
-def delete_segment_api(segment_id: int):
-    """Удалить сегмент"""
-    try:
-        db.delete_segment(segment_id)
-        return {'success': True}
-    except db.IntegrityConstraintError as e:
-        return JSONResponse({'error': str(e)}, status_code=400)
 
 
 if __name__ == '__main__':
