@@ -23,6 +23,15 @@ class BulkAssignmentRescheduleIn(BaseModel):
     moves: List[AssignmentRescheduleIn]
 
 
+class BulkAssignmentUpsertIn(BaseModel):
+    assignments: List[AssignmentIn]
+
+
+class BulkAssignmentResult(BaseModel):
+    success: bool
+    saved: int
+
+
 class TaskIn(BaseModel):
     task_id: Optional[Union[int, str]] = None
     team_id: Optional[int] = None

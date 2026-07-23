@@ -302,10 +302,12 @@ export function AssignmentModal({
       }
 
       const timeSpent = values.time_spent ? values.time_spent.format(TIME_FORMAT) : null;
-      await Promise.all(
-        dates.map((d) => {
+      await apiMutate(
+        '/api/assignments/bulk',
+        'POST',
+        {assignments: dates.map((d) => {
           const existing = taskAssignments.find((a) => a.date === d);
-          return apiMutate('/api/assignment', 'POST', {
+          return {
             assignment_id: existing?.id ?? null,
             task_id: task?.id,
             date: d,
@@ -314,8 +316,8 @@ export function AssignmentModal({
             user_id: null,
             comment: null,
             time_spent: timeSpent === '00:00' ? null : timeSpent,
-          });
-        }),
+          };
+        })},
       );
       return {cancelled: false};
     },

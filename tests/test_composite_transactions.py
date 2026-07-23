@@ -182,6 +182,49 @@ class CompositeTransactionApiTest(unittest.TestCase):
         ).fetchone()[0])
         conn.close()
 
+    def test_bulk_assignment_upsert_rolls_back_entire_batch(self):
+        original = db.create_or_update_assignment
+        calls = 0
+
+        def fail_second(*args, **kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise RuntimeError('second assignment failed')
+            return original(*args, **kwargs)
+
+        payload = {'assignments': [
+            {'task_id': 10, 'date': '2026-08-01', 'block': 'A', 'status': 'new'},
+            {'task_id': 10, 'date': '2026-08-02', 'block': 'B', 'status': 'new'},
+        ]}
+        with self.login() as client, patch.object(db, 'create_or_update_assignment', side_effect=fail_second):
+            response = client.post('/api/assignments/bulk', json=payload)
+            self.assertEqual(500, response.status_code)
+
+        conn = sqlite3.connect(self.path)
+        self.assertEqual(0, conn.execute(
+            "SELECT COUNT(*) FROM assignments WHERE date IN ('2026-08-01', '2026-08-02')"
+        ).fetchone()[0])
+        conn.close()
+
+    def test_bulk_assignment_upsert_saves_complete_batch(self):
+        payload = {'assignments': [
+            {'task_id': 10, 'date': '2026-08-03', 'block': 'A', 'status': 'new'},
+            {'task_id': 10, 'date': '2026-08-04', 'block': 'B', 'status': 'new'},
+        ]}
+        with self.login() as client:
+            response = client.post('/api/assignments/bulk', json=payload)
+            self.assertEqual(200, response.status_code)
+            self.assertEqual({'success': True, 'saved': 2}, response.json())
+
+        conn = sqlite3.connect(self.path)
+        self.assertEqual(2, conn.execute(
+            "SELECT COUNT(*) FROM assignments WHERE date IN ('2026-08-03', '2026-08-04')"
+        ).fetchone()[0])
+        conn.execute("DELETE FROM assignments WHERE date IN ('2026-08-03', '2026-08-04')")
+        conn.commit()
+        conn.close()
+
 
 if __name__ == '__main__':
     unittest.main()

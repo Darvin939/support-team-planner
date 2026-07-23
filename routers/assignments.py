@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 import db
@@ -13,7 +13,7 @@ from access_control import (
     require_team_access,
     require_team_list_access,
 )
-from api_models import AssignmentIn, BulkAssignmentRescheduleIn
+from api_models import AssignmentIn, BulkAssignmentRescheduleIn, BulkAssignmentResult, BulkAssignmentUpsertIn
 from query_parsing import parse_int_csv
 from task_rules import task_is_locked
 
@@ -55,41 +55,51 @@ def get_assignments_api(
     ]
 
 
-@router.post('/api/assignment')
-def save_assignment_api(request: Request, data: AssignmentIn):
+def _save_assignment(request: Request, data: AssignmentIn):
     block = (data.block or '').strip() or None
     comment = (data.comment or '').strip() or None
     time_spent = (data.time_spent or '').strip() or None
     if not data.task_id:
-        return JSONResponse({'error': 'Task ID required'}, status_code=400)
+        raise HTTPException(status_code=400, detail='Task ID required')
     if not db.task_exists(data.task_id):
-        return JSONResponse({'error': 'Task not found'}, status_code=404)
+        raise HTTPException(status_code=404, detail='Task not found')
     team_id = require_task_access(request, data.task_id)
     if data.assignment_id:
         require_assignment_access(request, data.assignment_id)
     if data.user_id is not None and not db.user_is_eligible_assignee(data.user_id, team_id):
-        return JSONResponse({'error': 'Пользователь недоступен для назначения в этой команде'}, status_code=400)
+        raise HTTPException(status_code=400, detail='Пользователь недоступен для назначения в этой команде')
     task = db.get_task_status(data.task_id)
     if task and task_is_locked(task):
-        return JSONResponse({'error': 'Нельзя изменять назначения завершённой или отменённой задачи'}, status_code=400)
+        raise HTTPException(status_code=400, detail='Нельзя изменять назначения завершённой или отменённой задачи')
     if request.state.role == 'user':
         if data.status != 'new':
-            return JSONResponse(
-                {'error': 'Недостаточно прав: можно создавать и изменять назначения только со статусом «Новый»'},
-                status_code=403,
-            )
+            raise HTTPException(status_code=403, detail='Недостаточно прав: можно создавать и изменять назначения только со статусом «Новый»')
         if data.assignment_id:
             existing = db.get_task_status_by_assignment(data.assignment_id)
             if existing and existing['assignment_status'] != 'new':
-                return JSONResponse(
-                    {'error': 'Недостаточно прав: нельзя изменять назначение в статусе, отличном от «Новый»'},
-                    status_code=403,
-                )
+                raise HTTPException(status_code=403, detail='Недостаточно прав: нельзя изменять назначение в статусе, отличном от «Новый»')
     db.create_or_update_assignment(
         data.assignment_id, data.task_id, data.date, block, data.status, data.user_id,
         comment, time_spent, changed_by=request.session.get('user_id'),
     )
+
+
+@router.post('/api/assignment')
+def save_assignment_api(request: Request, data: AssignmentIn):
+    _save_assignment(request, data)
     return {'success': True}
+
+
+@router.post('/api/assignments/bulk', response_model=BulkAssignmentResult)
+def bulk_save_assignments_api(request: Request, data: BulkAssignmentUpsertIn):
+    if not data.assignments:
+        raise HTTPException(status_code=400, detail='Не выбраны назначения для сохранения')
+    if len(data.assignments) > 200:
+        raise HTTPException(status_code=400, detail='За один раз можно сохранить не более 200 назначений')
+    with db.composite_transaction():
+        for assignment in data.assignments:
+            _save_assignment(request, assignment)
+    return {'success': True, 'saved': len(data.assignments)}
 
 
 @router.post('/api/assignments/bulk-reschedule')

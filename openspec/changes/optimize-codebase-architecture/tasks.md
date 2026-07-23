@@ -8,10 +8,10 @@
 
 ## 2. Bulk API автоназначения
 
-- [ ] 2.1 Зафиксировать request/response-модели и атомарную семантику автоназначения
-- [ ] 2.2 Реализовать backend bulk upsert в `composite_transaction` с проверкой прав и конфликтов
-- [ ] 2.3 Одновременно перевести `AssignmentModal` на один bulk-запрос
-- [ ] 2.4 Добавить rollback/API/unit и production UI-тесты автоназначения
+- [x] 2.1 Зафиксировать request/response-модели и атомарную семантику автоназначения
+- [x] 2.2 Реализовать backend bulk upsert в `composite_transaction` с проверкой прав и конфликтов
+- [x] 2.3 Одновременно перевести `AssignmentModal` на один bulk-запрос
+- [x] 2.4 Добавить rollback/API/unit и production UI-тесты автоназначения
 
 ## 3. Bulk API удаления назначений
 
