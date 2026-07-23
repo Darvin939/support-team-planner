@@ -14,8 +14,6 @@ from api_models import (
     AssignmentIn,
     AssignmentRescheduleIn,
     BulkAssignmentRescheduleIn,
-    FreezeDayIn,
-    FreezeDayMonthIn,
     MyPasswordIn,
     TaskDependencyIn,
     TaskIn,
@@ -40,9 +38,11 @@ from access_control import (
 import utils
 from ssl_context import get_cert
 from routers.reference_data import router as reference_data_router
+from routers.freeze_days import router as freeze_days_router
 
 app = FastAPI()
 app.include_router(reference_data_router)
+app.include_router(freeze_days_router)
 
 
 def _api_error(message: str, status_code: int, headers=None) -> JSONResponse:
@@ -800,46 +800,6 @@ def delete_user_api(request: Request, user_id: int):
         return {'success': True}
     except ValueError as e:
         return JSONResponse({'error': str(e)}, status_code=400)
-
-
-# === API для дней фризов ===
-
-@app.get('/api/freeze-days')
-def get_freeze_days_api():
-    """Получить все дни фриза"""
-    return db.get_all_freeze_days()
-
-
-@app.post('/api/freeze-days')
-def add_freeze_day_api(data: FreezeDayIn):
-    """Добавить день фриза"""
-    if data.date:
-        success = db.add_freeze_day(data.date)
-        return {'success': success}
-    elif data.start_date and data.end_date:
-        count = db.add_freeze_range(data.start_date, data.end_date)
-        return {'success': True, 'count': count}
-    else:
-        return JSONResponse({'error': 'Date or range required'}, status_code=400)
-
-
-@app.put('/api/freeze-days/month')
-def set_freeze_month_api(data: FreezeDayMonthIn):
-    db.set_freeze_days_for_month(data.year, data.month, data.days)
-    return {'success': True}
-
-
-@app.delete('/api/freeze-days/month/{year}/{month}')
-def delete_freeze_month_api(year: int, month: int):
-    db.delete_freeze_days_by_month(year, month)
-    return {'success': True}
-
-
-@app.delete('/api/freeze-days/{date_str:path}')
-def delete_freeze_day_api(date_str: str):
-    """Удалить день фриза"""
-    db.remove_freeze_day(date_str)
-    return {'success': True}
 
 
 # === API для статистики ===

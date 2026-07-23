@@ -84,6 +84,18 @@ class ApiModelsContractTest(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(methods, set(paths[path]))
 
+    def test_freeze_day_paths_and_methods_are_stable(self):
+        paths = app.openapi()['paths']
+        expected = {
+            '/api/freeze-days': {'get', 'post'},
+            '/api/freeze-days/month': {'put'},
+            '/api/freeze-days/month/{year}/{month}': {'delete'},
+            '/api/freeze-days/{date_str}': {'delete'},
+        }
+        for path, methods in expected.items():
+            with self.subTest(path=path):
+                self.assertEqual(methods, set(paths[path]))
+
 
 if __name__ == '__main__':
     unittest.main()

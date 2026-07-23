@@ -97,6 +97,25 @@ class ApiErrorFormatTest(unittest.TestCase):
         self.assertEqual(404, response.status_code)
         self.assertEqual({'error': 'Template not found'}, response.json())
 
+    def test_freeze_day_single_range_month_and_delete_routes(self):
+        with self.login() as client:
+            single = client.post('/api/freeze-days', json={'date': '2040-01-10'})
+            date_delete = client.delete('/api/freeze-days/2040-01-10')
+            date_range = client.post(
+                '/api/freeze-days',
+                json={'start_date': '2040-02-01', 'end_date': '2040-02-02'},
+            )
+            month = client.put(
+                '/api/freeze-days/month',
+                json={'year': 2040, 'month': 3, 'days': [1, 2]},
+            )
+            month_delete = client.delete('/api/freeze-days/month/2040/3')
+        self.assertEqual(200, single.status_code)
+        self.assertEqual({'success': True}, date_delete.json())
+        self.assertEqual({'success': True, 'count': 2}, date_range.json())
+        self.assertEqual({'success': True}, month.json())
+        self.assertEqual({'success': True}, month_delete.json())
+
 
 if __name__ == '__main__':
     unittest.main()
