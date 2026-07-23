@@ -1,48 +1,32 @@
 import type {Dispatch, SetStateAction} from 'react';
 import {message} from 'antd';
-import {useMutation, useQueryClient} from '@tanstack/react-query';
 import type {Assignment, Task} from '../../hooks/usePlanningData';
-import {apiMutate} from '../../lib/apiMutate';
-import {invalidateAssignmentData} from '../../lib/queryInvalidation';
 import {
   assignmentToPayload,
   useBulkDeleteAssignmentsMutation,
+  useBulkRescheduleAssignmentsMutation,
   useSaveAssignmentMutation,
-} from './assignmentMutations';
+} from '../../hooks/useAssignmentMutations';
 
 export function usePlanningAssignmentActions(options: {
   assignments: Assignment[] | undefined;
   tasks: Task[] | undefined;
   setSelectedAssignmentIds: Dispatch<SetStateAction<Set<number>>>;
 }) {
-  const queryClient = useQueryClient();
-  const saveRescheduledAssignment = useSaveAssignmentMutation({successMessage: 'Назначение перенесено'});
+  const saveRescheduledAssignment = useSaveAssignmentMutation({
+    successMessage: 'Назначение перенесено',
+  });
   const saveAssignmentStatus = useSaveAssignmentMutation({
     includeTasks: true,
     successMessage: 'Статус назначения обновлён',
   });
   const bulkDeleteMutation = useBulkDeleteAssignmentsMutation({
-    onSuccess: (deleted) => {
-      options.setSelectedAssignmentIds(new Set());
-      message.success(`Удалено назначений: ${deleted}`);
-    },
+    successMessage: ({deleted}) => `Удалено назначений: ${deleted}`,
+    onSuccess: () => options.setSelectedAssignmentIds(new Set()),
   });
-  const bulkRescheduleMutation = useMutation({
-    mutationFn: async (moves: {assignmentId: number; taskId: number; newDate: string}[]) => {
-      await apiMutate('/api/assignments/bulk-reschedule', 'POST', {
-        moves: moves.map((move) => ({assignment_id: move.assignmentId, new_date: move.newDate})),
-      });
-      return {total: moves.length};
-    },
-    onSuccess: ({total}) => {
-      invalidateAssignmentData(queryClient);
-      options.setSelectedAssignmentIds(new Set());
-      message.success(`Перенесено назначений: ${total}`);
-    },
-    onError: (error: Error) => {
-      invalidateAssignmentData(queryClient);
-      message.error(error.message);
-    },
+  const bulkRescheduleMutation = useBulkRescheduleAssignmentsMutation({
+    successMessage: ({moved}) => `Перенесено назначений: ${moved}`,
+    onSuccess: () => options.setSelectedAssignmentIds(new Set()),
   });
 
   return {

@@ -30,10 +30,10 @@
 
 ## 5. Assignment domain hooks
 
-- [ ] 5.1 Объединить save/delete/status/reschedule mutations в assignment application layer
-- [ ] 5.2 Добавить bulk reschedule/delete/auto-assignment hooks поверх backend-контрактов
-- [ ] 5.3 Централизовать invalidation policies, callbacks и сообщения
-- [ ] 5.4 Удалить локальные query/mutation chains из Planning и Assignment modal
+- [x] 5.1 Объединить save/delete/status/reschedule mutations в assignment application layer
+- [x] 5.2 Добавить bulk reschedule/delete/auto-assignment hooks поверх backend-контрактов
+- [x] 5.3 Централизовать invalidation policies, callbacks и сообщения
+- [x] 5.4 Удалить локальные query/mutation chains из Planning и Assignment modal
 
 ## 6. Устранение N+1
 

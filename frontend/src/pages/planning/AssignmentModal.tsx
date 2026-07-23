@@ -14,16 +14,18 @@ import {
   theme,
   TimePicker
 } from 'antd';
-import {useMutation, useQueryClient} from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import type {Assignment, Task} from '../../hooks/usePlanningData';
 import {type BlockTemplateEntry, useTeamBlocks, useTeamTemplates} from '../../hooks/usePlanningData';
 import {useTeamAssignees} from '../../hooks/useSettingsData';
 import {useMe} from '../../hooks/useMe';
 import {formatDisplayName} from '../../hooks/useUserNames';
-import {apiMutate} from '../../lib/apiMutate';
-import {invalidateAssignmentData} from '../../lib/queryInvalidation';
-import {useDeleteAssignmentMutation, useSaveAssignmentMutation} from './assignmentMutations';
+import {
+  type AssignmentPayload,
+  useBulkSaveAssignmentsMutation,
+  useDeleteAssignmentMutation,
+  useSaveAssignmentMutation,
+} from '../../hooks/useAssignmentMutations';
 import type {AssignmentStatus} from '../../domain/types';
 import {getAutoScheduleDateRange} from '../../lib/autoSchedule';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT, TIME_FORMAT} from '../../lib/dateFormats';
@@ -239,7 +241,6 @@ export function AssignmentModal({
   onClose: () => void;
 }) {
   const [form] = Form.useForm<AssignmentFormValues>();
-  const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   const {token} = theme.useToken();
   const {data: teamBlocks} = useTeamBlocks(teamId, task?.segment_id);
@@ -259,7 +260,16 @@ export function AssignmentModal({
     setSelectedTemplateId, setAutoAssignDates, setAutoAssignSelected, recomputeSchedule, handleAutoAssignToggle,
   } = useAssignmentModalState({open, assignment, date, teamBlocks, templates, freezeDays, form});
 
-  const saveMutation = useSaveAssignmentMutation({includeTasks: true, successMessage: 'Сохранено', onSuccess: onClose});
+  const saveMutation = useSaveAssignmentMutation({
+    includeTasks: true,
+    successMessage: 'Сохранено',
+    onSuccess: onClose,
+  });
+  const autoSaveMutation = useBulkSaveAssignmentsMutation({
+    includeTasks: true,
+    successMessage: 'Сохранено',
+    onSuccess: onClose,
+  });
 
   function saveAssignment(values: AssignmentFormValues) {
     if (!task) return;
@@ -280,61 +290,47 @@ export function AssignmentModal({
     });
   }
 
-  const autoSaveMutation = useMutation({
-    mutationFn: async (values: AssignmentFormValues) => {
-      if (!selectedTemplateId) throw new Error('Выберите шаблон для автоназначения');
-      const blocks = templates?.find((t) => t.id === selectedTemplateId)?.blocks ?? [];
-      if (blocks.length === 0) throw new Error('В выбранном шаблоне нет блоков');
+  async function saveAutoAssignments(values: AssignmentFormValues) {
+    if (!task) return;
+    if (!selectedTemplateId) return message.error('Выберите шаблон для автоназначения');
+    const blocks = templates?.find((template) => template.id === selectedTemplateId)?.blocks ?? [];
+    if (blocks.length === 0) return message.error('В выбранном шаблоне нет блоков');
 
-      const groups: Record<string, string[]> = {};
-      blocks.forEach((b) => {
-        const d = autoAssignDates[b.id];
-        if (!d) return;
-        (groups[d] ??= []).push(b.name);
-      });
-      const dates = Object.keys(groups).sort();
-      if (dates.length === 0) throw new Error('Нет блоков для автоназначения');
+    const groups: Record<string, string[]> = {};
+    blocks.forEach((block) => {
+      const blockDate = autoAssignDates[block.id];
+      if (blockDate) (groups[blockDate] ??= []).push(block.name);
+    });
+    const dates = Object.keys(groups).sort();
+    if (dates.length === 0) return message.error('Нет блоков для автоназначения');
 
-      const conflictDates = dates.filter((d) => taskAssignments.some((a) => a.date === d && a.id !== assignment?.id));
-      if (conflictDates.length > 0) {
-        const proceed = await confirmOverwrite(conflictDates);
-        if (!proceed) return {cancelled: true};
-      }
+    const conflictDates = dates.filter(
+      (itemDate) => taskAssignments.some(
+        (item) => item.date === itemDate && item.id !== assignment?.id,
+      ),
+    );
+    if (conflictDates.length > 0 && !await confirmOverwrite(conflictDates)) return;
 
-      const timeSpent = values.time_spent ? values.time_spent.format(TIME_FORMAT) : null;
-      await apiMutate(
-        '/api/assignments/bulk',
-        'POST',
-        {assignments: dates.map((d) => {
-          const existing = taskAssignments.find((a) => a.date === d);
-          return {
-            assignment_id: existing?.id ?? null,
-            task_id: task?.id,
-            date: d,
-            block: groups[d].join(', '),
-            status: 'new',
-            user_id: null,
-            comment: null,
-            time_spent: timeSpent === '00:00' ? null : timeSpent,
-          };
-        })},
-      );
-      return {cancelled: false};
-    },
-    onSuccess: (result) => {
-      if (result.cancelled) return;
-      invalidateAssignmentData(queryClient, true);
-      message.success('Сохранено');
-      onClose();
-    },
-    onError: (e: Error) => message.error(e.message),
-  });
+    const timeSpent = values.time_spent?.format(TIME_FORMAT);
+    const assignments: AssignmentPayload[] = dates.map((itemDate) => {
+      const existing = taskAssignments.find((item) => item.date === itemDate);
+      return {
+        assignment_id: existing?.id ?? null,
+        task_id: task.id,
+        date: itemDate,
+        block: groups[itemDate].join(', '),
+        status: 'new',
+        user_id: null,
+        comment: null,
+        time_spent: !timeSpent || timeSpent === '00:00' ? null : timeSpent,
+      };
+    });
+    autoSaveMutation.mutate(assignments);
+  }
 
   const deleteMutation = useDeleteAssignmentMutation({
-    onSuccess: () => {
-      message.success('Назначение удалено');
-      onClose();
-    },
+    successMessage: 'Назначение удалено',
+    onSuccess: onClose,
   });
 
   const autoAssignMissingTemplate = autoAssignEnabled && !selectedTemplateId;
@@ -385,7 +381,7 @@ export function AssignmentModal({
     >
       <div style={{display: 'flex', flexDirection: isMobile ? 'column' : 'row'}}>
         <Form form={form} layout="vertical" disabled={readOnly}
-              onFinish={(v) => (autoAssignEnabled ? autoSaveMutation.mutate(v) : saveAssignment(v))}
+              onFinish={(values) => (autoAssignEnabled ? saveAutoAssignments(values) : saveAssignment(values))}
               style={{flex: 1, minWidth: 0}}>
           <Space.Compact block>
             <Form.Item name="date" label="Дата" style={{flex: 1}} rules={[{required: true}]}>
