@@ -51,6 +51,12 @@ class ApiErrorFormatTest(unittest.TestCase):
         self.assertEqual(422, response.status_code)
         self.assertEqual({'error': 'Некорректный запрос'}, response.json())
 
+    def test_api_body_validation_error_uses_stable_string(self):
+        with self.login() as client:
+            response = client.post('/api/assignment', json={'assignment_id': []})
+        self.assertEqual(422, response.status_code)
+        self.assertEqual({'error': 'Некорректный запрос'}, response.json())
+
     def test_non_api_validation_keeps_default_detail(self):
         with TestClient(app, follow_redirects=False) as client:
             response = client.post('/login', data={'login': 'admin'})

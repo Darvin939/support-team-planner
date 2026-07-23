@@ -1,16 +1,34 @@
 import json
 import os
 from datetime import date, timedelta
-from typing import Optional, List, Union
+from typing import Optional, List
 
 from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
+from api_models import (
+    AssignmentIn,
+    AssignmentRescheduleIn,
+    BlockIn,
+    BlockTemplateIn,
+    BulkAssignmentRescheduleIn,
+    FreezeDayIn,
+    FreezeDayMonthIn,
+    MyPasswordIn,
+    SegmentIn,
+    TaskDependencyIn,
+    TaskIn,
+    TaskPriorityIn,
+    TaskReorderIn,
+    TaskStatusIn,
+    TeamIn,
+    TemplateEntryIn,
+    UserIn,
+)
 import auth
 import db
 import utils
@@ -156,101 +174,6 @@ app.add_middleware(
     max_age=60 * 60 * 24 * 30,
     same_site='lax',
 )
-
-
-# === Pydantic-модели для тела запросов ===
-
-class AssignmentIn(BaseModel):
-    assignment_id: Optional[int] = None
-    task_id: Optional[int] = None
-    date: Optional[str] = None
-    block: Optional[str] = None
-    status: str = "new"
-    user_id: Optional[int] = None
-    comment: Optional[str] = None
-    time_spent: Optional[str] = None
-
-
-class AssignmentRescheduleIn(BaseModel):
-    assignment_id: int
-    new_date: str
-
-
-class BulkAssignmentRescheduleIn(BaseModel):
-    moves: List[AssignmentRescheduleIn]
-
-
-class TaskIn(BaseModel):
-    task_id: Optional[Union[int, str]] = None
-    team_id: Optional[int] = None
-    name: str = ""
-    description: Optional[str] = None
-    criticality: str = "medium"
-    segment_id: Optional[int] = None
-    dependency_ids: Optional[List[int]] = None
-
-
-class TeamIn(BaseModel):
-    name: str = ""
-    template_ids: Optional[List[int]] = None
-
-
-class BlockIn(BaseModel):
-    name: str = ""
-
-
-class SegmentIn(BaseModel):
-    name: str = ""
-
-
-class TemplateEntryIn(BaseModel):
-    block_id: int
-    shift_days: int = 0
-
-
-class BlockTemplateIn(BaseModel):
-    name: str = ""
-    segment_id: Optional[int] = None
-    entries: Optional[List[TemplateEntryIn]] = None
-
-
-class UserIn(BaseModel):
-    last_name: str = ""
-    first_name: str = ""
-    middle_name: Optional[str] = None
-    password: Optional[str] = None
-    role: str = "user"
-    login: Optional[str] = None
-    is_assignee: bool = True
-    team_ids: Optional[List[int]] = None
-
-
-class MyPasswordIn(BaseModel):
-    password: Optional[str] = None
-
-
-class FreezeDayIn(BaseModel):
-    date: Optional[str] = None
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
-
-
-class FreezeDayMonthIn(BaseModel):
-    year: int
-    month: int
-    days: List[int] = []
-
-
-class TaskStatusIn(BaseModel):
-    status: str
-
-
-class TaskReorderIn(BaseModel):
-    task_ids: List[int]
-
-
-class TaskPriorityIn(BaseModel):
-    position: str
 
 
 class TaskDependencyCycleError(Exception):
@@ -661,11 +584,6 @@ def get_team_dependency_graph(request: Request, team_id: int, task_id: Optional[
                    'segment_id': n['segment_id'], 'segment_name': n['segment_name']} for n in graph['nodes']],
         'edges': [{'task_id': e['task_id'], 'dep_id': e['dep_id']} for e in graph['edges']],
     }
-
-
-class TaskDependencyIn(BaseModel):
-    task_id: int
-    depends_on_task_id: int
 
 
 def _validate_task_dependency_edit(data: 'TaskDependencyIn'):
