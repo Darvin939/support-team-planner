@@ -12,6 +12,14 @@ Backend SHALL размещать DAO-функции в доменных моду
 - **WHEN** endpoint вызывает DAO-функцию
 - **THEN** соединение текущего HTTP-запроса переиспользуется по существующей модели lifecycle
 
+#### Scenario: DAO проектируется для будущего backend
+- **WHEN** доменный DAO выделяется из монолитного модуля
+- **THEN** его публичная граница не зависит от SQLite-specific connection/cursor API, а диалектные операции остаются внутри database backend abstraction
+
+#### Scenario: PostgreSQL ещё не подключается
+- **WHEN** завершается декомпозиция текущего SQLite data-access
+- **THEN** система не содержит неиспользуемых PostgreSQL-драйверов, конфигурации, миграций, адаптеров или условных веток
+
 ### Requirement: Составные операции назначений атомарны
 
 Backend SHALL предоставлять bulk assignment operations для составных пользовательских действий, а frontend SHALL вызывать соответствующую операцию одним HTTP-запросом.
