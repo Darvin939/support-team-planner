@@ -20,7 +20,6 @@ from api_models import (
     TaskPriorityIn,
     TaskReorderIn,
     TaskStatusIn,
-    TeamIn,
     TemplateEntryIn,
     UserIn,
 )
@@ -39,10 +38,12 @@ import utils
 from ssl_context import get_cert
 from routers.reference_data import router as reference_data_router
 from routers.freeze_days import router as freeze_days_router
+from routers.teams import router as teams_router
 
 app = FastAPI()
 app.include_router(reference_data_router)
 app.include_router(freeze_days_router)
+app.include_router(teams_router)
 
 
 def _api_error(message: str, status_code: int, headers=None) -> JSONResponse:
@@ -646,91 +647,6 @@ def get_team_history_api(request: Request, team_id: int, offset: int = 0, limit:
                                            date_to=date_to_val,
                                            changed_by_user_id=changed_by_user_id)
     }
-
-
-# === API для команд ===
-
-@app.get('/api/teams')
-def get_teams_api(request: Request, offset: Optional[int] = None, limit: Optional[int] = None,
-                  search: Optional[str] = None):
-    """Получить все команды с разрешёнными шаблонами"""
-    if offset is not None or limit is not None or search is not None:
-        safe_offset = max(offset or 0, 0)
-        safe_limit = min(max(limit or 20, 1), 100)
-        return db.get_teams_page_for_user(
-            request.session['user_id'], request.state.role, safe_offset, safe_limit, search,
-        )
-    return db.get_teams_for_user(request.session['user_id'], request.state.role)
-
-
-@app.get('/api/teams/{team_id}')
-def get_team_api(request: Request, team_id: int):
-    """Получить одну команду с разрешёнными шаблонами"""
-    _require_team_access(request, team_id)
-    team = db.get_team_by_id(team_id)
-    if not team:
-        return JSONResponse({'error': 'Team not found'}, status_code=404)
-    tmpls = db.get_team_allowed_templates(team_id)
-    return {
-        'id': team['id'],
-        'name': team['name'],
-        'templates': tmpls,
-        'template_ids': [t['id'] for t in tmpls],
-    }
-
-
-@app.get('/api/teams/{team_id}/blocks')
-def get_team_blocks_api(request: Request, team_id: int, segment_id: Optional[int] = None):
-    """Уникальные блоки из разрешённых шаблонов команды — для ручного выбора блока
-    в модалке назначения (React); та же выборка, что раньше шла в Jinja-контекст /planning/{team_id}.
-    segment_id, если передан, дополнительно сужает выборку до шаблонов конкретного сегмента."""
-    _require_team_access(request, team_id)
-    return db.get_blocks_for_team(team_id, segment_id=segment_id)
-
-
-@app.get('/api/teams/{team_id}/assignees')
-def get_team_assignees_api(request: Request, team_id: int):
-    _require_team_access(request, team_id)
-    return db.get_team_assignees(team_id)
-
-
-@app.post('/api/teams')
-def create_team_api(request: Request, data: TeamIn):
-    """Создать команду"""
-    name = (data.name or '').strip()
-    if not name:
-        return JSONResponse({'error': 'Name required'}, status_code=400)
-
-    try:
-        with db.composite_transaction():
-            team_id = db.create_team(name, data.template_ids or [])
-            db.grant_team_access_if_restricted(request.session['user_id'], request.state.role, team_id)
-        return {'id': team_id, 'success': True}
-    except db.IntegrityConstraintError as e:
-        return JSONResponse({'error': str(e)}, status_code=400)
-
-
-@app.put('/api/teams/{team_id}')
-def update_team_api(request: Request, team_id: int, data: TeamIn):
-    """Обновить команду"""
-    _require_team_access(request, team_id)
-    name = (data.name or '').strip()
-    if not name:
-        return JSONResponse({'error': 'Name required'}, status_code=400)
-
-    try:
-        db.update_team(team_id, name, data.template_ids or [])
-        return {'success': True}
-    except db.IntegrityConstraintError as e:
-        return JSONResponse({'error': str(e)}, status_code=400)
-
-
-@app.delete('/api/teams/{team_id}')
-def delete_team_api(request: Request, team_id: int):
-    """Удалить команду (каскадно удаляются задачи и блоки)"""
-    _require_team_access(request, team_id)
-    db.delete_team(team_id)
-    return {'success': True}
 
 
 # === API для пользователей ===

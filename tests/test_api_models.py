@@ -96,6 +96,18 @@ class ApiModelsContractTest(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(methods, set(paths[path]))
 
+    def test_team_paths_and_methods_are_stable(self):
+        paths = app.openapi()['paths']
+        expected = {
+            '/api/teams': {'get', 'post'},
+            '/api/teams/{team_id}': {'get', 'put', 'delete'},
+            '/api/teams/{team_id}/blocks': {'get'},
+            '/api/teams/{team_id}/assignees': {'get'},
+        }
+        for path, methods in expected.items():
+            with self.subTest(path=path):
+                self.assertEqual(methods, set(paths[path]))
+
 
 if __name__ == '__main__':
     unittest.main()
