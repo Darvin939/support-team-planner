@@ -108,6 +108,11 @@ class ApiModelsContractTest(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(methods, set(paths[path]))
 
+    def test_user_paths_and_methods_are_stable(self):
+        paths = app.openapi()['paths']
+        self.assertEqual({'get', 'post'}, set(paths['/api/users']))
+        self.assertEqual({'put', 'delete'}, set(paths['/api/users/{user_id}']))
+
 
 if __name__ == '__main__':
     unittest.main()

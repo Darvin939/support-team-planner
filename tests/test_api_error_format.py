@@ -116,6 +116,17 @@ class ApiErrorFormatTest(unittest.TestCase):
         self.assertEqual({'success': True}, month.json())
         self.assertEqual({'success': True}, month_delete.json())
 
+    def test_user_validation_and_acting_user_delete_are_stable(self):
+        with self.login() as client:
+            invalid_role = client.post('/api/users', json={'first_name': 'Test', 'role': 'invalid'})
+            current_user_id = next(
+                user['id'] for user in client.get('/api/users').json() if user['login'] == 'admin'
+            )
+            own_delete = client.delete(f'/api/users/{current_user_id}')
+        self.assertEqual((400, {'error': 'Недопустимая роль'}), (invalid_role.status_code, invalid_role.json()))
+        self.assertEqual(400, own_delete.status_code)
+        self.assertIn('error', own_delete.json())
+
 
 if __name__ == '__main__':
     unittest.main()
