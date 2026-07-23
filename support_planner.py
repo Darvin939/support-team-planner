@@ -232,6 +232,10 @@ class TaskPriorityIn(BaseModel):
     position: str
 
 
+class TaskDependencyCycleError(Exception):
+    pass
+
+
 # Единственный источник истины — frontend/src/data/taskTransitions.json, читается и фронтендом
 # (PlanningPage.tsx), и бэкендом, чтобы правила переходов статуса задачи не могли разойтись между
 # ними (см. openspec/changes/shared-task-transitions-source).
@@ -592,14 +596,20 @@ def save_task_api(request: Request, data: TaskIn):
         if task and _task_is_locked(task):
             return JSONResponse({'error': 'Нельзя редактировать завершённую или отменённую задачу'}, status_code=400)
 
-    task_id = int(db.create_or_update_task(data.task_id, data.team_id, name, description, data.criticality,
-                                           segment_id=data.segment_id,
-                                           changed_by=request.session.get('user_id')))
+    try:
+        with db.composite_transaction():
+            task_id = int(db.create_or_update_task(
+                data.task_id, data.team_id, name, description, data.criticality,
+                segment_id=data.segment_id,
+                changed_by=request.session.get('user_id'),
+            ))
 
-    if data.dependency_ids is not None:
-        if data.dependency_ids and db.has_dependency_cycle(task_id, data.dependency_ids):
-            return JSONResponse({'error': 'Обнаружена циклическая зависимость'}, status_code=400)
-        db.set_task_dependencies(task_id, data.dependency_ids)
+            if data.dependency_ids is not None:
+                if data.dependency_ids and db.has_dependency_cycle(task_id, data.dependency_ids):
+                    raise TaskDependencyCycleError
+                db.set_task_dependencies(task_id, data.dependency_ids)
+    except TaskDependencyCycleError:
+        return JSONResponse({'error': 'Обнаружена циклическая зависимость'}, status_code=400)
 
     return {'id': task_id, 'success': True}
 
@@ -832,8 +842,9 @@ def create_team_api(request: Request, data: TeamIn):
         return JSONResponse({'error': 'Name required'}, status_code=400)
 
     try:
-        team_id = db.create_team(name, data.template_ids or [])
-        db.grant_team_access_if_restricted(request.session['user_id'], request.state.role, team_id)
+        with db.composite_transaction():
+            team_id = db.create_team(name, data.template_ids or [])
+            db.grant_team_access_if_restricted(request.session['user_id'], request.state.role, team_id)
         return {'id': team_id, 'success': True}
     except db.IntegrityConstraintError as e:
         return JSONResponse({'error': str(e)}, status_code=400)

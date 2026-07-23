@@ -1,6 +1,7 @@
 import contextvars
 import json
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -16,6 +17,9 @@ _PRIORITY_GAP = 1000
 # seed_demo_data.py) with_db_connection продолжает открывать и закрывать своё соединение на
 # каждый вызов, как и раньше.
 _request_conn: 'contextvars.ContextVar' = contextvars.ContextVar('request_conn', default=None)
+_composite_transaction_active: 'contextvars.ContextVar' = contextvars.ContextVar(
+    'composite_transaction_active', default=False
+)
 
 
 def set_request_connection(conn):
@@ -26,6 +30,31 @@ def set_request_connection(conn):
 def clear_request_connection(token):
     """Снять соединение, общее для текущего запроса (вызывается в finally у request-scoped middleware)."""
     _request_conn.reset(token)
+
+
+@contextmanager
+def composite_transaction():
+    """Run multiple decorated DAO calls as one explicit transaction."""
+    if _composite_transaction_active.get():
+        raise RuntimeError('Nested composite transactions are not supported')
+
+    shared_conn = _request_conn.get()
+    conn = shared_conn if shared_conn is not None else get_db_connection()
+    connection_token = None
+    if shared_conn is None:
+        connection_token = _request_conn.set(conn)
+    transaction_token = _composite_transaction_active.set(True)
+    try:
+        yield
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+    finally:
+        _composite_transaction_active.reset(transaction_token)
+        if connection_token is not None:
+            _request_conn.reset(connection_token)
+            conn.close()
 
 
 class IntegrityConstraintError(Exception):
@@ -56,7 +85,7 @@ def with_db_connection(default_return=None, raise_on_error=True, commit_on_succe
             conn = shared_conn if shared_conn is not None else get_db_connection()
             try:
                 result = func(conn, *args, **kwargs)
-                if commit_on_success:
+                if commit_on_success and not _composite_transaction_active.get():
                     conn.commit()
                 return result
             except _backend.db_error:

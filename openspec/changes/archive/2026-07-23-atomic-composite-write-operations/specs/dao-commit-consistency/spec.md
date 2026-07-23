@@ -1,9 +1,7 @@
-# dao-commit-consistency Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change cleanup-create-commit-pattern. Update Purpose after archive.
-## Requirements
 ### Requirement: DAO writes commit only via the decorator
+
 Every DAO write function wrapped by `with_db_connection` SHALL rely solely on transaction infrastructure for
 committing its writes: outside an explicit composite transaction the decorator SHALL commit on successful return,
 while inside an explicit composite transaction the decorator SHALL defer commit to the enclosing transaction
@@ -28,4 +26,3 @@ scope. No wrapped DAO function SHALL call `conn.commit()` itself.
   back a value it just wrote before returning
 - **THEN** that read succeeds correctly whether commit is performed by the decorator or deferred to an enclosing
   transaction, since it reads on the same connection
-
