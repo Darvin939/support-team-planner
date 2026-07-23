@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 import auth
 import db
+import db.connection as db_connection
 import db.sqlite as sqlite_backend
 from support_planner import app
 
@@ -24,7 +25,7 @@ class CompositeTransactionScopeTest(unittest.TestCase):
         def second_step(current):
             self.assertIs(current, conn)
 
-        with patch.object(db, 'get_db_connection', return_value=conn):
+        with patch.object(db_connection, 'get_db_connection', return_value=conn):
             with db.composite_transaction():
                 first_step()
                 second_step()
@@ -40,7 +41,7 @@ class CompositeTransactionScopeTest(unittest.TestCase):
         def first_step(current):
             self.assertIs(current, conn)
 
-        with patch.object(db, 'get_db_connection', return_value=conn):
+        with patch.object(db_connection, 'get_db_connection', return_value=conn):
             with self.assertRaisesRegex(RuntimeError, 'boom'):
                 with db.composite_transaction():
                     first_step()
@@ -50,7 +51,7 @@ class CompositeTransactionScopeTest(unittest.TestCase):
         conn.rollback.assert_called_once_with()
         conn.close.assert_called_once_with()
 
-        with patch.object(db, 'get_db_connection', return_value=Mock()):
+        with patch.object(db_connection, 'get_db_connection', return_value=Mock()):
             with db.composite_transaction():
                 with self.assertRaisesRegex(RuntimeError, 'Nested composite transactions'):
                     with db.composite_transaction():
@@ -63,7 +64,7 @@ class CompositeTransactionScopeTest(unittest.TestCase):
         def single_step(current):
             self.assertIs(current, conn)
 
-        with patch.object(db, 'get_db_connection', return_value=conn):
+        with patch.object(db_connection, 'get_db_connection', return_value=conn):
             single_step()
 
         conn.commit.assert_called_once_with()

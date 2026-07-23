@@ -1,10 +1,10 @@
 ## 1. Декомпозиция `db/__init__.py`
 
-- [ ] 1.1 Выделить DB-neutral connection/transaction boundaries без изменения request connection reuse
-- [ ] 1.2 Перенести teams, users и reference-data DAO в доменные модули
-- [ ] 1.3 Перенести tasks, dependencies, assignments, statistics и history DAO
-- [ ] 1.4 Сохранить совместимый фасад `db` и выполнить backend regression suite
-- [ ] 1.5 Проверить, что публичные доменные DAO не зависят от SQLite-specific connection/cursor API, не создавая PostgreSQL-заготовок
+- [x] 1.1 Выделить DB-neutral connection/transaction boundaries без изменения request connection reuse
+- [x] 1.2 Перенести teams, users и reference-data DAO в доменные модули
+- [x] 1.3 Перенести tasks, dependencies, assignments, statistics и history DAO
+- [x] 1.4 Сохранить совместимый фасад `db` и выполнить backend regression suite
+- [x] 1.5 Проверить, что публичные доменные DAO не зависят от SQLite-specific connection/cursor API, не создавая PostgreSQL-заготовок
 
 ## 2. Bulk API автоназначения
 
