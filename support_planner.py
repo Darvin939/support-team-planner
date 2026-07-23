@@ -31,6 +31,15 @@ from api_models import (
 )
 import auth
 import db
+from access_control import (
+    access_user as _access_user,
+    effective_team_filter as _effective_team_filter,
+    require_assignment_access as _require_assignment_access,
+    require_login,
+    require_task_access as _require_task_access,
+    require_team_access as _require_team_access,
+    require_team_list_access as _require_team_list_access,
+)
 import utils
 from ssl_context import get_cert
 
@@ -84,34 +93,6 @@ if not _SESSION_SECRET_KEY:
     print('WARNING: SESSION_SECRET_KEY не задан, используется небезопасный ключ по умолчанию '
           '(сессии не переживут смену ключа; задайте переменную окружения для продакшена)')
 
-_PUBLIC_PATHS = {'/login', '/logout'}
-
-# Ранги ролей: user < editor < admin — каждая следующая роль включает права предыдущей.
-_ROLE_RANK = {'user': 0, 'editor': 1, 'admin': 2}
-
-# Мутирующие эндпоинты, требующие роль не ниже admin (управление учётными записями — единственное,
-# что запрещено editor'у). GET /api/users остаётся доступен всем ролям (нужен для выпадающих
-# списков назначения исполнителя в планировщике).
-_ADMIN_ONLY_API_PREFIXES = ('/api/users',)
-
-# Мутирующие эндпоинты настроек, требующие роль не ниже editor (всё, кроме учётных записей).
-_EDITOR_API_PREFIXES = ('/api/teams', '/api/freeze-days', '/api/blocks', '/api/block-templates', '/api/segments')
-
-
-def _required_rank(method: str, path: str) -> int:
-    """Минимальный ранг роли, необходимый для данного метода+пути. Страница /settings целиком
-    закрыта для user; GET-запросы везде остаются доступны любой роли (нужны планировщику)."""
-    if path == '/settings':
-        return _ROLE_RANK['editor']
-    if method == 'GET':
-        return _ROLE_RANK['user']
-    if any(path.startswith(p) for p in _ADMIN_ONLY_API_PREFIXES):
-        return _ROLE_RANK['admin']
-    if any(path.startswith(p) for p in _EDITOR_API_PREFIXES):
-        return _ROLE_RANK['editor']
-    return _ROLE_RANK['user']
-
-
 # Starlette's add_middleware() prepends to the middleware stack, so the middleware added
 # LAST runs FIRST. require_login must run only after SessionMiddleware has populated
 # request.session, so it's registered (via @app.middleware) before add_middleware(SessionMiddleware)
@@ -119,33 +100,7 @@ def _required_rank(method: str, path: str) -> int:
 # add_middleware(SessionMiddleware)) must run BEFORE require_login so that require_login's own
 # db.user_exists call also reuses the request-scoped connection — giving the execution order
 # SessionMiddleware -> db_connection_per_request -> require_login -> route.
-@app.middleware('http')
-async def require_login(request: Request, call_next):
-    path = request.url.path
-    if path in _PUBLIC_PATHS or path.startswith('/react-assets/'):
-        return await call_next(request)
-    user_id = request.session.get('user_id')
-    user = db.user_exists(user_id) if user_id else None
-    if not user_id or not user:
-        # Сессия может ссылаться на пользователя, которого больше нет (удалили, БД пересоздали) —
-        # обращаемся с этим так же, как с отсутствием сессии, а не пропускаем дальше: иначе запись
-        # в task_history/assignment_history упадёт с FOREIGN KEY constraint failed при первом же
-        # создании/изменении задачи или назначения.
-        request.session.clear()
-        if path.startswith('/api/'):
-            return JSONResponse({'error': 'Не авторизован'}, status_code=401)
-        return RedirectResponse(url='/login', status_code=302)
-
-    # Роль читается из БД на каждый запрос (не из сессии), чтобы смена роли применялась
-    # немедленно, без необходимости перелогина.
-    role = user['role']
-    request.state.role = role
-    if _ROLE_RANK.get(role, 0) < _required_rank(request.method, path):
-        if path.startswith('/api/'):
-            return JSONResponse({'error': 'Недостаточно прав'}, status_code=403)
-        return RedirectResponse(url='/planning', status_code=302)
-
-    return await call_next(request)
+app.middleware('http')(require_login)
 
 
 # Открывает одно SQLite-соединение на весь HTTP-запрос и кладёт его в contextvar
@@ -197,39 +152,6 @@ def _task_is_locked(task) -> bool:
 def _parse_int_csv(value: Optional[str]) -> Optional[List[int]]:
     """Распарсить query-параметр вида '1,2,3' в список int; None/пусто -> None (без фильтрации)."""
     return [int(x) for x in value.split(',') if x.strip()] if value else None
-
-
-def _access_user(request: Request):
-    return request.session['user_id'], request.state.role
-
-
-def _require_team_access(request: Request, team_id: Optional[int]):
-    if team_id is None:
-        raise HTTPException(status_code=404, detail='Команда не найдена')
-    user_id, role = _access_user(request)
-    if not db.user_can_access_team(user_id, role, team_id):
-        raise HTTPException(status_code=403, detail='Нет доступа к команде')
-    return team_id
-
-
-def _require_task_access(request: Request, task_id: int):
-    team_id = db.get_task_team_id(task_id)
-    return _require_team_access(request, team_id)
-
-
-def _require_assignment_access(request: Request, assignment_id: int):
-    team_id = db.get_assignment_team_id(assignment_id)
-    return _require_team_access(request, team_id)
-
-
-def _require_team_list_access(request: Request, team_ids: List[int]):
-    for team_id in team_ids:
-        _require_team_access(request, team_id)
-
-
-def _effective_team_filter(request: Request):
-    user_id, role = _access_user(request)
-    return db.get_effective_team_ids(user_id, role)
 
 
 # === Роуты ===

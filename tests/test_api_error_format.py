@@ -71,6 +71,12 @@ class ApiErrorFormatTest(unittest.TestCase):
         self.assertEqual('/login', response.headers['location'])
         self.assertNotEqual('application/json', response.headers.get('content-type'))
 
+    def test_unauthorized_api_uses_error_contract(self):
+        with TestClient(app, follow_redirects=False) as client:
+            response = client.get('/api/me')
+        self.assertEqual(401, response.status_code)
+        self.assertEqual({'error': 'Не авторизован'}, response.json())
+
 
 if __name__ == '__main__':
     unittest.main()
