@@ -19,6 +19,8 @@ import {
 } from 'antd';
 import {DeleteOutlined, EditOutlined} from '@ant-design/icons';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
+import {queryKeys} from '../../lib/queryKeys';
+import {invalidateSettingsData} from '../../lib/queryInvalidation';
 import {
   type Block,
   type BlockTemplate,
@@ -109,7 +111,7 @@ function SegmentsPanel() {
   const [modalSegment, setModalSegment] = useState<Segment | 'new' | null>(null);
   const [form] = Form.useForm<SegmentFormValues>();
   const {saveMutation, deleteMutation} = useCrudMutations<Segment, SegmentFormValues>({
-    queryKey: ['segments'],
+    queryKey: queryKeys.segments,
     baseUrl: '/api/segments',
     modalEntity: modalSegment,
     onSaveSuccess: () => setModalSegment(null),
@@ -169,7 +171,7 @@ function BlocksPanel() {
   const createMutation = useMutation({
     mutationFn: (name: string) => apiMutate('/api/blocks', 'POST', {name}),
     onSuccess: () => {
-      queryClient.invalidateQueries({queryKey: ['blocks']});
+      invalidateSettingsData(queryClient, queryKeys.blocks);
       setBlockModalOpen(false);
       form.resetFields();
     },
@@ -177,7 +179,7 @@ function BlocksPanel() {
   });
   const deleteMutation = useMutation({
     mutationFn: (blockId: number) => apiMutate(`/api/blocks/${blockId}`, 'DELETE'),
-    onSuccess: () => queryClient.invalidateQueries({queryKey: ['blocks']}),
+    onSuccess: () => invalidateSettingsData(queryClient, queryKeys.blocks),
     onError: (error: Error) => message.error(error.message),
   });
 
@@ -238,7 +240,7 @@ function TemplatesPanel() {
   const [modalTemplate, setModalTemplate] = useState<BlockTemplate | 'new' | null>(null);
   const [form] = Form.useForm<TemplateFormValues>();
   const {saveMutation, deleteMutation} = useCrudMutations<BlockTemplate, TemplateFormValues>({
-    queryKey: ['block-templates'],
+    queryKey: queryKeys.blockTemplates,
     baseUrl: '/api/block-templates',
     modalEntity: modalTemplate,
     onSaveSuccess: () => setModalTemplate(null),

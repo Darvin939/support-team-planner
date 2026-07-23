@@ -1,5 +1,5 @@
 import {useQuery} from '@tanstack/react-query';
-import {apiGet} from '../lib/apiMutate';
+import {apiGet, buildApiUrl} from '../lib/apiMutate';
 import {queryKeys} from '../lib/queryKeys';
 
 export interface User {
@@ -55,11 +55,9 @@ export interface PaginatedUsersResponse {
 }
 
 export function usePaginatedUsers(offset: number, limit: number, search: string) {
-  const params = new URLSearchParams({offset: String(offset), limit: String(limit)});
-  if (search) params.set('search', search);
   return useQuery<PaginatedUsersResponse>({
     queryKey: queryKeys.users.paginated(offset, limit, search),
-    queryFn: () => apiGet(`/api/users?${params}`),
+    queryFn: () => apiGet(buildApiUrl('/api/users', {offset, limit, search})),
   });
 }
 

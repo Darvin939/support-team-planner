@@ -21,7 +21,10 @@ export const queryKeys = {
     list: (teamId: number, from: string, to: string, taskIds: number[]) => ['assignments', teamId, from, to, taskIds] as const,
     active: ['active-assignments'] as const,
     activeList: (from: string, to: string, teamIds: number[], offset: number, limit: number) =>
-      ['active-assignments', from, to, teamIds, offset, limit] as const,
+      ['active-assignments', from, to, [...teamIds].sort((a, b) => a - b), offset, limit] as const,
+    today: (teamId: number, date: string) => ['active-assignments', teamId, date, date] as const,
+    overdue: (from: string, to: string, limit: number) =>
+      ['active-assignments', 'overdue-preview', from, to, limit] as const,
   },
   taskDeps: ['task-deps'] as const,
   taskDepsList: (teamId: number, taskIds: number[]) => ['task-deps', teamId, taskIds] as const,
@@ -30,7 +33,11 @@ export const queryKeys = {
   teamBlocks: (teamId: number, segmentId?: number | null) => ['team-blocks', teamId, segmentId ?? null] as const,
   teamTemplates: (teamId: number) => ['team-templates', teamId] as const,
   activeTasks: (teamId: number, search: string, includeIds: string) => ['active-tasks-list', teamId, search, includeIds] as const,
-  journal: (teamId: number | undefined, offset: number, filters: object) => ['journal', teamId, offset, filters] as const,
+  journal: {
+    all: ['journal'] as const,
+    list: (teamId: number | undefined, offset: number, filters: object) =>
+      ['journal', teamId, offset, filters] as const,
+  },
   taskHistory: (taskId: number | null, offset: number) => ['task-history', taskId, offset] as const,
   entityHistory: (kind: string, entityId: number | null, offset: number) => ['entity-history', kind, entityId, offset] as const,
   blocks: ['blocks'] as const,

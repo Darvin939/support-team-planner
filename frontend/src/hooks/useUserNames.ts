@@ -1,5 +1,6 @@
 import {useQuery} from '@tanstack/react-query';
 import {apiGet} from '../lib/apiMutate';
+import {queryKeys} from '../lib/queryKeys';
 
 export interface User {
   id: number;
@@ -17,7 +18,7 @@ export function formatDisplayName(u: Pick<User, 'last_name' | 'first_name' | 'mi
 
 function useUsersQuery() {
   return useQuery<User[]>({
-    queryKey: ['users'],
+    queryKey: queryKeys.users.all,
     queryFn: () => apiGet('/api/users'),
     staleTime: 5 * 60 * 1000,
   });

@@ -1,12 +1,10 @@
 import {useEffect, useState} from 'react';
 import type {TableColumnsType} from 'antd';
 import {Card, DatePicker, Empty, Pagination, Select, Space, Table, Typography} from 'antd';
-import {useQuery} from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import {useTeams} from '../hooks/useTeams';
 import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
 import {useIsMobile} from '../hooks/useIsMobile';
-import {apiGet} from '../lib/apiMutate';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT} from '../lib/dateFormats';
 import {StatGroupLabel, StatTile} from '../components/StatTile';
 import {FilterField, FilterGrid} from '../components/FilterGrid';
@@ -14,31 +12,14 @@ import {CriticalityBadge} from '../components/planningBadges';
 import {NAME_COLUMN_WIDTH} from '../lib/layout';
 import {DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS} from '../lib/pagination';
 import {readStoredJson, writeStoredJson} from '../lib/storage';
-import {queryKeys} from '../lib/queryKeys';
 import {usePaginationState} from '../hooks/usePaginationState';
+import {
+  type ActiveAssignment,
+  type ActiveAssignmentsResponse,
+  useActiveAssignments,
+} from '../hooks/useStatisticsData';
 
 const STORAGE_STATS_TEAMS = 'statsSelectedTeams';
-
-interface ActiveAssignment {
-  id: number;
-  task_name: string;
-  team_name: string | null;
-  criticality: 'high' | 'medium' | 'low';
-  date: string;
-  block: string | null;
-  status: 'new' | 'planned' | 'rollback' | 'success' | 'cancelled';
-  user_name: string | null;
-  comment: string | null;
-}
-
-interface ActiveAssignmentsResponse {
-  items: ActiveAssignment[];
-  total: number;
-  stats: {
-    status: { new: number; planned: number };
-    criticality: { high: number; medium: number; low: number };
-  };
-}
 
 const STATUS_LABEL: Record<string, string> = {
   new: 'Новый',
@@ -47,16 +28,6 @@ const STATUS_LABEL: Record<string, string> = {
   success: 'Успешно',
   cancelled: 'Отменено'
 };
-
-function useActiveAssignments(from: string, to: string, teamIds: number[], offset: number, limit: number) {
-  return useQuery<ActiveAssignmentsResponse>({
-    queryKey: queryKeys.assignments.activeList(from, to, teamIds, offset, limit),
-    queryFn: () => {
-      const teamParam = teamIds.length ? `&team_ids=${teamIds.join(',')}` : '';
-      return apiGet(`/api/active-assignments/0?start_date=${from}&end_date=${to}${teamParam}&offset=${offset}&limit=${limit}`);
-    },
-  });
-}
 
 function buildColumns(showDate: boolean): TableColumnsType<ActiveAssignment> {
   const cols: TableColumnsType<ActiveAssignment> = [

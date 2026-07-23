@@ -11,6 +11,7 @@ import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import {usePaginationState} from '../../hooks/usePaginationState';
 import {useIsMobile} from "../../hooks/useIsMobile";
 import {TOP_BAR_HEIGHT} from "../../components/AppShell";
+import {queryKeys} from '../../lib/queryKeys';
 
 interface UserFormValues {
   last_name: string | null;
@@ -45,7 +46,7 @@ export function UsersTab() {
   const isMobile = useIsMobile();
 
   const {saveMutation, deleteMutation} = useCrudMutations<User, UserFormValues>({
-    queryKey: ['users'],
+    queryKey: queryKeys.users.all,
     baseUrl: '/api/users',
     modalEntity: modalUser,
     onSaveSuccess: () => setModalUser(null),

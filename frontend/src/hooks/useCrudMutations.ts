@@ -1,6 +1,7 @@
 import {message} from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import {apiMutate} from '../lib/apiMutate';
+import {invalidateSettingsData} from '../lib/queryInvalidation';
 
 /** Shared save (create/update)+delete mutation pair for a Settings-tab entity-with-id modal
  * (`TEntity | 'new' | null` state): POST when the modal entity is `'new'`, PUT otherwise, DELETE
@@ -12,7 +13,7 @@ export function useCrudMutations<TEntity extends { id: number }, TValues>({
                                                                             onSaveSuccess,
                                                                             deleteSuccessMessage,
                                                                           }: {
-  queryKey: unknown[];
+  queryKey: readonly unknown[];
   baseUrl: string;
   modalEntity: TEntity | 'new' | null;
   onSaveSuccess: () => void;
@@ -28,7 +29,7 @@ export function useCrudMutations<TEntity extends { id: number }, TValues>({
       return apiMutate(url, isNew ? 'POST' : 'PUT', values);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({queryKey});
+      invalidateSettingsData(queryClient, queryKey);
       message.success('Сохранено');
       onSaveSuccess();
     },
@@ -38,7 +39,7 @@ export function useCrudMutations<TEntity extends { id: number }, TValues>({
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiMutate(`${baseUrl}/${id}`, 'DELETE'),
     onSuccess: () => {
-      queryClient.invalidateQueries({queryKey});
+      invalidateSettingsData(queryClient, queryKey);
       if (deleteSuccessMessage) message.success(deleteSuccessMessage);
     },
     onError: (e: Error) => message.error(e.message),

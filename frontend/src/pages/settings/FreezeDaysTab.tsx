@@ -4,6 +4,8 @@ import {Button, Card, Empty, message, Modal, Popconfirm, Select, Space, theme} f
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import {useFreezeDays} from '../../hooks/useSettingsData';
 import {apiMutate} from '../../lib/apiMutate';
+import {queryKeys} from '../../lib/queryKeys';
+import {invalidateSettingsData} from '../../lib/queryInvalidation';
 
 const MONTH_NAMES = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 const WEEKDAY_NAMES = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
@@ -115,7 +117,7 @@ export function FreezeDaysTab() {
       days
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({queryKey: ['freeze-days']});
+      invalidateSettingsData(queryClient, queryKeys.freezeDays);
       message.success('Сохранено');
       setModalMonth(null);
     },
@@ -125,7 +127,7 @@ export function FreezeDaysTab() {
   const deleteMutation = useMutation({
     mutationFn: (month: number) => apiMutate(`/api/freeze-days/month/${CURRENT_YEAR}/${month}`, 'DELETE'),
     onSuccess: () => {
-      queryClient.invalidateQueries({queryKey: ['freeze-days']});
+      invalidateSettingsData(queryClient, queryKeys.freezeDays);
       message.success('Удалено');
     },
     onError: (e: Error) => message.error(e.message),

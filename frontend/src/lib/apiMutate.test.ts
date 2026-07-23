@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {apiGet, apiMutate, getApiErrorMessage} from './apiMutate';
+import {apiGet, apiMutate, buildApiUrl, getApiErrorMessage} from './apiMutate';
 
 
 afterEach(() => {
@@ -25,6 +25,16 @@ describe('getApiErrorMessage', () => {
 });
 
 describe('API helpers', () => {
+  it('builds encoded URLs while preserving zero and false', () => {
+    expect(buildApiUrl('/api/items', {
+      empty: '',
+      missing: null,
+      offset: 0,
+      enabled: false,
+      search: 'one & two',
+    })).toBe('/api/items?offset=0&enabled=false&search=one+%26+two');
+  });
+
   it('uses the same server error for GET and mutation requests', async () => {
     vi.stubGlobal('fetch', vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({error: 'Denied'}), {

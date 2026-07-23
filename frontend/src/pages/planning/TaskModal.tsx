@@ -1,17 +1,16 @@
 import {useEffect, useState} from 'react';
-import {Button, Checkbox, Form, Input, message, Modal, Popconfirm, Select, Space, theme} from 'antd';
-import {useMutation, useQueryClient} from '@tanstack/react-query';
+import {Button, Checkbox, Form, Input, Modal, Popconfirm, Select, Space, theme} from 'antd';
 import type {Task} from '../../hooks/usePlanningData';
 import {useActiveTasksList} from '../../hooks/usePlanningData';
 import {useMe} from '../../hooks/useMe';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import {useSegments} from '../../hooks/useSettingsData';
 import {CriticalityBadge, TaskStatusBadge, tintedStyle} from '../../components/planningBadges';
-import {apiMutate} from '../../lib/apiMutate';
 import {linkify} from '../../lib/linkify';
 import {CRITICALITY_LABELS} from '../../domain/types';
 import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';
 import {useIsMobile} from '../../hooks/useIsMobile';
+import {useDeleteTaskMutation, useSaveTaskMutation} from '../../hooks/useTaskMutations';
 
 interface TaskFormValues {
   name: string;
@@ -37,7 +36,6 @@ export function TaskModal({
   onClose: () => void;
 }) {
   const [form] = Form.useForm<TaskFormValues>();
-  const queryClient = useQueryClient();
   const [depIds, setDepIds] = useState<Set<number>>(new Set());
   const [depSearch, setDepSearch] = useState('');
   const debouncedDepSearch = useDebouncedValue(depSearch, 500);
@@ -66,9 +64,11 @@ export function TaskModal({
     setDepSearch('');
   }, [open, task, existingDepIds, form, segments]);
 
-  const saveMutation = useMutation({
-    mutationFn: (values: TaskFormValues) =>
-      apiMutate('/api/task', 'POST', {
+  const saveMutation = useSaveTaskMutation(onClose);
+  const deleteMutation = useDeleteTaskMutation(task?.id, onClose);
+
+  function saveTask(values: TaskFormValues) {
+    saveMutation.mutate({
         task_id: task?.id,
         team_id: teamId,
         name: values.name,
@@ -76,25 +76,8 @@ export function TaskModal({
         criticality: values.criticality,
         segment_id: values.segment_id,
         dependency_ids: [...depIds],
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({queryKey: ['tasks']});
-      queryClient.invalidateQueries({queryKey: ['task-deps']});
-      message.success('Сохранено');
-      onClose();
-    },
-    onError: (e: Error) => message.error(e.message),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: () => apiMutate(`/api/task/${task!.id}`, 'DELETE'),
-    onSuccess: () => {
-      queryClient.invalidateQueries({queryKey: ['tasks']});
-      message.success('Задача удалена');
-      onClose();
-    },
-    onError: (e: Error) => message.error(e.message),
-  });
+    });
+  }
 
   const filteredDeps = (activeTasks ?? [])
     .filter((t) => t.id !== task?.id)
@@ -148,7 +131,7 @@ export function TaskModal({
       }
     >
       <div style={{display: 'flex', flexDirection: isMobile ? 'column' : 'row'}}>
-        <Form form={form} layout="vertical" disabled={isTerminal} onFinish={(v) => saveMutation.mutate(v)}
+        <Form form={form} layout="vertical" disabled={isTerminal} onFinish={saveTask}
               style={{flex: 1, minWidth: 0}}>
           {isTerminal ? (
             <div style={{display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 16}}>

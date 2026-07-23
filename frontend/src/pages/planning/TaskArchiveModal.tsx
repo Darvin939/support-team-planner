@@ -1,15 +1,14 @@
 import {useEffect, useState} from 'react';
-import {Button, DatePicker, Input, message, Modal, Popconfirm, Space, Table, theme, Typography} from 'antd';
-import {useMutation, useQueryClient} from '@tanstack/react-query';
+import {Button, DatePicker, Input, Modal, Popconfirm, Space, Table, theme, Typography} from 'antd';
 import dayjs, {type Dayjs} from 'dayjs';
 import {OffsetPagination} from '../../components/OffsetPagination';
 import {TASK_STATUS_LABELS} from '../../domain/types';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import {type Task, useTaskArchive} from '../../hooks/usePlanningData';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT} from '../../lib/dateFormats';
-import {apiMutate} from '../../lib/apiMutate';
-import {queryKeys} from '../../lib/queryKeys';
 import {tintedStyle} from '../../components/planningBadges';
+import {usePaginationState} from '../../hooks/usePaginationState';
+import {useRestoreTaskMutation} from '../../hooks/useTaskMutations';
 
 const PAGE_SIZE = 20;
 
@@ -20,24 +19,16 @@ export function TaskArchiveModal({open, teamId, canRestore, onClose}: {
   onClose: () => void;
 }) {
   const {token} = theme.useToken();
-  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search, 400);
   const [range, setRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);
-  const [offset, setOffset] = useState(0);
+  const pagination = usePaginationState(PAGE_SIZE);
   const from = range[0]?.format(API_DATE_FORMAT) ?? '';
   const to = range[1]?.format(API_DATE_FORMAT) ?? '';
-  const archive = useTaskArchive(teamId, offset, PAGE_SIZE, debouncedSearch, from, to, open);
-  const restoreMutation = useMutation({
-    mutationFn: (taskId: number) => apiMutate(`/api/task/${taskId}/restore`, 'POST'),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({queryKey: queryKeys.tasks.all});
-      message.success('Работа восстановлена');
-    },
-    onError: (error: Error) => message.error(error.message),
-  });
+  const archive = useTaskArchive(teamId, pagination.offset, PAGE_SIZE, debouncedSearch, from, to, open);
+  const restoreMutation = useRestoreTaskMutation();
 
-  useEffect(() => setOffset(0), [teamId, debouncedSearch, from, to]);
+  useEffect(() => pagination.reset(), [teamId, debouncedSearch, from, to, pagination.reset]);
 
   return (
     <Modal open={open} onCancel={onClose} footer={null} width={1000} title="Архив работ" destroyOnHidden>
@@ -83,8 +74,8 @@ export function TaskArchiveModal({open, teamId, canRestore, onClose}: {
           }] : []),
         ]}
       />
-      <OffsetPagination offset={offset} pageSize={PAGE_SIZE} total={archive.data?.total ?? 0}
-                        onOffsetChange={setOffset} style={{marginTop: 16, textAlign: 'center'}}/>
+      <OffsetPagination offset={pagination.offset} pageSize={PAGE_SIZE} total={archive.data?.total ?? 0}
+                        onOffsetChange={pagination.setOffset} style={{marginTop: 16, textAlign: 'center'}}/>
     </Modal>
   );
 }

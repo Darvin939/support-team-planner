@@ -48,7 +48,6 @@ import {useTaskRowDrag} from './planning/useTaskRowDrag';
 import {ASSIGNMENT_STATUS_OPTIONS, usePlanningColumns} from './planning/usePlanningColumns';
 import {apiMutate} from '../lib/apiMutate';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT} from '../lib/dateFormats';
-import {TASK_STATUS_LABELS} from '../domain/types';
 import {useDebouncedValue} from '../hooks/useDebouncedValue';
 import {useStoredTeamRoute} from '../hooks/useStoredTeamRoute';
 import {DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS} from '../lib/pagination';
@@ -58,6 +57,7 @@ import {usePaginationState} from '../hooks/usePaginationState';
 import {usePlanningFilters} from './planning/usePlanningFilters';
 import {createPlanningGridViewKey, usePlanningGridTodayCenter} from './planning/usePlanningGridTodayCenter';
 import {TOP_BAR_HEIGHT} from "../components/AppShell.tsx";
+import {useTaskPriorityMutation, useTaskReorderMutation, useTaskStatusMutation} from '../hooks/useTaskMutations';
 
 const DependencyGraphModal = lazy(() => import('./planning/DependencyGraphModal').then((m) => ({default: m.DependencyGraphModal})));
 
@@ -127,37 +127,11 @@ export function PlanningPage() {
   } = useFreezeDays();
   const freezeDays = useMemo(() => new Set(freezeDaysList ?? []), [freezeDaysList]);
 
-  const statusMutation = useMutation({
-    mutationFn: ({taskId, status}: {
-      taskId: number;
-      status: string
-    }) => apiMutate(`/api/tasks/${taskId}/status`, 'PATCH', {status}).then(() => ({taskId, status})),
-    onSuccess: ({taskId, status}) => {
-      queryClient.invalidateQueries({queryKey: ['tasks']});
-      queryClient.invalidateQueries({queryKey: ['active-assignments']});
-      const task = taskData?.tasks.find((t) => t.id === taskId);
-      if (status === 'done' || status === 'cancelled') {
-        message.success(`«${task?.name ?? taskId}» — ${TASK_STATUS_LABELS[status] ?? status}`);
-      }
-    },
-    onError: (e: Error) => message.error(e.message),
-  });
-
-  const reorderMutation = useMutation({
-    mutationFn: (taskIds: number[]) => apiMutate(`/api/tasks/${teamId}/reorder`, 'PATCH', {task_ids: taskIds}),
-    onSuccess: () => queryClient.invalidateQueries({queryKey: ['tasks']}),
-    onError: (e: Error) => message.error(e.message),
-  });
-
-  const priorityMutation = useMutation({
-    mutationFn: ({taskId, position}: { taskId: number; position: 'start' | 'end' }) =>
-      apiMutate(`/api/task/${taskId}/priority`, 'PATCH', {position}),
-    onSuccess: () => {
-      queryClient.invalidateQueries({queryKey: ['tasks']});
-      message.success('Приоритет изменён');
-    },
-    onError: (e: Error) => message.error(e.message),
-  });
+  const statusMutation = useTaskStatusMutation(
+    (taskId) => taskData?.tasks.find((task) => task.id === taskId)?.name,
+  );
+  const reorderMutation = useTaskReorderMutation(teamId);
+  const priorityMutation = useTaskPriorityMutation();
 
   useTaskRowDrag({
     onDrop: (newOrder) => reorderMutation.mutate(newOrder),

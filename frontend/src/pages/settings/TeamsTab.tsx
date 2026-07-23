@@ -10,6 +10,7 @@ import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import {usePaginationState} from '../../hooks/usePaginationState';
 import {useIsMobile} from "../../hooks/useIsMobile";
 import {TOP_BAR_HEIGHT} from "../../components/AppShell";
+import {queryKeys} from '../../lib/queryKeys';
 
 interface TeamFormValues {
   name: string;
@@ -28,7 +29,7 @@ export function TeamsTab() {
   const isMobile = useIsMobile();
 
   const {saveMutation, deleteMutation} = useCrudMutations<Team, TeamFormValues>({
-    queryKey: ['teams'],
+    queryKey: queryKeys.teams,
     baseUrl: '/api/teams',
     modalEntity: modalTeam,
     onSaveSuccess: () => setModalTeam(null),

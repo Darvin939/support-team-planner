@@ -1,5 +1,5 @@
 import {useQuery} from '@tanstack/react-query';
-import {apiGet} from '../lib/apiMutate';
+import {apiGet, buildApiUrl} from '../lib/apiMutate';
 import {queryKeys} from '../lib/queryKeys';
 
 export interface Team {
@@ -21,10 +21,8 @@ export interface PaginatedTeamsResponse {
 }
 
 export function usePaginatedTeams(offset: number, limit: number, search: string) {
-  const params = new URLSearchParams({offset: String(offset), limit: String(limit)});
-  if (search) params.set('search', search);
   return useQuery<PaginatedTeamsResponse>({
     queryKey: queryKeys.paginatedTeams(offset, limit, search),
-    queryFn: () => apiGet(`/api/teams?${params}`),
+    queryFn: () => apiGet(buildApiUrl('/api/teams', {offset, limit, search})),
   });
 }

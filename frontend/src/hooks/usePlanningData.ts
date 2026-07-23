@@ -65,7 +65,7 @@ export function useAssignments(teamId: number, dateFrom: string, dateTo: string,
 export function useTaskDeps(teamId: number, taskIds: number[]) {
   return useQuery<TaskDep[]>({
     queryKey: queryKeys.taskDepsList(teamId, taskIds),
-    queryFn: () => apiGet(`/api/tasks/${teamId}/deps?task_ids=${taskIds.join(',')}`),
+    queryFn: () => apiGet(buildApiUrl(`/api/tasks/${teamId}/deps`, {task_ids: taskIds.join(',')})),
     enabled: !!teamId && taskIds.length > 0,
   });
 }
@@ -78,11 +78,11 @@ interface ActiveAssignmentLite {
 
 export function useTodayActive(teamId: number, today: string) {
   return useQuery<ActiveAssignmentLite[]>({
-    queryKey: [...queryKeys.assignments.active, teamId, today, today],
+    queryKey: queryKeys.assignments.today(teamId, today),
     queryFn: () =>
       apiGet<{
         items: ActiveAssignmentLite[]
-      }>(`/api/active-assignments/${teamId}?start_date=${today}&end_date=${today}`).then(
+      }>(buildApiUrl(`/api/active-assignments/${teamId}`, {start_date: today, end_date: today})).then(
         (r) => r.items
       ),
     enabled: !!teamId,
@@ -114,10 +114,10 @@ export function useOverdueAssignments() {
   const start = cutoff.subtract(MAX_PERIOD_DAYS, 'day').format(API_DATE_FORMAT);
   const end = cutoff.format(API_DATE_FORMAT);
   return useQuery<OverdueAssignmentsResponse>({
-    queryKey: [...queryKeys.assignments.active, 'overdue-preview', start, end, OVERDUE_PREVIEW_LIMIT],
+    queryKey: queryKeys.assignments.overdue(start, end, OVERDUE_PREVIEW_LIMIT),
     queryFn: () =>
       apiGet<OverdueAssignmentsResponse>(
-        `/api/active-assignments/0?start_date=${start}&end_date=${end}&offset=0&limit=${OVERDUE_PREVIEW_LIMIT}`
+        buildApiUrl('/api/active-assignments/0', {start_date: start, end_date: end, offset: 0, limit: OVERDUE_PREVIEW_LIMIT})
       ),
     refetchInterval: 5 * 60 * 1000,
   });
@@ -150,7 +150,7 @@ export interface TeamBlock {
 export function useTeamBlocks(teamId: number, segmentId?: number | null) {
   return useQuery<TeamBlock[]>({
     queryKey: queryKeys.teamBlocks(teamId, segmentId),
-    queryFn: () => apiGet(`/api/teams/${teamId}/blocks${segmentId ? `?segment_id=${segmentId}` : ''}`),
+    queryFn: () => apiGet(buildApiUrl(`/api/teams/${teamId}/blocks`, {segment_id: segmentId})),
     enabled: !!teamId,
   });
 }
@@ -201,7 +201,7 @@ export interface DependencyGraphEdge {
 export function useDependencyGraph(teamId: number, enabled: boolean, taskId?: number) {
   return useQuery<{ nodes: DependencyGraphNode[]; edges: DependencyGraphEdge[] }>({
     queryKey: queryKeys.dependencyGraphFor(teamId, taskId),
-    queryFn: () => apiGet(`/api/tasks/${teamId}/dependency-graph${taskId ? `?task_id=${taskId}` : ''}`),
+    queryFn: () => apiGet(buildApiUrl(`/api/tasks/${teamId}/dependency-graph`, {task_id: taskId})),
     enabled: !!teamId && enabled,
   });
 }
@@ -235,10 +235,7 @@ export function useActiveTasksList(teamId: number, search: string, includeIds: n
   return useQuery<ActiveTaskListItem[]>({
     queryKey: queryKeys.activeTasks(teamId, search, includeIdsKey),
     queryFn: () =>
-      apiGet(
-        `/api/tasks/${teamId}/active-list?search=${encodeURIComponent(search)}` +
-        (includeIdsKey ? `&include_ids=${includeIdsKey}` : '')
-      ),
+      apiGet(buildApiUrl(`/api/tasks/${teamId}/active-list`, {search, include_ids: includeIdsKey})),
     enabled: !!teamId,
     placeholderData: keepPreviousData,
   });

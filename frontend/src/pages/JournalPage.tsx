@@ -1,50 +1,20 @@
 import {useEffect, useState} from 'react';
 import {useParams} from 'react-router-dom';
 import {Card, DatePicker, Empty, Input, Modal, Select, Tag, Typography} from 'antd';
-import {useQuery} from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import {useTeams} from '../hooks/useTeams';
 import {useUserNames, useUserOptions} from '../hooks/useUserNames';
 import {useIsMobile} from '../hooks/useIsMobile';
 import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
 import {FilterField, FilterGrid} from '../components/FilterGrid';
-import {formatChangedBy, formatHistoryText, type HistoryEntry} from '../lib/historyFormat';
-import {apiGet} from '../lib/apiMutate';
+import {formatChangedBy, formatHistoryText} from '../lib/historyFormat';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT} from '../lib/dateFormats';
 import {useDebouncedValue} from '../hooks/useDebouncedValue';
 import {useStoredTeamRoute} from '../hooks/useStoredTeamRoute';
-import {queryKeys} from '../lib/queryKeys';
 import {usePaginationState} from '../hooks/usePaginationState';
+import {JOURNAL_PAGE_SIZE, type JournalFilters, useJournal} from '../hooks/useJournalData';
 import {HISTORY_PAGE_SIZE, HistoryEntries, useEntityHistory} from './planning/historyShared';
 import {OffsetPagination} from '../components/OffsetPagination';
-
-const JOURNAL_PAGE_SIZE = 20;
-
-interface JournalItem extends HistoryEntry {
-  task_id: number;
-}
-
-interface JournalFilters {
-  search: string;
-  dateFrom: string | null;
-  dateTo: string | null;
-  changedByUserId: number | null;
-}
-
-function useJournal(teamId: number | undefined, offset: number, filters: JournalFilters) {
-  return useQuery<{ items: JournalItem[]; total: number }>({
-    queryKey: queryKeys.journal(teamId, offset, filters),
-    enabled: teamId !== undefined,
-    queryFn: () => {
-      const params = new URLSearchParams({offset: String(offset), limit: String(JOURNAL_PAGE_SIZE)});
-      if (filters.search) params.set('search', filters.search);
-      if (filters.dateFrom) params.set('date_from', filters.dateFrom);
-      if (filters.dateTo) params.set('date_to', filters.dateTo);
-      if (filters.changedByUserId) params.set('changed_by_user_id', String(filters.changedByUserId));
-      return apiGet(`/api/journal/${teamId}?${params}`);
-    },
-  });
-}
 
 function TaskHistoryModal({taskId, taskName, onClose}: {
   taskId: number | null;
