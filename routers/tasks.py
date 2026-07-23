@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 import db
 from access_control import require_task_access, require_team_access
 from api_models import TaskIn, TaskPriorityIn, TaskReorderIn, TaskStatusIn
+from db.pagination import page_result
 from task_dependency_rules import TaskDependencyCycleError
 from task_rules import VALID_TASK_TRANSITIONS, task_is_locked
 
@@ -51,7 +52,7 @@ def get_tasks_api(
         search=search_val,
         include_recent_completed=include_recent_completed,
     )
-    return {'tasks': [_task_json(task) for task in tasks], 'total': total}
+    return page_result([_task_json(task) for task in tasks], total, 'tasks')
 
 
 @router.get('/api/task/{task_id}')
@@ -100,7 +101,7 @@ def get_tasks_archive_api(
     date_to = completed_to.isoformat() if completed_to else None
     tasks = db.get_archived_tasks_by_team(team_id, offset, limit, search_val, date_from, date_to)
     total = db.get_archived_tasks_count_by_team(team_id, search_val, date_from, date_to)
-    return {'tasks': [_task_json(task) for task in tasks], 'total': total}
+    return page_result([_task_json(task) for task in tasks], total, 'tasks')
 
 
 @router.post('/api/task')

@@ -44,10 +44,10 @@
 
 ## 7. Доменные list/count filters
 
-- [ ] 7.1 Унифицировать page result shape без универсального SQL builder
-- [ ] 7.2 Выделить общие фильтры list/count для задач и архива
-- [ ] 7.3 Выделить общие фильтры list/count для пользователей, команд и истории
-- [ ] 7.4 Проверить empty-page, total и search/filter regression cases
+- [x] 7.1 Унифицировать page result shape без универсального SQL builder
+- [x] 7.2 Выделить общие фильтры list/count для задач и архива
+- [x] 7.3 Выделить общие фильтры list/count для пользователей, команд и истории
+- [x] 7.4 Проверить empty-page, total и search/filter regression cases
 
 ## 8. Frontend domain types
 

@@ -4,6 +4,16 @@ from db.connection import backend as _backend, with_db_connection
 
 _PRIORITY_GAP = 1000
 
+
+def _active_task_filter(include_recent_completed, qualified=False):
+    prefix = 'tasks.' if qualified else ''
+    if include_recent_completed:
+        return (
+            f"AND ({prefix}task_status NOT IN ('done', 'cancelled') OR "
+            f"({prefix}completed_at IS NOT NULL AND {prefix}completed_at >= datetime('now', '-30 days')))"
+        )
+    return f"AND {prefix}task_status NOT IN ('done', 'cancelled')"
+
 # === TASKS CRUD ===
 def _fuzzy_search_clause(search, name_col='name', description_col='description'):
     """Строит WHERE-фрагмент и параметры для нечёткого поиска задач по словам: каждое слово
@@ -24,11 +34,7 @@ def _fuzzy_search_clause(search, name_col='name', description_col='description')
 @with_db_connection(commit_on_success=False)
 def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, include_recent_completed=False):
     """Получить задачи команды с пагинацией и поиском"""
-    completed_clause = (
-        "AND (tasks.task_status NOT IN ('done', 'cancelled') OR "
-        "(tasks.completed_at IS NOT NULL AND tasks.completed_at >= datetime('now', '-30 days')))"
-        if include_recent_completed else "AND tasks.task_status NOT IN ('done', 'cancelled')"
-    )
+    completed_clause = _active_task_filter(include_recent_completed, qualified=True)
     params = [team_id]
     search_clause, search_params = _fuzzy_search_clause(search, 'tasks.name', 'tasks.description')
     params += search_params
@@ -61,11 +67,7 @@ def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, include_re
 @with_db_connection(commit_on_success=False)
 def get_tasks_count_by_team(conn, team_id, search=None, include_recent_completed=False):
     """Получить общее количество задач команды (с учётом поиска)"""
-    completed_clause = (
-        "AND (task_status NOT IN ('done', 'cancelled') OR "
-        "(completed_at IS NOT NULL AND completed_at >= datetime('now', '-30 days')))"
-        if include_recent_completed else "AND task_status NOT IN ('done', 'cancelled')"
-    )
+    completed_clause = _active_task_filter(include_recent_completed)
     params = [team_id]
     search_clause, search_params = _fuzzy_search_clause(search)
     params += search_params

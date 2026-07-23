@@ -141,6 +141,11 @@ class TaskArchiveApiTest(unittest.TestCase):
             dated = client.get('/api/tasks/1/archive', params={'completed_from': '2000-01-01'}).json()
             self.assertEqual(5, dated['total'])
             self.assertNotIn(13, {task['id'] for task in dated['tasks']})
+            empty = client.get('/api/tasks/1/archive', params={'search': 'does-not-exist'}).json()
+            self.assertEqual({'tasks': [], 'total': 0}, empty)
+            beyond = client.get('/api/tasks/1/archive', params={'offset': 99, 'limit': 2}).json()
+            self.assertEqual(6, beyond['total'])
+            self.assertEqual([], beyond['tasks'])
 
     def test_archive_validates_range_and_team_access(self):
         with self.login('limited-archive', 'password123') as client:

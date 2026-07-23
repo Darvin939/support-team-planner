@@ -1,6 +1,7 @@
 from db.connection import backend as _backend, with_db_connection
 from db.tasks import _record_assignment_history
 from db.grouping import group_rows
+from db.pagination import page_result
 
 # === USERS CRUD ===
 @with_db_connection(commit_on_success=False)
@@ -43,6 +44,24 @@ def _get_user_team_ids_map(conn, user_ids):
         user_id: [row['team_id'] for row in entries]
         for user_id, entries in group_rows(rows, 'user_id').items()
     }
+
+
+def _user_search_filter(search):
+    needle = (search or '').strip().casefold()
+    searchable_text = '''
+        COALESCE(login, '') || ' ' ||
+        COALESCE(last_name, '') || ' ' ||
+        COALESCE(first_name, '') || ' ' ||
+        COALESCE(middle_name, '') || ' ' ||
+        role || ' ' ||
+        CASE role
+            WHEN 'admin' THEN 'Администратор'
+            WHEN 'editor' THEN 'Редактор'
+            WHEN 'user' THEN 'Пользователь'
+            ELSE ''
+        END
+    '''
+    return (f'WHERE instr(casefold({searchable_text}), ?) > 0', (needle,)) if needle else ('', ())
 
 
 def _set_user_team_ids(conn, user_id, team_ids, role=None):
@@ -151,22 +170,7 @@ def get_all_users(conn):
 @with_db_connection(commit_on_success=False)
 def get_users_page(conn, offset=0, limit=20, search=None):
     """Отфильтровать пользователей и вернуть только запрошенную страницу."""
-    needle = (search or '').strip().casefold()
-    searchable_text = '''
-        COALESCE(login, '') || ' ' ||
-        COALESCE(last_name, '') || ' ' ||
-        COALESCE(first_name, '') || ' ' ||
-        COALESCE(middle_name, '') || ' ' ||
-        role || ' ' ||
-        CASE role
-            WHEN 'admin' THEN 'Администратор'
-            WHEN 'editor' THEN 'Редактор'
-            WHEN 'user' THEN 'Пользователь'
-            ELSE ''
-        END
-    '''
-    where_clause = f'WHERE instr(casefold({searchable_text}), ?) > 0' if needle else ''
-    filter_params = (needle,) if needle else ()
+    where_clause, filter_params = _user_search_filter(search)
     total = conn.execute(f'SELECT COUNT(*) FROM users {where_clause}', filter_params).fetchone()[0]
     page = conn.execute(
         f'''SELECT id, last_name, first_name, middle_name, role, login, is_assignee
@@ -184,7 +188,7 @@ def get_users_page(conn, offset=0, limit=20, search=None):
         user_dict['is_protected'] = _is_bootstrap_admin(user)
         user_dict['team_ids'] = team_ids_by_user.get(user['id'], [])
         result.append(user_dict)
-    return {'users': result, 'total': total}
+    return page_result(result, total, 'users')
 
 
 @with_db_connection(commit_on_success=False)

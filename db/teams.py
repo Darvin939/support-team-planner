@@ -2,6 +2,7 @@ from db.connection import backend as _backend, with_db_connection
 from db.errors import IntegrityConstraintError
 from db.reference_data import _get_template_blocks_map
 from db.grouping import group_rows
+from db.pagination import page_result
 
 # === TEAMS CRUD ===
 @with_db_connection(commit_on_success=False)
@@ -100,13 +101,14 @@ def get_teams_page_for_user(conn, user_id, role, offset=0, limit=20, search=None
         for row in rows:
             templates.setdefault(row['team_id'], []).append({'id': row['id'], 'name': row['name']})
 
-    return {
-        'teams': [
+    return page_result(
+        [
             {'id': team['id'], 'name': team['name'], 'templates': templates.get(team['id'], [])}
             for team in teams
         ],
-        'total': total,
-    }
+        total,
+        'teams',
+    )
 
 
 @with_db_connection()
