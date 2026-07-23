@@ -12,7 +12,6 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from api_models import (
     MyPasswordIn,
-    TaskDependencyIn,
     TaskIn,
     TaskPriorityIn,
     TaskReorderIn,
@@ -33,7 +32,8 @@ from routers.freeze_days import router as freeze_days_router
 from routers.teams import router as teams_router
 from routers.users import router as users_router
 from routers.assignments import router as assignments_router
-from query_parsing import parse_int_csv as _parse_int_csv
+from routers.task_dependencies import router as task_dependencies_router
+from task_dependency_rules import TaskDependencyCycleError
 from task_rules import task_is_locked as _task_is_locked
 
 app = FastAPI()
@@ -42,6 +42,7 @@ app.include_router(freeze_days_router)
 app.include_router(teams_router)
 app.include_router(users_router)
 app.include_router(assignments_router)
+app.include_router(task_dependencies_router)
 
 
 def _api_error(message: str, status_code: int, headers=None) -> JSONResponse:
@@ -127,10 +128,6 @@ app.add_middleware(
     max_age=60 * 60 * 24 * 30,
     same_site='lax',
 )
-
-
-class TaskDependencyCycleError(Exception):
-    pass
 
 
 # Единственный источник истины — frontend/src/data/taskTransitions.json, читается и фронтендом
@@ -347,86 +344,6 @@ def save_task_api(request: Request, data: TaskIn):
         return JSONResponse({'error': 'Обнаружена циклическая зависимость'}, status_code=400)
 
     return {'id': task_id, 'success': True}
-
-
-@app.get('/api/tasks/{team_id}/deps')
-def get_team_deps(request: Request, team_id: int, task_ids: Optional[str] = None):
-    _require_team_access(request, team_id)
-    parsed_task_ids = _parse_int_csv(task_ids)
-    rows = db.get_all_deps_for_team(team_id, task_ids=parsed_task_ids)
-    return [{'task_id': r['task_id'], 'dep_id': r['dep_id'], 'dep_name': r['dep_name'],
-             'dep_status': r['dep_status'], 'dep_is_deleted': bool(r['dep_is_deleted']),
-             'dep_criticality': r['dep_criticality'], 'dep_segment_id': r['dep_segment_id'],
-             'dep_segment_name': r['dep_segment_name']} for r in rows]
-
-
-@app.get('/api/tasks/{team_id}/dependency-graph')
-def get_team_dependency_graph(request: Request, team_id: int, task_id: Optional[int] = None):
-    """Граф зависимостей для визуализации — в отличие от /deps не ограничен списком уже
-    загруженных на странице задач. Без task_id — весь граф команды (задачи без единой связи
-    исключены). С task_id — только связная компонента конкретной задачи (её предки и потомки)."""
-    _require_team_access(request, team_id)
-    if task_id is not None:
-        _require_task_access(request, task_id)
-    graph = db.get_dependency_graph_for_team(team_id, task_id=task_id)
-    return {
-        'nodes': [{'id': n['id'], 'name': n['name'], 'description': n['description'],
-                   'task_status': n['task_status'], 'criticality': n['criticality'],
-                   'segment_id': n['segment_id'], 'segment_name': n['segment_name']} for n in graph['nodes']],
-        'edges': [{'task_id': e['task_id'], 'dep_id': e['dep_id']} for e in graph['edges']],
-    }
-
-
-def _validate_task_dependency_edit(data: 'TaskDependencyIn'):
-    """Общие проверки для добавления/удаления одной связи зависимости с графа: обе задачи
-    существуют и не удалены, принадлежат одной команде, а зависящая задача (task_id) не в
-    терминальном статусе — те же правила, что уже действуют при редактировании зависимостей
-    через форму задачи (POST /api/task)."""
-    task, dep_task = db.get_tasks_for_dependency_edit(data.task_id, data.depends_on_task_id)
-    if not task or not dep_task or task['is_deleted'] or dep_task['is_deleted']:
-        return JSONResponse({'error': 'Задача не найдена'}, status_code=404)
-    if task['team_id'] != dep_task['team_id']:
-        return JSONResponse({'error': 'Задачи принадлежат разным командам'}, status_code=400)
-    if task['task_status'] in ('done', 'cancelled'):
-        return JSONResponse({'error': 'Нельзя редактировать завершённую или отменённую задачу'}, status_code=400)
-    return None
-
-
-@app.post('/api/task-dependency')
-def add_task_dependency_api(request: Request, data: TaskDependencyIn):
-    """Добавить одну связь зависимости прямо с графа (без пересохранения всей задачи)."""
-    _require_task_access(request, data.task_id)
-    _require_task_access(request, data.depends_on_task_id)
-    error = _validate_task_dependency_edit(data)
-    if error:
-        return error
-    if db.has_dependency_cycle(data.task_id, [data.depends_on_task_id]):
-        return JSONResponse({'error': 'Обнаружена циклическая зависимость'}, status_code=400)
-    db.add_task_dependency(data.task_id, data.depends_on_task_id)
-    return {'success': True}
-
-
-@app.delete('/api/task-dependency')
-def remove_task_dependency_api(request: Request, data: TaskDependencyIn):
-    """Удалить одну связь зависимости прямо с графа."""
-    _require_task_access(request, data.task_id)
-    _require_task_access(request, data.depends_on_task_id)
-    error = _validate_task_dependency_edit(data)
-    if error:
-        return error
-    db.remove_task_dependency(data.task_id, data.depends_on_task_id)
-    return {'success': True}
-
-
-@app.get('/api/tasks/{team_id}/active-list')
-def get_active_tasks_list(request: Request, team_id: int, search: str = "", limit: int = 50,
-                          include_ids: Optional[str] = None):
-    _require_team_access(request, team_id)
-    search_val = search.strip() or None
-    parsed_include_ids = _parse_int_csv(include_ids)
-    rows = db.get_active_tasks_flat(team_id, search=search_val, limit=limit, include_ids=parsed_include_ids)
-    return [{'id': r['id'], 'name': r['name'], 'task_status': r['task_status'],
-             'criticality': r['criticality']} for r in rows]
 
 
 @app.delete('/api/task/{task_id}')

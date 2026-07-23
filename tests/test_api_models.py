@@ -127,6 +127,29 @@ class ApiModelsContractTest(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(methods, set(paths[path]))
 
+    def test_task_dependency_paths_and_contract_are_stable(self):
+        paths = app.openapi()['paths']
+        expected = {
+            '/api/tasks/{team_id}/deps': {'get'},
+            '/api/tasks/{team_id}/dependency-graph': {'get'},
+            '/api/task-dependency': {'post', 'delete'},
+            '/api/tasks/{team_id}/active-list': {'get'},
+        }
+        for path, methods in expected.items():
+            with self.subTest(path=path):
+                self.assertEqual(methods, set(paths[path]))
+
+        deps_parameters = paths['/api/tasks/{team_id}/deps']['get']['parameters']
+        self.assertEqual(['team_id', 'task_ids'], [item['name'] for item in deps_parameters])
+        active_parameters = paths['/api/tasks/{team_id}/active-list']['get']['parameters']
+        self.assertEqual(
+            ['team_id', 'search', 'limit', 'include_ids'],
+            [item['name'] for item in active_parameters],
+        )
+        for method in ('post', 'delete'):
+            schema = paths['/api/task-dependency'][method]['requestBody']['content']['application/json']['schema']
+            self.assertEqual('#/components/schemas/TaskDependencyIn', schema['$ref'])
+
 
 if __name__ == '__main__':
     unittest.main()
