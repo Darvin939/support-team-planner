@@ -4,6 +4,8 @@ from datetime import date, timedelta
 from typing import Optional, List, Union
 
 from fastapi import FastAPI, Request, Form, HTTPException
+from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -15,6 +17,25 @@ import utils
 from ssl_context import get_cert
 
 app = FastAPI()
+
+
+def _api_error(message: str, status_code: int, headers=None) -> JSONResponse:
+    return JSONResponse({'error': message}, status_code=status_code, headers=headers)
+
+
+@app.exception_handler(HTTPException)
+async def api_http_exception_handler(request: Request, exc: HTTPException):
+    if not request.url.path.startswith('/api/'):
+        return await http_exception_handler(request, exc)
+    message = exc.detail if isinstance(exc.detail, str) and exc.detail.strip() else 'Ошибка запроса'
+    return _api_error(message, exc.status_code, exc.headers)
+
+
+@app.exception_handler(RequestValidationError)
+async def api_validation_exception_handler(request: Request, exc: RequestValidationError):
+    if not request.url.path.startswith('/api/'):
+        return await request_validation_exception_handler(request, exc)
+    return _api_error('Некорректный запрос', 422)
 
 # React (Vite/antd) migration, page by page — see plan doc. `frontend/dist` only exists after
 # `npm run build`; the mount is skipped in dev if it hasn't been built yet, matching the current

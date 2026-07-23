@@ -1,9 +1,7 @@
-# frontend-api-error-format Specification
+## MODIFIED Requirements
 
-## Purpose
-Зафиксировать единый разбор ошибок frontend API helpers и синхронное изменение публичных контрактов с backend.
-## Requirements
 ### Requirement: GET requests use the shared apiGet error contract
+
 Every frontend `useQuery`'s `queryFn` SHALL fetch via `apiGet`. Both `apiGet` and `apiMutate` SHALL use the same
 error-response parser, which accepts a non-empty string `error` and otherwise throws an `Error` with
 `` `<METHOD> <url> -> <status>` ``.
@@ -41,4 +39,3 @@ deployment or an external producer is an explicit requirement.
 - **WHEN** an OpenSpec change modifies a public backend response payload
 - **THEN** the same change specifies and implements the corresponding frontend consumer update
 - **AND** no legacy payload fallback is added without an explicit compatibility requirement
-
