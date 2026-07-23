@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from query_parsing import parse_int_csv
 from task_dependency_rules import TaskDependencyEditError, validate_task_dependency_edit
-from task_rules import task_is_locked
+from task_rules import VALID_TASK_TRANSITIONS, task_is_locked
 
 
 class DomainHelpersTest(unittest.TestCase):
@@ -12,6 +12,9 @@ class DomainHelpersTest(unittest.TestCase):
         self.assertTrue(task_is_locked({'task_status': 'cancelled', 'is_deleted': 0}))
         self.assertTrue(task_is_locked({'task_status': 'new', 'is_deleted': 1}))
         self.assertFalse(task_is_locked({'task_status': 'new', 'is_deleted': 0}))
+
+    def test_task_transition_rules_are_loaded_from_shared_source(self):
+        self.assertEqual({'new': {'done', 'cancelled'}}, VALID_TASK_TRANSITIONS)
 
     def test_csv_int_parser(self):
         self.assertIsNone(parse_int_csv(None))

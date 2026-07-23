@@ -2,6 +2,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -101,6 +102,40 @@ class TeamAccessApiTest(unittest.TestCase):
                 'task_id': 10, 'date': '2026-07-19', 'status': 'new', 'user_id': 3,
             })
             self.assertEqual(400, response.status_code)
+
+    def test_journal_filters_are_normalized_and_forwarded(self):
+        with patch('routers.journal.db.get_team_history', return_value=[{'id': 1}]) as get_items, patch(
+            'routers.journal.db.get_team_history_count',
+            return_value=1,
+        ) as get_total, self.login('limited', 'password123') as client:
+            response = client.get(
+                '/api/journal/1',
+                params={
+                    'offset': 3,
+                    'limit': 7,
+                    'search': '  task  ',
+                    'date_from': ' 2026-07-01 ',
+                    'date_to': ' 2026-07-31 ',
+                    'changed_by_user_id': 2,
+                },
+            )
+        self.assertEqual({'items': [{'id': 1}], 'total': 1}, response.json())
+        get_items.assert_called_once_with(
+            1,
+            offset=3,
+            limit=7,
+            search='task',
+            date_from='2026-07-01',
+            date_to='2026-07-31',
+            changed_by_user_id=2,
+        )
+        get_total.assert_called_once_with(
+            1,
+            search='task',
+            date_from='2026-07-01',
+            date_to='2026-07-31',
+            changed_by_user_id=2,
+        )
 
 
 if __name__ == '__main__':

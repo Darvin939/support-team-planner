@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 import db
 import db.sqlite as sqlite_backend
+import routers.shell as shell_router
 from support_planner import app
 
 
@@ -76,6 +77,39 @@ class ApiErrorFormatTest(unittest.TestCase):
             response = client.get('/api/me')
         self.assertEqual(401, response.status_code)
         self.assertEqual({'error': 'Не авторизован'}, response.json())
+
+    def test_shell_session_and_document_routes_are_stable(self):
+        previous_index = shell_router._react_index_html
+        shell_router._react_index_html = '<html>router shell</html>'
+        try:
+            with TestClient(app, follow_redirects=False) as client:
+                login_page = client.get('/login')
+                invalid = client.post('/login', data={'login': 'admin', 'password': 'wrong'})
+                valid = client.post('/login', data={'login': 'admin', 'password': 'q12345678'})
+                me = client.get('/api/me')
+                documents = [
+                    client.get(path)
+                    for path in (
+                        '/planning',
+                        '/planning/1',
+                        '/settings',
+                        '/statistics',
+                        '/journal',
+                        '/journal/1',
+                    )
+                ]
+                logout = client.post('/logout')
+                after_logout = client.get('/api/me')
+        finally:
+            shell_router._react_index_html = previous_index
+
+        self.assertEqual((200, '<html>router shell</html>'), (login_page.status_code, login_page.text))
+        self.assertEqual((401, {'error': 'Неверный логин или пароль'}), (invalid.status_code, invalid.json()))
+        self.assertEqual({'success': True}, valid.json())
+        self.assertEqual('admin', me.json()['role'])
+        self.assertTrue(all(response.status_code == 200 for response in documents))
+        self.assertEqual((302, '/login'), (logout.status_code, logout.headers['location']))
+        self.assertEqual(401, after_logout.status_code)
 
     def test_reference_data_validation_and_duplicate_errors_are_stable(self):
         with self.login() as client:

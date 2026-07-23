@@ -150,6 +150,54 @@ class ApiModelsContractTest(unittest.TestCase):
             schema = paths['/api/task-dependency'][method]['requestBody']['content']['application/json']['schema']
             self.assertEqual('#/components/schemas/TaskDependencyIn', schema['$ref'])
 
+    def test_shell_task_and_journal_paths_are_stable(self):
+        paths = app.openapi()['paths']
+        expected = {
+            '/': {'get'},
+            '/login': {'get', 'post'},
+            '/logout': {'post'},
+            '/api/me': {'get', 'put'},
+            '/planning': {'get'},
+            '/planning/{team_id}': {'get'},
+            '/settings': {'get'},
+            '/statistics': {'get'},
+            '/journal': {'get'},
+            '/journal/{team_id}': {'get'},
+            '/api/tasks/{team_id}': {'get'},
+            '/api/task/{task_id}': {'get', 'delete'},
+            '/api/task/{task_id}/restore': {'post'},
+            '/api/tasks/{team_id}/archive': {'get'},
+            '/api/task': {'post'},
+            '/api/tasks/{task_id}/status': {'patch'},
+            '/api/tasks/{team_id}/reorder': {'patch'},
+            '/api/task/{task_id}/priority': {'patch'},
+            '/api/task/{task_id}/history': {'get'},
+            '/api/journal/{team_id}': {'get'},
+        }
+        for path, methods in expected.items():
+            with self.subTest(path=path):
+                self.assertEqual(methods, set(paths[path]))
+
+        task_list = paths['/api/tasks/{team_id}']['get']['parameters']
+        self.assertEqual(
+            ['team_id', 'offset', 'limit', 'search', 'include_recent_completed'],
+            [parameter['name'] for parameter in task_list],
+        )
+        journal = paths['/api/journal/{team_id}']['get']['parameters']
+        self.assertEqual(
+            ['team_id', 'offset', 'limit', 'search', 'date_from', 'date_to', 'changed_by_user_id'],
+            [parameter['name'] for parameter in journal],
+        )
+        body_schemas = {
+            ('/api/task', 'post'): 'TaskIn',
+            ('/api/tasks/{task_id}/status', 'patch'): 'TaskStatusIn',
+            ('/api/tasks/{team_id}/reorder', 'patch'): 'TaskReorderIn',
+            ('/api/task/{task_id}/priority', 'patch'): 'TaskPriorityIn',
+        }
+        for (path, method), schema_name in body_schemas.items():
+            schema = paths[path][method]['requestBody']['content']['application/json']['schema']
+            self.assertEqual(f'#/components/schemas/{schema_name}', schema['$ref'])
+
 
 if __name__ == '__main__':
     unittest.main()
