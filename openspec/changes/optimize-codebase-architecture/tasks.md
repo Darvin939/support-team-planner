@@ -22,11 +22,11 @@
 
 ## 4. Декомпозиция `PlanningPage`
 
-- [ ] 4.1 Вынести Planning queries и lookup maps в специализированные hooks
-- [ ] 4.2 Вынести jump/dependency navigation state
-- [ ] 4.3 Вынести assignment actions и selection orchestration
-- [ ] 4.4 Выделить самостоятельные filters/toolbar/stats presentation-блоки
-- [ ] 4.5 Проверить Planning production UI-сценарии без визуальных изменений
+- [x] 4.1 Вынести Planning queries и lookup maps в специализированные hooks
+- [x] 4.2 Вынести jump/dependency navigation state
+- [x] 4.3 Вынести assignment actions и selection orchestration
+- [x] 4.4 Выделить самостоятельные filters/toolbar/stats presentation-блоки
+- [x] 4.5 Проверить Planning production UI-сценарии без визуальных изменений
 
 ## 5. Assignment domain hooks
 
