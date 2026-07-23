@@ -15,8 +15,7 @@ import {
   TimePicker
 } from 'antd';
 import dayjs from 'dayjs';
-import type {Assignment, Task} from '../../hooks/usePlanningData';
-import {type BlockTemplateEntry, useTeamBlocks, useTeamTemplates} from '../../hooks/usePlanningData';
+import {useTeamBlocks, useTeamTemplates} from '../../hooks/usePlanningData';
 import {useTeamAssignees} from '../../hooks/useSettingsData';
 import {useMe} from '../../hooks/useMe';
 import {formatDisplayName} from '../../hooks/useUserNames';
@@ -26,7 +25,7 @@ import {
   useDeleteAssignmentMutation,
   useSaveAssignmentMutation,
 } from '../../hooks/useAssignmentMutations';
-import type {AssignmentStatus} from '../../domain/types';
+import type {AssignmentStatus, BlockTemplateEntry, Assignment, Task} from '../../domain/types';
 import {getAutoScheduleDateRange} from '../../lib/autoSchedule';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT, TIME_FORMAT} from '../../lib/dateFormats';
 import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';

@@ -3,44 +3,10 @@ import dayjs from 'dayjs';
 import {apiGet, apiMutate, buildApiUrl} from '../lib/apiMutate';
 import {queryKeys} from '../lib/queryKeys';
 import {invalidateTaskDependencies} from '../lib/queryInvalidation';
-import type {AssignmentStatus, Criticality, TaskStatus} from '../domain/types';
+import type {Assignment, BlockTemplateEntry, BlockTemplate, Task, TaskDep} from '../domain/types';
+export type {Assignment, BlockTemplateEntry, Task, TaskDep} from '../domain/types';
 import {API_DATE_FORMAT} from '../lib/dateFormats';
 import {MAX_PERIOD_DAYS} from './useDateRangeFilter';
-
-export interface Task {
-  id: number;
-  name: string;
-  description: string | null;
-  criticality: Criticality;
-  task_status: TaskStatus;
-  segment_id: number;
-  segment_name: string;
-  completed_at: string | null;
-  has_active_assignments: boolean;
-}
-
-export interface Assignment {
-  id: number;
-  task_id: number;
-  date: string;
-  block: string | null;
-  status: AssignmentStatus;
-  user_id: number | null;
-  user_name: string | null;
-  comment: string | null;
-  time_spent: string | null;
-}
-
-export interface TaskDep {
-  task_id: number;
-  dep_id: number;
-  dep_name: string;
-  dep_status: string;
-  dep_is_deleted: boolean | number;
-  dep_criticality: 'high' | 'medium' | 'low';
-  dep_segment_id: number;
-  dep_segment_name: string;
-}
 
 export function useTasks(teamId: number, offset: number, limit: number, search: string, includeRecentCompleted: boolean) {
   return useQuery<{ tasks: Task[]; total: number }>({
@@ -142,10 +108,7 @@ export function useTaskArchive(teamId: number, offset: number, limit: number, se
   });
 }
 
-export interface TeamBlock {
-  id: number;
-  name: string;
-}
+export type TeamBlock = BlockTemplateEntry;
 
 export function useTeamBlocks(teamId: number, segmentId?: number | null) {
   return useQuery<TeamBlock[]>({
@@ -155,18 +118,7 @@ export function useTeamBlocks(teamId: number, segmentId?: number | null) {
   });
 }
 
-export interface BlockTemplateEntry {
-  id: number;
-  name: string;
-  shift_days: number;
-}
-
-export interface BlockTemplateWithBlocks {
-  id: number;
-  name: string;
-  segment_id: number;
-  blocks: BlockTemplateEntry[];
-}
+export type BlockTemplateWithBlocks = BlockTemplate;
 
 export function useTeamTemplates(teamId: number) {
   return useQuery<BlockTemplateWithBlocks[]>({

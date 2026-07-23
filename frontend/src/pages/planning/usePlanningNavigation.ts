@@ -1,7 +1,7 @@
 import {useEffect, useState} from 'react';
 import {message} from 'antd';
 import dayjs from 'dayjs';
-import type {Assignment, Task} from '../../hooks/usePlanningData';
+import type {Assignment, Task} from '../../domain/types';
 import {useAssignments, useTaskById} from '../../hooks/usePlanningData';
 import {API_DATE_FORMAT} from '../../lib/dateFormats';
 

@@ -1,21 +1,9 @@
 import type {Dispatch, SetStateAction} from 'react';
 import {Card, Checkbox, DatePicker, Input, Select, Typography} from 'antd';
 import dayjs, {type Dayjs} from 'dayjs';
-import type {Segment} from '../../hooks/useSettingsData';
 import {FilterField, FilterGrid} from '../../components/FilterGrid';
-import {ASSIGNMENT_STATUS_OPTIONS} from './usePlanningColumns';
+import {ASSIGNMENT_STATUS_OPTIONS, CRITICALITY_OPTIONS, TASK_STATUS_OPTIONS, type Segment} from '../../domain/types';
 import {DISPLAY_DATE_FORMAT} from '../../lib/dateFormats';
-
-const TASK_STATUS_OPTIONS = [
-  {value: 'new', label: 'Новый'},
-  {value: 'done', label: 'Выполнено'},
-  {value: 'cancelled', label: 'Отменено'},
-];
-const CRITICALITY_OPTIONS = [
-  {value: 'low', label: 'Низкая'},
-  {value: 'medium', label: 'Средняя'},
-  {value: 'high', label: 'Высокая'},
-];
 
 export function PlanningFiltersCard(props: {
   isMobile: boolean;

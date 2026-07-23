@@ -1,41 +1,8 @@
 import {useQuery} from '@tanstack/react-query';
 import {apiGet, buildApiUrl} from '../lib/apiMutate';
 import {queryKeys} from '../lib/queryKeys';
-
-export interface User {
-  id: number;
-  last_name: string | null;
-  first_name: string;
-  middle_name: string | null;
-  role: string;
-  login: string | null;
-  is_assignee: boolean;
-  is_protected: boolean;
-  team_ids: number[];
-}
-
-export interface Block {
-  id: number;
-  name: string;
-}
-
-export interface BlockTemplateEntry {
-  id: number;
-  name: string;
-  shift_days: number;
-}
-
-export interface BlockTemplate {
-  id: number;
-  name: string;
-  segment_id: number;
-  blocks: BlockTemplateEntry[];
-}
-
-export interface Segment {
-  id: number;
-  name: string;
-}
+import type {Block, BlockTemplate, Segment, User} from '../domain/types';
+export type {Block, BlockTemplate, BlockTemplateEntry, Segment, User} from '../domain/types';
 
 export function useUsers() {
   return useQuery<User[]>({queryKey: queryKeys.users.all, queryFn: () => apiGet('/api/users')});

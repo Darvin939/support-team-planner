@@ -12,6 +12,7 @@ import {usePaginationState} from '../../hooks/usePaginationState';
 import {useIsMobile} from "../../hooks/useIsMobile";
 import {TOP_BAR_HEIGHT} from "../../components/AppShell";
 import {queryKeys} from '../../lib/queryKeys';
+import {ROLE_OPTIONS} from '../../domain/types';
 
 interface UserFormValues {
   last_name: string | null;
@@ -23,12 +24,6 @@ interface UserFormValues {
   is_assignee: boolean;
   team_ids: number[];
 }
-
-const ROLE_OPTIONS = [
-  {value: 'user', label: 'Пользователь'},
-  {value: 'editor', label: 'Редактор'},
-  {value: 'admin', label: 'Администратор'},
-];
 
 const VISIBLE_TEAM_LIMIT = 3;
 

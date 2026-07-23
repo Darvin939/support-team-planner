@@ -51,10 +51,10 @@
 
 ## 8. Frontend domain types
 
-- [ ] 8.1 Собрать общие Task/Assignment/User/Team/reference DTO в `domain/`
-- [ ] 8.2 Удалить дубли `User`, `BlockTemplateEntry` и response interfaces
-- [ ] 8.3 Централизовать status/criticality/role labels и option factories
-- [ ] 8.4 Оставить form-only types рядом с компонентами и выполнить typecheck/build
+- [x] 8.1 Собрать общие Task/Assignment/User/Team/reference DTO в `domain/`
+- [x] 8.2 Удалить дубли `User`, `BlockTemplateEntry` и response interfaces
+- [x] 8.3 Централизовать status/criticality/role labels и option factories
+- [x] 8.4 Оставить form-only types рядом с компонентами и выполнить typecheck/build
 
 ## 9. SQLite schema и migrations
 

@@ -1,12 +1,8 @@
 import {useQuery} from '@tanstack/react-query';
 import {apiGet, buildApiUrl} from '../lib/apiMutate';
 import {queryKeys} from '../lib/queryKeys';
-
-export interface Team {
-  id: number;
-  name: string;
-  templates?: { id: number; name: string }[];
-}
+import type {Team} from '../domain/types';
+export type {Team} from '../domain/types';
 
 export function useTeams() {
   return useQuery<Team[]>({

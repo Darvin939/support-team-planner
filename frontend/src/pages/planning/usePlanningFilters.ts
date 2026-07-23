@@ -1,5 +1,5 @@
 import {useMemo, useState} from 'react';
-import type {Assignment, Task} from '../../hooks/usePlanningData';
+import type {Assignment, Task} from '../../domain/types';
 
 export function usePlanningFilters(tasks: Task[] | undefined, assignmentsByTask: Map<number, Assignment[]>) {
   const [criticalities, setCriticalities] = useState<string[]>([]);

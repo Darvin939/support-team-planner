@@ -1,6 +1,6 @@
 import type {Dispatch, SetStateAction} from 'react';
 import {message} from 'antd';
-import type {Assignment, Task} from '../../hooks/usePlanningData';
+import type {Assignment, Task} from '../../domain/types';
 import {
   assignmentToPayload,
   useBulkDeleteAssignmentsMutation,

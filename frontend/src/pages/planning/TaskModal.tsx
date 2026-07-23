@@ -1,13 +1,12 @@
 import {useEffect, useState} from 'react';
 import {Button, Checkbox, Form, Input, Modal, Popconfirm, Select, Space, theme} from 'antd';
-import type {Task} from '../../hooks/usePlanningData';
 import {useActiveTasksList} from '../../hooks/usePlanningData';
 import {useMe} from '../../hooks/useMe';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import {useSegments} from '../../hooks/useSettingsData';
 import {CriticalityBadge, TaskStatusBadge, tintedStyle} from '../../components/planningBadges';
 import {linkify} from '../../lib/linkify';
-import {CRITICALITY_LABELS} from '../../domain/types';
+import {CRITICALITY_LABELS, type Task} from '../../domain/types';
 import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';
 import {useIsMobile} from '../../hooks/useIsMobile';
 import {useDeleteTaskMutation, useSaveTaskMutation} from '../../hooks/useTaskMutations';

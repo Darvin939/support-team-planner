@@ -1,5 +1,5 @@
 import {useMemo} from 'react';
-import type {Assignment, TaskDep} from '../../hooks/usePlanningData';
+import type {Assignment, TaskDep} from '../../domain/types';
 
 export function usePlanningLookups(assignments: Assignment[] | undefined, deps: TaskDep[] | undefined) {
   return useMemo(() => {

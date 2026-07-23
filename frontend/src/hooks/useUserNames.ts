@@ -1,13 +1,7 @@
 import {useQuery} from '@tanstack/react-query';
 import {apiGet} from '../lib/apiMutate';
 import {queryKeys} from '../lib/queryKeys';
-
-export interface User {
-  id: number;
-  last_name: string | null;
-  first_name: string;
-  middle_name: string | null;
-}
+import type {User} from '../domain/types';
 
 export function formatDisplayName(u: Pick<User, 'last_name' | 'first_name' | 'middle_name'>): string {
   if (!u.last_name) return u.first_name;

@@ -1,6 +1,6 @@
 import {useEffect, useRef} from 'react';
 import dayjs from 'dayjs';
-import type {Assignment} from '../../hooks/usePlanningData';
+import type {Assignment} from '../../domain/types';
 import {copyFontStyle, DRAG_START_THRESHOLD_PX, findScrollableAncestor} from './scrollUtils';
 import {API_DATE_FORMAT} from '../../lib/dateFormats';
 

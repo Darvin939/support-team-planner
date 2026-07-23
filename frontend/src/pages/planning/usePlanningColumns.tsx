@@ -26,9 +26,8 @@ import {
   VerticalAlignBottomOutlined,
   VerticalAlignTopOutlined,
 } from '@ant-design/icons';
-import type {Assignment, Task, TaskDep} from '../../hooks/usePlanningData';
-import type {AssignmentStatus} from '../../domain/types';
-import {ASSIGNMENT_STATUS_LABELS, TASK_STATUS_LABELS} from '../../domain/types';
+import type {AssignmentStatus, Assignment, Task, TaskDep} from '../../domain/types';
+import {ASSIGNMENT_STATUS_LABELS, ASSIGNMENT_STATUS_OPTIONS, TASK_STATUS_LABELS} from '../../domain/types';
 import {CriticalityBadge, DepBadge, type DepBadgeEntry, ScheduleChip} from '../../components/planningBadges';
 import {linkify} from '../../lib/linkify';
 import {API_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT} from '../../lib/dateFormats';
@@ -39,14 +38,6 @@ import taskTransitionsJson from '../../data/taskTransitions.json';
 // Единственный источник истины — frontend/src/data/taskTransitions.json, тот же файл читает и
 // support_planner.py (см. openspec/changes/shared-task-transitions-source).
 const VALID_TASK_TRANSITIONS: Record<string, string[]> = taskTransitionsJson;
-
-export const ASSIGNMENT_STATUS_OPTIONS = [
-  {value: 'new', label: 'Новый'},
-  {value: 'planned', label: 'Запланировано'},
-  {value: 'rollback', label: 'Откат'},
-  {value: 'success', label: 'Успешно'},
-  {value: 'cancelled', label: 'Отменено'},
-];
 
 const ASSIGNMENT_STATUS_ICONS: Record<AssignmentStatus, ReactNode> = {
   new: <PlusCircleOutlined/>,
