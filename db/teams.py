@@ -1,6 +1,7 @@
 from db.connection import backend as _backend, with_db_connection
 from db.errors import IntegrityConstraintError
-from db.reference_data import _get_template_blocks
+from db.reference_data import _get_template_blocks_map
+from db.grouping import group_rows
 
 # === TEAMS CRUD ===
 @with_db_connection(commit_on_success=False)
@@ -20,9 +21,10 @@ def get_all_teams_with_templates(conn):
            ORDER BY bt.name'''
     ).fetchall()
 
-    tmpls_by_team = {}
-    for r in rows:
-        tmpls_by_team.setdefault(r['team_id'], []).append({'id': r['id'], 'name': r['name']})
+    tmpls_by_team = {
+        team_id: [{'id': row['id'], 'name': row['name']} for row in entries]
+        for team_id, entries in group_rows(rows, 'team_id').items()
+    }
 
     return [{'id': t['id'], 'name': t['name'], 'templates': tmpls_by_team.get(t['id'], [])} for t in teams]
 
@@ -43,11 +45,12 @@ def get_teams_for_user(conn, user_id, role):
         '''SELECT tt.team_id, bt.id, bt.name FROM team_templates tt
            JOIN block_templates bt ON tt.template_id = bt.id ORDER BY bt.name'''
     ).fetchall()
-    templates = {}
     allowed = {team['id'] for team in teams}
-    for row in rows:
-        if row['team_id'] in allowed:
-            templates.setdefault(row['team_id'], []).append({'id': row['id'], 'name': row['name']})
+    templates = {
+        team_id: [{'id': row['id'], 'name': row['name']} for row in entries]
+        for team_id, entries in group_rows(rows, 'team_id').items()
+        if team_id in allowed
+    }
     return [{'id': team['id'], 'name': team['name'], 'templates': templates.get(team['id'], [])} for team in teams]
 
 
@@ -133,6 +136,7 @@ def get_team_allowed_templates(conn, team_id):
            ORDER BY bt.name''',
         (team_id,)
     ).fetchall()
+    blocks_by_template = _get_template_blocks_map(conn, [template['id'] for template in tmpls])
 
     result = []
     for t in tmpls:
@@ -140,7 +144,7 @@ def get_team_allowed_templates(conn, team_id):
             'id': t['id'],
             'name': t['name'],
             'segment_id': t['segment_id'],
-            'blocks': _get_template_blocks(conn, t['id'])
+            'blocks': blocks_by_template.get(t['id'], [])
         })
     return result
 

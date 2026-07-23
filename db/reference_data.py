@@ -1,5 +1,6 @@
 from db.connection import backend as _backend, with_db_connection
 from db.errors import IntegrityConstraintError
+from db.grouping import group_rows
 
 # === SEGMENTS CRUD ===
 @with_db_connection(commit_on_success=False)
@@ -79,17 +80,39 @@ def _get_template_blocks(conn, template_id):
     return [{'id': b['id'], 'name': b['name'], 'shift_days': b['shift_days']} for b in blocks]
 
 
+def _get_template_blocks_map(conn, template_ids):
+    if not template_ids:
+        return {}
+    placeholders = ','.join('?' * len(template_ids))
+    rows = conn.execute(
+        f'''SELECT tb.template_id, b.id, b.name, tb.schedule_offset AS shift_days
+            FROM template_blocks tb
+            JOIN blocks b ON tb.block_id = b.id
+            WHERE tb.template_id IN ({placeholders})
+            ORDER BY tb.template_id, tb.schedule_offset ASC, b.name ASC''',
+        template_ids,
+    ).fetchall()
+    return {
+        template_id: [
+            {'id': row['id'], 'name': row['name'], 'shift_days': row['shift_days']}
+            for row in entries
+        ]
+        for template_id, entries in group_rows(rows, 'template_id').items()
+    }
+
+
 @with_db_connection(commit_on_success=False)
 def get_all_templates(conn):
     """Получить все шаблоны блоков с их блоками, смещениями и сегментом"""
     tmpls = conn.execute('SELECT id, name, segment_id FROM block_templates ORDER BY name').fetchall()
+    blocks_by_template = _get_template_blocks_map(conn, [template['id'] for template in tmpls])
     result = []
     for t in tmpls:
         result.append({
             'id': t['id'],
             'name': t['name'],
             'segment_id': t['segment_id'],
-            'blocks': _get_template_blocks(conn, t['id'])
+            'blocks': blocks_by_template.get(t['id'], [])
         })
     return result
 

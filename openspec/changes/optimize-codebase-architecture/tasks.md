@@ -37,10 +37,10 @@
 
 ## 6. Устранение N+1
 
-- [ ] 6.1 Пакетно загружать team IDs для полной и paginated выборки пользователей
-- [ ] 6.2 Пакетно загружать blocks для всех разрешённых шаблонов команды
-- [ ] 6.3 Выделить общий grouping helper для teams и templates
-- [ ] 6.4 Добавить query-count и result-equivalence тесты
+- [x] 6.1 Пакетно загружать team IDs для полной и paginated выборки пользователей
+- [x] 6.2 Пакетно загружать blocks для всех разрешённых шаблонов команды
+- [x] 6.3 Выделить общий grouping helper для teams и templates
+- [x] 6.4 Добавить query-count и result-equivalence тесты
 
 ## 7. Доменные list/count filters
 

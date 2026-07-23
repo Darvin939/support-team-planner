@@ -1,5 +1,6 @@
 from db.connection import backend as _backend, with_db_connection
 from db.tasks import _record_assignment_history
+from db.grouping import group_rows
 
 # === USERS CRUD ===
 @with_db_connection(commit_on_success=False)
@@ -25,6 +26,23 @@ def _get_user_team_ids(conn, user_id):
     return [row['team_id'] for row in conn.execute(
         'SELECT team_id FROM user_team_access WHERE user_id = ? ORDER BY team_id', (user_id,)
     ).fetchall()]
+
+
+def _get_user_team_ids_map(conn, user_ids):
+    if not user_ids:
+        return {}
+    placeholders = ','.join('?' * len(user_ids))
+    rows = conn.execute(
+        f'''SELECT user_id, team_id
+            FROM user_team_access
+            WHERE user_id IN ({placeholders})
+            ORDER BY user_id, team_id''',
+        user_ids,
+    ).fetchall()
+    return {
+        user_id: [row['team_id'] for row in entries]
+        for user_id, entries in group_rows(rows, 'user_id').items()
+    }
 
 
 def _set_user_team_ids(conn, user_id, team_ids, role=None):
@@ -119,12 +137,13 @@ def get_all_users(conn):
     """Получить всех пользователей"""
     users = conn.execute(
         'SELECT id, last_name, first_name, middle_name, role, login, is_assignee FROM users ORDER BY last_name, first_name, middle_name').fetchall()
+    team_ids_by_user = _get_user_team_ids_map(conn, [user['id'] for user in users])
     result = []
     for u in users:
         u_dict = dict(u)
         u_dict['is_assignee'] = bool(u_dict['is_assignee'])
         u_dict['is_protected'] = _is_bootstrap_admin(u)
-        u_dict['team_ids'] = _get_user_team_ids(conn, u['id'])
+        u_dict['team_ids'] = team_ids_by_user.get(u['id'], [])
         result.append(u_dict)
     return result
 
@@ -157,12 +176,13 @@ def get_users_page(conn, offset=0, limit=20, search=None):
             LIMIT ? OFFSET ?''',
         (*filter_params, limit, offset),
     ).fetchall()
+    team_ids_by_user = _get_user_team_ids_map(conn, [user['id'] for user in page])
     result = []
     for user in page:
         user_dict = dict(user)
         user_dict['is_assignee'] = bool(user_dict['is_assignee'])
         user_dict['is_protected'] = _is_bootstrap_admin(user)
-        user_dict['team_ids'] = _get_user_team_ids(conn, user['id'])
+        user_dict['team_ids'] = team_ids_by_user.get(user['id'], [])
         result.append(user_dict)
     return {'users': result, 'total': total}
 
