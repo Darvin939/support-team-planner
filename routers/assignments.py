@@ -13,7 +13,14 @@ from access_control import (
     require_team_access,
     require_team_list_access,
 )
-from api_models import AssignmentIn, BulkAssignmentRescheduleIn, BulkAssignmentResult, BulkAssignmentUpsertIn
+from api_models import (
+    AssignmentIn,
+    BulkAssignmentDeleteIn,
+    BulkAssignmentDeleteResult,
+    BulkAssignmentRescheduleIn,
+    BulkAssignmentResult,
+    BulkAssignmentUpsertIn,
+)
 from query_parsing import parse_int_csv
 from task_rules import task_is_locked
 
@@ -119,19 +126,43 @@ def bulk_reschedule_assignments_api(request: Request, data: BulkAssignmentResche
     return {'success': True, 'moved': moved}
 
 
-@router.delete('/api/assignment/{assignment_id}')
-def delete_assignment_api(request: Request, assignment_id: int):
+def _validate_assignment_delete(request: Request, assignment_id: int):
     require_assignment_access(request, assignment_id)
     task = db.get_task_status_by_assignment(assignment_id)
+    if not task:
+        raise HTTPException(status_code=404, detail='Назначение не найдено')
     if task and task_is_locked(task):
-        return JSONResponse({'error': 'Нельзя изменять назначения завершённой или отменённой задачи'}, status_code=400)
+        raise HTTPException(status_code=400, detail='Нельзя изменять назначения завершённой или отменённой задачи')
     if request.state.role == 'user' and task and task['assignment_status'] != 'new':
-        return JSONResponse(
-            {'error': 'Недостаточно прав: нельзя удалить назначение в статусе, отличном от «Новый»'},
+        raise HTTPException(
             status_code=403,
+            detail='Недостаточно прав: нельзя удалить назначение в статусе, отличном от «Новый»',
         )
+
+
+@router.delete('/api/assignment/{assignment_id}')
+def delete_assignment_api(request: Request, assignment_id: int):
+    _validate_assignment_delete(request, assignment_id)
     db.delete_assignment(assignment_id, changed_by=request.session.get('user_id'))
     return {'success': True}
+
+
+@router.post('/api/assignments/bulk-delete', response_model=BulkAssignmentDeleteResult)
+def bulk_delete_assignments_api(request: Request, data: BulkAssignmentDeleteIn):
+    assignment_ids = data.assignment_ids
+    if not assignment_ids:
+        raise HTTPException(status_code=400, detail='Не выбраны назначения для удаления')
+    if len(assignment_ids) > 200:
+        raise HTTPException(status_code=400, detail='За один раз можно удалить не более 200 назначений')
+    if len(set(assignment_ids)) != len(assignment_ids):
+        raise HTTPException(status_code=400, detail='Список содержит повторяющиеся назначения')
+
+    for assignment_id in assignment_ids:
+        _validate_assignment_delete(request, assignment_id)
+    with db.composite_transaction():
+        for assignment_id in assignment_ids:
+            db.delete_assignment(assignment_id, changed_by=request.session.get('user_id'))
+    return {'success': True, 'deleted': len(assignment_ids)}
 
 
 @router.get('/api/assignment/{assignment_id}/history')

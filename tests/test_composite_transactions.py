@@ -88,7 +88,13 @@ class CompositeTransactionApiTest(unittest.TestCase):
                VALUES (2, 'Editor', 'editor', 'transaction-editor', ?, 1)''',
             (auth.hash_password('password123'),),
         )
+        conn.execute(
+            '''INSERT INTO users (id, first_name, role, login, password_hash, is_assignee)
+               VALUES (3, 'User', 'user', 'transaction-user', ?, 1)''',
+            (auth.hash_password('password123'),),
+        )
         conn.execute('INSERT INTO user_team_access (user_id, team_id) VALUES (2, 1)')
+        conn.execute('INSERT INTO user_team_access (user_id, team_id) VALUES (3, 1)')
         conn.execute(
             '''INSERT INTO tasks
                (id, team_id, segment_id, name, description, criticality, priority, task_status)
@@ -222,6 +228,52 @@ class CompositeTransactionApiTest(unittest.TestCase):
             "SELECT COUNT(*) FROM assignments WHERE date IN ('2026-08-03', '2026-08-04')"
         ).fetchone()[0])
         conn.execute("DELETE FROM assignments WHERE date IN ('2026-08-03', '2026-08-04')")
+        conn.commit()
+        conn.close()
+
+    def test_bulk_assignment_delete_is_atomic_when_an_item_is_missing(self):
+        conn = sqlite3.connect(self.path)
+        conn.execute(
+            "INSERT INTO assignments (id, task_id, date, status, is_deleted) VALUES (201, 10, '2026-08-05', 'new', 0)"
+        )
+        conn.commit()
+        conn.close()
+
+        with self.login() as client:
+            response = client.post('/api/assignments/bulk-delete', json={'assignment_ids': [201, 999999]})
+            self.assertEqual(404, response.status_code)
+
+        conn = sqlite3.connect(self.path)
+        self.assertEqual(0, conn.execute('SELECT is_deleted FROM assignments WHERE id = 201').fetchone()[0])
+        conn.execute('DELETE FROM assignments WHERE id = 201')
+        conn.commit()
+        conn.close()
+
+    def test_bulk_assignment_delete_enforces_user_role_and_deletes_complete_batch(self):
+        conn = sqlite3.connect(self.path)
+        conn.execute(
+            "INSERT INTO assignments (id, task_id, date, status, is_deleted) VALUES (202, 10, '2026-08-06', 'planned', 0)"
+        )
+        conn.execute(
+            "INSERT INTO assignments (id, task_id, date, status, is_deleted) VALUES (203, 10, '2026-08-07', 'new', 0)"
+        )
+        conn.commit()
+        conn.close()
+
+        with self.login('transaction-user', 'password123') as client:
+            response = client.post('/api/assignments/bulk-delete', json={'assignment_ids': [202, 203]})
+            self.assertEqual(403, response.status_code)
+
+        with self.login() as client:
+            response = client.post('/api/assignments/bulk-delete', json={'assignment_ids': [202, 203]})
+            self.assertEqual(200, response.status_code)
+            self.assertEqual({'success': True, 'deleted': 2}, response.json())
+
+        conn = sqlite3.connect(self.path)
+        self.assertEqual([(1,), (1,)], conn.execute(
+            'SELECT is_deleted FROM assignments WHERE id IN (202, 203) ORDER BY id'
+        ).fetchall())
+        conn.execute('DELETE FROM assignments WHERE id IN (202, 203)')
         conn.commit()
         conn.close()
 

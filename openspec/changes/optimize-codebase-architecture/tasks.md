@@ -15,10 +15,10 @@
 
 ## 3. Bulk API удаления назначений
 
-- [ ] 3.1 Выбрать и зафиксировать атомарный либо partial-result контракт удаления
-- [ ] 3.2 Реализовать backend bulk delete с проверкой каждого назначения
-- [ ] 3.3 Одновременно заменить HTTP-цикл в `PlanningPage` bulk mutation hook
-- [ ] 3.4 Добавить тесты успешного удаления, запрета роли и rollback/partial-result
+- [x] 3.1 Выбрать и зафиксировать атомарный либо partial-result контракт удаления
+- [x] 3.2 Реализовать backend bulk delete с проверкой каждого назначения
+- [x] 3.3 Одновременно заменить HTTP-цикл в `PlanningPage` bulk mutation hook
+- [x] 3.4 Добавить тесты успешного удаления, запрета роли и rollback/partial-result
 
 ## 4. Декомпозиция `PlanningPage`
 

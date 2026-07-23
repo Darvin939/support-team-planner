@@ -60,3 +60,19 @@ export function useDeleteAssignmentMutation(options: { onSuccess?: () => void } 
     onError: (error: Error) => message.error(error.message),
   });
 }
+
+export function useBulkDeleteAssignmentsMutation(options: {
+  onSuccess?: (deleted: number) => void;
+} = {}) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (assignmentIds: number[]) =>
+      apiMutate('/api/assignments/bulk-delete', 'POST', {assignment_ids: assignmentIds})
+        .then(() => ({deleted: assignmentIds.length})),
+    onSuccess: ({deleted}) => {
+      invalidateAssignmentData(queryClient);
+      options.onSuccess?.(deleted);
+    },
+    onError: (error: Error) => message.error(error.message),
+  });
+}

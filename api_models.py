@@ -32,6 +32,15 @@ class BulkAssignmentResult(BaseModel):
     saved: int
 
 
+class BulkAssignmentDeleteIn(BaseModel):
+    assignment_ids: List[int]
+
+
+class BulkAssignmentDeleteResult(BaseModel):
+    success: bool
+    deleted: int
+
+
 class TaskIn(BaseModel):
     task_id: Optional[Union[int, str]] = None
     team_id: Optional[int] = None

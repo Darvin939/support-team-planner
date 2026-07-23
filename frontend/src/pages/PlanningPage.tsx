@@ -52,7 +52,11 @@ import {useDebouncedValue} from '../hooks/useDebouncedValue';
 import {useStoredTeamRoute} from '../hooks/useStoredTeamRoute';
 import {DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS} from '../lib/pagination';
 import {invalidateAssignmentData} from '../lib/queryInvalidation';
-import {assignmentToPayload, useSaveAssignmentMutation} from './planning/assignmentMutations';
+import {
+  assignmentToPayload,
+  useBulkDeleteAssignmentsMutation,
+  useSaveAssignmentMutation,
+} from './planning/assignmentMutations';
 import {usePaginationState} from '../hooks/usePaginationState';
 import {usePlanningFilters} from './planning/usePlanningFilters';
 import {createPlanningGridViewKey, usePlanningGridTodayCenter} from './planning/usePlanningGridTodayCenter';
@@ -279,23 +283,10 @@ export function PlanningPage() {
   // Последовательные await (не Promise.all) — каждый HTTP-запрос открывает и коммитит своё
   // соединение SQLite до ответа, так что последовательность на клиенте гарантирует
   // последовательность на сервере для этого клиента, без гонок внутри одного bulk-жеста.
-  const bulkDeleteMutation = useMutation({
-    mutationFn: async (ids: number[]) => {
-      const failed: number[] = [];
-      for (const id of ids) {
-        try {
-          await apiMutate(`/api/assignment/${id}`, 'DELETE');
-        } catch {
-          failed.push(id);
-        }
-      }
-      return {total: ids.length, failed};
-    },
-    onSuccess: ({total, failed}) => {
-      invalidateAssignmentData(queryClient);
-      setSelectedAssignmentIds(new Set(failed));
-      if (failed.length === 0) message.success(`Удалено назначений: ${total}`);
-      else message.warning(`Удалено ${total - failed.length} из ${total}, ${failed.length} не удалось удалить`);
+  const bulkDeleteMutation = useBulkDeleteAssignmentsMutation({
+    onSuccess: (deleted) => {
+      setSelectedAssignmentIds(new Set());
+      message.success(`Удалено назначений: ${deleted}`);
     },
   });
 
