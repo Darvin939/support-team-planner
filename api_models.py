@@ -41,6 +41,99 @@ class BulkAssignmentDeleteResult(BaseModel):
     deleted: int
 
 
+class TaskOut(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    criticality: str
+    task_status: str
+    segment_id: int
+    segment_name: str
+    completed_at: Optional[str] = None
+    has_active_assignments: bool
+
+
+class TasksPage(BaseModel):
+    tasks: List[TaskOut]
+    total: int
+
+
+class AssignmentOut(BaseModel):
+    id: int
+    task_id: int
+    date: str
+    block: Optional[str] = None
+    status: str
+    user_id: Optional[int] = None
+    user_name: Optional[str] = None
+    comment: Optional[str] = None
+    time_spent: Optional[str] = None
+
+
+class HistoryEntryOut(BaseModel):
+    id: int
+    entity: Optional[str] = None
+    action: Optional[str] = None
+    field_name: Optional[str] = None
+    old_value: Optional[str] = None
+    new_value: Optional[str] = None
+    date: Optional[str] = None
+    changed_at: Optional[str] = None
+    changed_by_user_id: Optional[int] = None
+    changed_by_last_name: Optional[str] = None
+    changed_by_first_name: Optional[str] = None
+    changed_by_middle_name: Optional[str] = None
+    task_id: Optional[int] = None
+    task_name: Optional[str] = None
+    task_is_deleted: Optional[Union[bool, int]] = None
+
+
+class HistoryPage(BaseModel):
+    history: List[HistoryEntryOut]
+    total: int
+
+
+class JournalPage(BaseModel):
+    items: List[HistoryEntryOut]
+    total: int
+
+
+class ActiveAssignmentOut(BaseModel):
+    id: int
+    task_id: int
+    task_name: str
+    criticality: str
+    date: str
+    block: Optional[str] = None
+    status: str
+    user_name: Optional[str] = None
+    comment: Optional[str] = None
+    team_id: int
+    team_name: Optional[str] = None
+
+
+class StatusCounts(BaseModel):
+    new: int
+    planned: int
+
+
+class CriticalityCounts(BaseModel):
+    high: int
+    medium: int
+    low: int
+
+
+class ActiveAssignmentStats(BaseModel):
+    status: StatusCounts
+    criticality: CriticalityCounts
+
+
+class ActiveAssignmentsPage(BaseModel):
+    items: List[ActiveAssignmentOut]
+    total: int
+    stats: ActiveAssignmentStats
+
+
 class TaskIn(BaseModel):
     task_id: Optional[Union[int, str]] = None
     team_id: Optional[int] = None

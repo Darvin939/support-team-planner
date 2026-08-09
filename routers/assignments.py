@@ -16,12 +16,15 @@ from access_control import (
     require_user,
 )
 from api_models import (
+    ActiveAssignmentsPage,
     AssignmentIn,
+    AssignmentOut,
     BulkAssignmentDeleteIn,
     BulkAssignmentDeleteResult,
     BulkAssignmentRescheduleIn,
     BulkAssignmentResult,
     BulkAssignmentUpsertIn,
+    HistoryPage,
 )
 from query_parsing import parse_int_csv
 from task_rules import task_is_locked
@@ -30,7 +33,7 @@ from task_rules import task_is_locked
 router = APIRouter()
 
 
-@router.get('/api/assignments/{team_id}', dependencies=[Depends(require_user)])
+@router.get('/api/assignments/{team_id}', dependencies=[Depends(require_user)], response_model=list[AssignmentOut])
 def get_assignments_api(
     request: Request,
     team_id: int,
@@ -175,7 +178,10 @@ def bulk_delete_assignments_api(
     return {'success': True, 'deleted': len(assignment_ids)}
 
 
-@router.get('/api/assignment/{assignment_id}/history', dependencies=[Depends(require_user)])
+@router.get(
+    '/api/assignment/{assignment_id}/history', dependencies=[Depends(require_user)],
+    response_model=HistoryPage, response_model_exclude_unset=True,
+)
 def get_assignment_history_api(request: Request, assignment_id: int, offset: int = 0, limit: int = 20):
     require_assignment_access(request, assignment_id)
     return {
@@ -184,7 +190,7 @@ def get_assignment_history_api(request: Request, assignment_id: int, offset: int
     }
 
 
-@router.get('/api/active-assignments/{team_id}', dependencies=[Depends(require_user)])
+@router.get('/api/active-assignments/{team_id}', dependencies=[Depends(require_user)], response_model=ActiveAssignmentsPage)
 def get_active_assignments_api(
     request: Request,
     team_id: int,

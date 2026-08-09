@@ -4,12 +4,16 @@ from fastapi import APIRouter, Depends, Request
 
 import db
 from access_control import require_team_access, require_user
+from api_models import JournalPage
 
 
 router = APIRouter()
 
 
-@router.get('/api/journal/{team_id}', dependencies=[Depends(require_user)])
+@router.get(
+    '/api/journal/{team_id}', dependencies=[Depends(require_user)],
+    response_model=JournalPage, response_model_exclude_unset=True,
+)
 def get_team_history_api(
     request: Request,
     team_id: int,

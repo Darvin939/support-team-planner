@@ -70,6 +70,38 @@ class ApiModelsContractTest(unittest.TestCase):
             entries['items']['$ref'],
         )
 
+    def test_core_response_models_match_frontend_dto_fields(self):
+        self.assertEqual(
+            {
+                'id', 'name', 'description', 'criticality', 'task_status', 'segment_id',
+                'segment_name', 'completed_at', 'has_active_assignments',
+            },
+            set(self.schemas['TaskOut']['properties']),
+        )
+        self.assertEqual(
+            {
+                'id', 'task_id', 'date', 'block', 'status', 'user_id',
+                'user_name', 'comment', 'time_spent',
+            },
+            set(self.schemas['AssignmentOut']['properties']),
+        )
+
+    def test_core_paths_publish_response_models(self):
+        paths = app.openapi()['paths']
+        expected = {
+            ('/api/tasks/{team_id}', 'get'): 'TasksPage',
+            ('/api/task/{task_id}', 'get'): 'TaskOut',
+            ('/api/tasks/{team_id}/archive', 'get'): 'TasksPage',
+            ('/api/task/{task_id}/history', 'get'): 'HistoryPage',
+            ('/api/assignment/{assignment_id}/history', 'get'): 'HistoryPage',
+            ('/api/active-assignments/{team_id}', 'get'): 'ActiveAssignmentsPage',
+            ('/api/journal/{team_id}', 'get'): 'JournalPage',
+        }
+        for (path, method), schema_name in expected.items():
+            with self.subTest(path=path):
+                schema = paths[path][method]['responses']['200']['content']['application/json']['schema']
+                self.assertEqual(f'#/components/schemas/{schema_name}', schema['$ref'])
+
     def test_reference_data_paths_and_methods_are_stable(self):
         paths = app.openapi()['paths']
         expected = {

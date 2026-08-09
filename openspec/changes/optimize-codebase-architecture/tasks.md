@@ -73,9 +73,9 @@
 ## 11. Типизированные response-модели
 
 - [x] 11.1 Добавить response-модели изменяемых bulk assignment endpoints
-- [ ] 11.2 Добавить модели основных Task/Assignment/paginated/history responses
-- [ ] 11.3 Подключить `response_model` и устранить ручное расхождение shapes
-- [ ] 11.4 Проверить OpenAPI и совместимость frontend DTO
+- [x] 11.2 Добавить модели основных Task/Assignment/paginated/history responses
+- [x] 11.3 Подключить `response_model` и устранить ручное расхождение shapes
+- [x] 11.4 Проверить OpenAPI и совместимость frontend DTO
 
 ## 12. Расширение frontend-тестов
 

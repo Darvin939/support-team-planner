@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 
 import db
 from access_control import CurrentUser, require_editor, require_task_access, require_team_access, require_user
-from api_models import TaskIn, TaskPriorityIn, TaskReorderIn, TaskStatusIn
+from api_models import HistoryPage, TaskIn, TaskOut, TaskPriorityIn, TaskReorderIn, TasksPage, TaskStatusIn
 from db.pagination import page_result
 from task_dependency_rules import TaskDependencyCycleError
 from task_rules import VALID_TASK_TRANSITIONS, task_is_locked
@@ -29,7 +29,7 @@ def _task_json(task):
     }
 
 
-@router.get('/api/tasks/{team_id}', dependencies=[Depends(require_user)])
+@router.get('/api/tasks/{team_id}', dependencies=[Depends(require_user)], response_model=TasksPage)
 def get_tasks_api(
     request: Request,
     team_id: int,
@@ -55,7 +55,7 @@ def get_tasks_api(
     return page_result([_task_json(task) for task in tasks], total, 'tasks')
 
 
-@router.get('/api/task/{task_id}', dependencies=[Depends(require_user)])
+@router.get('/api/task/{task_id}', dependencies=[Depends(require_user)], response_model=TaskOut)
 def get_task_api(request: Request, task_id: int):
     task = db.get_task_by_id(task_id)
     if not task:
@@ -81,7 +81,7 @@ def restore_task_api(
     return {'success': True}
 
 
-@router.get('/api/tasks/{team_id}/archive', dependencies=[Depends(require_user)])
+@router.get('/api/tasks/{team_id}/archive', dependencies=[Depends(require_user)], response_model=TasksPage)
 def get_tasks_archive_api(
     request: Request,
     team_id: int,
@@ -218,7 +218,10 @@ def move_task_priority_api(
     return {'success': True}
 
 
-@router.get('/api/task/{task_id}/history', dependencies=[Depends(require_user)])
+@router.get(
+    '/api/task/{task_id}/history', dependencies=[Depends(require_user)],
+    response_model=HistoryPage, response_model_exclude_unset=True,
+)
 def get_task_history_api(request: Request, task_id: int, offset: int = 0, limit: int = 20):
     require_task_access(request, task_id)
     return {
