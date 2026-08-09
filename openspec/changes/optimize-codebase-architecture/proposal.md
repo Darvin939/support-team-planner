@@ -1,6 +1,6 @@
 ## Why
 
-После декомпозиции backend-роутеров и консолидации frontend server-state основными источниками сложности остаются монолитный DAO, распределённая orchestration назначений и повторяющиеся модели, SQL-фильтры и запросы связей. Нужен сохранённый единый backlog, чтобы выполнять улучшения последовательно, не теряя зависимости и не создавая отдельную спецификацию на каждый небольшой рефакторинг.
+Первые восемь групп архитектурного backlog завершены: DAO разделён по доменам, bulk-операции назначений атомарны, Planning декомпозирован, assignment orchestration централизована, N+1 устранены, list/count-фильтры и frontend domain types унифицированы. Оставшаяся сложность сосредоточена в SQLite infrastructure, подавлении ожидаемых DB-ошибок, неполных response contracts и тестовых пробелах. Change остаётся единым backlog для последовательного завершения этих зависимых групп.
 
 ## What Changes
 
@@ -26,8 +26,8 @@
 
 ## Impact
 
-- Backend: `db/`, `routers/assignments.py`, `api_models.py`, тесты транзакций и API.
-- Frontend: Planning/Assignment components, assignment hooks, domain types и тесты.
-- API: добавляются bulk assignment endpoints без удаления текущих одиночных операций.
-- Порядок реализации важен: сначала безопасная декомпозиция DAO, затем bulk-контракты, frontend orchestration и последующая инфраструктурная очистка.
+- Уже завершено: доменные `db/`-модули, bulk assignment endpoints, Planning/Assignment hooks, общие frontend DTO и доменные pagination filters.
+- Следующий backend scope: разделение `db/sqlite.py`, migration registry, доменные DB-ошибки и Pydantic response contracts.
+- Следующий frontend scope: точечные unit-тесты transformations, invalidation/reset и navigation/bulk semantics.
+- Текущие одиночные assignment endpoints сохраняются; bulk-удаление и bulk-upsert используют атомарный контракт.
 - PostgreSQL backend, драйвер, конфигурация, миграции и тестовый стенд в это изменение не входят.

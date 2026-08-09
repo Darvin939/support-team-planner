@@ -1,6 +1,6 @@
 ## Context
 
-Backend-роутеры уже разделены по доменам, но их DAO-функции, транзакционная обвязка и история находятся в `db/__init__.py`. Frontend server-state централизован для задач, однако assignment orchestration всё ещё распределена между `PlanningPage`, `AssignmentModal` и `assignmentMutations.ts`. Автоназначение выполняет параллельные одиночные HTTP-запросы, а массовое удаление — последовательный HTTP-цикл.
+Backend DAO уже разделены по доменным модулям за совместимым фасадом, bulk assignment operations реализованы атомарно, а Planning и assignment orchestration декомпозированы. Пакетная загрузка связей, доменные pagination filters и общие frontend DTO также завершены. Текущая точка продолжения — `db/sqlite.py`, где schema, ручные миграции и registered functions всё ещё объединены в одном backend-классе; после этого следуют доменные DB-ошибки, response contracts и недостающие тесты.
 
 Изменение является umbrella backlog: группы выполняются последовательно внутри одного OpenSpec change. Публичные контракты сохраняются, а новые bulk-контракты всегда реализуются одновременно во frontend и backend.
 
@@ -94,6 +94,6 @@ Rollback каждой группы выполняется её отдельны�
 
 ## Open Questions
 
-- Массовое удаление должно быть полностью атомарным или возвращать результат по каждому ID?
-- Старые одиночные endpoints остаются бессрочно или после миграции frontend будут помечены deprecated?
-- Response-модели вводить сначала только для изменяемых assignment endpoints или сразу для всех роутеров?
+- Массовое удаление реализовано полностью атомарным.
+- Старые одиночные endpoints сохраняются до отдельного решения о deprecation.
+- Response-модели сначала введены для изменяемых bulk assignment endpoints; следующий этап расширяет их на основные Task/Assignment/paginated/history ответы.

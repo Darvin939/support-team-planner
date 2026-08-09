@@ -2,6 +2,8 @@ import sqlite3
 
 import auth
 from db.backend import DBBackend
+from db.sqlite_functions import register_sqlite_functions
+from db.sqlite_migrations import Migration, run_migrations
 
 DB_PATH = 'database.db'
 
@@ -166,23 +168,6 @@ _SCHEMA = '''
 # @formatter:on
 
 
-def _fuzzy_word_in(text, word):
-    """Проверяет, встречается ли word в text с допуском на 1 опечатку (скользящее окно)."""
-    if not text or not word:
-        return False
-    text, word = text.lower(), word.lower()
-    if word in text:
-        return True
-    n = len(word)
-    if n < 3:
-        return False
-    max_errors = max(1, n // 7)
-    for i in range(len(text) - n + 1):
-        if sum(a != b for a, b in zip(text[i:i + n], word)) <= max_errors:
-            return True
-    return False
-
-
 class SQLiteBackend(DBBackend):
 
     def connect(self):
@@ -206,8 +191,7 @@ class SQLiteBackend(DBBackend):
         # каждую запись (FULL) для внутреннего инструмента планирования избыточен.
         conn.execute('PRAGMA journal_mode=WAL;')
         conn.execute('PRAGMA synchronous=NORMAL;')
-        conn.create_function('fuzzy_word_in', 2, _fuzzy_word_in)
-        conn.create_function('casefold', 1, lambda value: (value or '').casefold(), deterministic=True)
+        register_sqlite_functions(conn)
 
     def last_insert_id(self, cursor) -> int:
         return cursor.lastrowid
@@ -221,13 +205,24 @@ class SQLiteBackend(DBBackend):
         return sqlite3.IntegrityError
 
     def init_schema(self, conn) -> None:
-        self._migrate_employees_to_users(conn)
-        self._migrate_criticality_to_priority(conn)
-        self._migrate_add_criticality_column(conn)
-        self._migrate_add_segment_columns(conn)
+        migrations = (
+            Migration(1, 'employees-to-users', self._migrate_employees_to_users),
+            Migration(2, 'criticality-to-priority', self._migrate_criticality_to_priority),
+            Migration(3, 'restore-criticality', self._migrate_add_criticality_column),
+            Migration(4, 'add-segments', self._migrate_add_segment_columns),
+            Migration(5, 'create-current-schema', self._create_current_schema),
+            Migration(6, 'add-task-completed-at', self._migrate_add_task_completed_at),
+            Migration(7, 'normalize-and-bootstrap', self._normalize_and_bootstrap),
+        )
+        run_migrations(conn, migrations)
+
+    @staticmethod
+    def _create_current_schema(conn) -> None:
         conn.execute('PRAGMA foreign_keys = ON;')
         conn.executescript(_SCHEMA)
-        self._migrate_add_task_completed_at(conn)
+
+    @staticmethod
+    def _normalize_and_bootstrap(conn) -> None:
         # Промежуточные статусы задачи (ready/in_progress) упразднены — у задачи остаётся только
         # единое активное состояние (new) и терминальные (done/cancelled). Безусловно, при каждом
         # старте: это нормализация значений, а не разовый бэкфилл, повторный запуск безопасен.
@@ -271,7 +266,6 @@ class SQLiteBackend(DBBackend):
         # изменить это значение через UI для защищённой записи невозможно, а значит 1 здесь может
         # быть только следствием миграции, а не осознанным выбором.
         conn.execute("UPDATE users SET is_assignee = 0 WHERE login = 'admin'")
-        conn.commit()
 
     @staticmethod
     def _migrate_add_task_completed_at(conn) -> None:

@@ -59,20 +59,20 @@
 ## 9. SQLite schema и migrations
 
 - [ ] 9.1 Разделить connection backend, schema, migrations и registered functions
-- [ ] 9.2 Ввести последовательный migration registry с явными версиями
-- [ ] 9.3 Проверить fresh install и upgrade существующей БД
-- [ ] 9.4 Проверить SQLite connection lifecycle и WAL regression suite
+- [x] 9.2 Ввести последовательный migration registry с явными версиями
+- [x] 9.3 Проверить fresh install и upgrade существующей БД
+- [x] 9.4 Проверить SQLite connection lifecycle и WAL regression suite
 
 ## 10. Доменные DB-ошибки
 
-- [ ] 10.1 Инвентаризировать `raise_on_error=False` и ожидаемые constraint cases
+- [x] 10.1 Инвентаризировать `raise_on_error=False` и ожидаемые constraint cases
 - [ ] 10.2 Ввести типизированные duplicate/not-found/integrity исключения
 - [ ] 10.3 Перевести роутеры на явное отображение доменных ошибок в API contract
 - [ ] 10.4 Убедиться, что неожиданные ошибки не маскируются и логируются
 
 ## 11. Типизированные response-модели
 
-- [ ] 11.1 Добавить response-модели изменяемых bulk assignment endpoints
+- [x] 11.1 Добавить response-модели изменяемых bulk assignment endpoints
 - [ ] 11.2 Добавить модели основных Task/Assignment/paginated/history responses
 - [ ] 11.3 Подключить `response_model` и устранить ручное расхождение shapes
 - [ ] 11.4 Проверить OpenAPI и совместимость frontend DTO
