@@ -1,10 +1,11 @@
 from typing import Optional
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
 import auth
 import db
+from access_control import CurrentUser, require_admin, require_user
 from api_models import UserIn
 
 
@@ -12,7 +13,7 @@ router = APIRouter()
 _VALID_ROLES = {'admin', 'editor', 'user'}
 
 
-@router.get('/api/users')
+@router.get('/api/users', dependencies=[Depends(require_user)])
 def get_users_api(offset: Optional[int] = None, limit: Optional[int] = None, search: Optional[str] = None):
     if offset is None and limit is None and search is None:
         return db.get_all_users()
@@ -21,7 +22,7 @@ def get_users_api(offset: Optional[int] = None, limit: Optional[int] = None, sea
     return db.get_users_page(safe_offset, safe_limit, search)
 
 
-@router.post('/api/users')
+@router.post('/api/users', dependencies=[Depends(require_admin)])
 def create_user_api(data: UserIn):
     last_name = data.last_name.strip() or None
     first_name = data.first_name.strip()
@@ -40,7 +41,7 @@ def create_user_api(data: UserIn):
     return JSONResponse({'error': 'Пользователь с таким логином уже существует'}, status_code=400)
 
 
-@router.put('/api/users/{user_id}')
+@router.put('/api/users/{user_id}', dependencies=[Depends(require_admin)])
 def update_user_api(user_id: int, data: UserIn):
     last_name = data.last_name.strip() or None
     first_name = data.first_name.strip()
@@ -61,9 +62,9 @@ def update_user_api(user_id: int, data: UserIn):
 
 
 @router.delete('/api/users/{user_id}')
-def delete_user_api(request: Request, user_id: int):
+def delete_user_api(user_id: int, current_user: CurrentUser = Depends(require_admin)):
     try:
-        db.delete_user(user_id, changed_by=request.session.get('user_id'))
+        db.delete_user(user_id, changed_by=current_user.id)
         return {'success': True}
     except ValueError as exc:
         return JSONResponse({'error': str(exc)}, status_code=400)

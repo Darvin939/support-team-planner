@@ -192,7 +192,7 @@ class SQLiteBackend(DBBackend):
         # которые FastAPI выполняет в отдельном потоке пула (anyio.to_thread.run_sync) — sqlite3 по
         # умолчанию запрещает такое межпоточное использование одного объекта соединения. Безопасно
         # здесь, поскольку соединение никогда не используется из двух потоков ОДНОВРЕМЕННО — только
-        # последовательно в рамках одного запроса (мидлварь -> require_login -> роут -> мидлварь).
+        # последовательно в рамках одного запроса (мидлварь -> FastAPI dependencies/роут -> мидлварь).
         conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         return conn

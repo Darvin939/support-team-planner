@@ -1,10 +1,10 @@
 from typing import Optional
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 import db
-from access_control import require_task_access, require_team_access
+from access_control import require_task_access, require_team_access, require_user
 from api_models import TaskDependencyIn
 from query_parsing import parse_int_csv
 from task_dependency_rules import TaskDependencyEditError, validate_task_dependency_edit
@@ -13,7 +13,7 @@ from task_dependency_rules import TaskDependencyEditError, validate_task_depende
 router = APIRouter()
 
 
-@router.get('/api/tasks/{team_id}/deps')
+@router.get('/api/tasks/{team_id}/deps', dependencies=[Depends(require_user)])
 def get_team_deps(request: Request, team_id: int, task_ids: Optional[str] = None):
     require_team_access(request, team_id)
     rows = db.get_all_deps_for_team(team_id, task_ids=parse_int_csv(task_ids))
@@ -32,7 +32,7 @@ def get_team_deps(request: Request, team_id: int, task_ids: Optional[str] = None
     ]
 
 
-@router.get('/api/tasks/{team_id}/dependency-graph')
+@router.get('/api/tasks/{team_id}/dependency-graph', dependencies=[Depends(require_user)])
 def get_team_dependency_graph(request: Request, team_id: int, task_id: Optional[int] = None):
     require_team_access(request, team_id)
     if task_id is not None:
@@ -66,7 +66,7 @@ def _validate_or_error(data: TaskDependencyIn):
     return None
 
 
-@router.post('/api/task-dependency')
+@router.post('/api/task-dependency', dependencies=[Depends(require_user)])
 def add_task_dependency_api(request: Request, data: TaskDependencyIn):
     require_task_access(request, data.task_id)
     require_task_access(request, data.depends_on_task_id)
@@ -79,7 +79,7 @@ def add_task_dependency_api(request: Request, data: TaskDependencyIn):
     return {'success': True}
 
 
-@router.delete('/api/task-dependency')
+@router.delete('/api/task-dependency', dependencies=[Depends(require_user)])
 def remove_task_dependency_api(request: Request, data: TaskDependencyIn):
     require_task_access(request, data.task_id)
     require_task_access(request, data.depends_on_task_id)
@@ -90,7 +90,7 @@ def remove_task_dependency_api(request: Request, data: TaskDependencyIn):
     return {'success': True}
 
 
-@router.get('/api/tasks/{team_id}/active-list')
+@router.get('/api/tasks/{team_id}/active-list', dependencies=[Depends(require_user)])
 def get_active_tasks_list(
     request: Request,
     team_id: int,

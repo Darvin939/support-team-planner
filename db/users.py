@@ -6,8 +6,8 @@ from db.pagination import page_result
 # === USERS CRUD ===
 @with_db_connection(commit_on_success=False)
 def user_exists(conn, user_id):
-    """Проверить существование пользователя и получить его роль (используется для валидации сессии
-    в require_login — сессия может пережить удаление пользователя или пересоздание БД)"""
+    """Проверить существование пользователя и получить его роль (используется зависимостью
+    get_current_user: сессия может пережить удаление пользователя или пересоздание БД)."""
     return conn.execute('SELECT role FROM users WHERE id = ?', (user_id,)).fetchone()
 
 

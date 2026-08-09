@@ -1,19 +1,20 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
 import db
+from access_control import require_editor, require_user
 from api_models import BlockIn, BlockTemplateIn, SegmentIn
 
 
 router = APIRouter()
 
 
-@router.get('/api/blocks')
+@router.get('/api/blocks', dependencies=[Depends(require_user)])
 def get_blocks_api():
     return db.get_all_blocks()
 
 
-@router.post('/api/blocks')
+@router.post('/api/blocks', dependencies=[Depends(require_editor)])
 def create_block_api(data: BlockIn):
     name = (data.name or '').strip()
     if not name:
@@ -24,18 +25,18 @@ def create_block_api(data: BlockIn):
         return JSONResponse({'error': str(exc)}, status_code=400)
 
 
-@router.delete('/api/blocks/{block_id}')
+@router.delete('/api/blocks/{block_id}', dependencies=[Depends(require_editor)])
 def delete_block_api(block_id: int):
     db.delete_block(block_id)
     return {'success': True}
 
 
-@router.get('/api/block-templates')
+@router.get('/api/block-templates', dependencies=[Depends(require_user)])
 def get_templates_api():
     return db.get_all_templates()
 
 
-@router.post('/api/block-templates')
+@router.post('/api/block-templates', dependencies=[Depends(require_editor)])
 def create_template_api(data: BlockTemplateIn):
     name = (data.name or '').strip()
     if not name:
@@ -49,7 +50,7 @@ def create_template_api(data: BlockTemplateIn):
         return JSONResponse({'error': str(exc)}, status_code=400)
 
 
-@router.put('/api/block-templates/{template_id}')
+@router.put('/api/block-templates/{template_id}', dependencies=[Depends(require_editor)])
 def update_template_api(template_id: int, data: BlockTemplateIn):
     name = (data.name or '').strip()
     if not name:
@@ -66,18 +67,18 @@ def update_template_api(template_id: int, data: BlockTemplateIn):
         return JSONResponse({'error': str(exc)}, status_code=400)
 
 
-@router.delete('/api/block-templates/{template_id}')
+@router.delete('/api/block-templates/{template_id}', dependencies=[Depends(require_editor)])
 def delete_template_api(template_id: int):
     db.delete_template(template_id)
     return {'success': True}
 
 
-@router.get('/api/segments')
+@router.get('/api/segments', dependencies=[Depends(require_user)])
 def get_segments_api():
     return db.get_all_segments()
 
 
-@router.post('/api/segments')
+@router.post('/api/segments', dependencies=[Depends(require_editor)])
 def create_segment_api(data: SegmentIn):
     name = (data.name or '').strip()
     if not name:
@@ -88,7 +89,7 @@ def create_segment_api(data: SegmentIn):
         return JSONResponse({'error': str(exc)}, status_code=400)
 
 
-@router.put('/api/segments/{segment_id}')
+@router.put('/api/segments/{segment_id}', dependencies=[Depends(require_editor)])
 def update_segment_api(segment_id: int, data: SegmentIn):
     name = (data.name or '').strip()
     if not name:
@@ -100,7 +101,7 @@ def update_segment_api(segment_id: int, data: SegmentIn):
         return JSONResponse({'error': str(exc)}, status_code=400)
 
 
-@router.delete('/api/segments/{segment_id}')
+@router.delete('/api/segments/{segment_id}', dependencies=[Depends(require_editor)])
 def delete_segment_api(segment_id: int):
     try:
         db.delete_segment(segment_id)

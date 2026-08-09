@@ -111,8 +111,7 @@ status codes, error contract и применяемые access-control прави
 
 ### Requirement: Router сохраняет method-dependent role policy
 
-Перемещение route-группы в `APIRouter` SHALL сохранять различающиеся по HTTP-методу требования к роли и
-использование текущего session user в handler.
+Явные зависимости FastAPI на route-группе или конкретном endpoint SHALL сохранять различающиеся по операциям требования к роли и предоставлять handler проверенного текущего session user без зависимости политики от строкового сопоставления HTTP-метода и URL-пути в общем middleware.
 
 #### Scenario: Чтение пользователей
 - **WHEN** не-admin авторизованный пользователь вызывает GET `/api/users`
@@ -120,11 +119,11 @@ status codes, error contract и применяемые access-control прави
 
 #### Scenario: Изменение пользователей
 - **WHEN** роль ниже admin вызывает mutation `/api/users`
-- **THEN** middleware отклоняет запрос по прежнему контракту
+- **THEN** явно назначенная endpoint-зависимость отклоняет запрос по прежнему контракту
 
 #### Scenario: Удаление пользователя
 - **WHEN** admin удаляет пользователя
-- **THEN** handler передаёт id текущего session user в доменную операцию
+- **THEN** handler передаёт id проверенного текущего пользователя в доменную операцию
 
 ### Requirement: Router сохраняет общие domain rules
 

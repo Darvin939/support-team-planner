@@ -26,14 +26,21 @@ class TeamAccessApiTest(unittest.TestCase):
         conn.execute(
             '''INSERT INTO users (id, first_name, role, login, password_hash, is_assignee)
                VALUES (2, 'Limited', 'user', 'limited', ?, 1),
-                      (3, 'Denied assignee', 'user', 'denied-assignee', ?, 1)''',
-            (auth.hash_password('password123'), auth.hash_password('password123')),
+                      (3, 'Denied assignee', 'user', 'denied-assignee', ?, 1),
+                      (4, 'Limited editor', 'editor', 'limited-editor', ?, 1)''',
+            (
+                auth.hash_password('password123'), auth.hash_password('password123'),
+                auth.hash_password('password123'),
+            ),
         )
-        conn.execute('INSERT INTO user_team_access (user_id, team_id) VALUES (2, 1), (3, 2)')
+        conn.execute('INSERT INTO user_team_access (user_id, team_id) VALUES (2, 1), (3, 2), (4, 1)')
         conn.execute(
             "INSERT INTO tasks (id, team_id, segment_id, name) VALUES (10, 1, 1, 'Allowed task'), (20, 2, 1, 'Denied task')"
         )
-        conn.execute("INSERT INTO assignments (id, task_id, date, status) VALUES (100, 1, '2026-07-18', 'new')".replace('(100, 1,', '(100, 10,'))
+        conn.execute(
+            "INSERT INTO assignments (id, task_id, date, status) VALUES "
+            "(100, 10, '2026-07-18', 'new'), (200, 20, '2026-07-18', 'new')"
+        )
         conn.commit()
         conn.close()
 
@@ -92,6 +99,20 @@ class TeamAccessApiTest(unittest.TestCase):
                 '/api/active-assignments/0?team_ids=1,2',
             ):
                 self.assertEqual(403, client.get(path).status_code, path)
+
+    def test_team_task_and_assignment_access_is_preserved_for_all_roles(self):
+        for login in ('limited', 'limited-editor'):
+            with self.subTest(login=login), self.login(login, 'password123') as client:
+                self.assertEqual(200, client.get('/api/teams/1').status_code)
+                self.assertEqual(200, client.get('/api/task/10').status_code)
+                self.assertEqual(200, client.get('/api/assignment/100/history').status_code)
+                self.assertEqual(403, client.get('/api/teams/2').status_code)
+                self.assertEqual(403, client.get('/api/task/20').status_code)
+                self.assertEqual(403, client.get('/api/assignment/200/history').status_code)
+
+        with self.login('admin', 'q12345678') as client:
+            for path in ('/api/teams/2', '/api/task/20', '/api/assignment/200/history'):
+                self.assertEqual(200, client.get(path).status_code, path)
 
     def test_assignees_are_filtered_and_direct_assignment_is_rejected(self):
         with self.login('limited', 'password123') as client:

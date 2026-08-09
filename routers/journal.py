@@ -1,15 +1,15 @@
 from typing import Optional
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 
 import db
-from access_control import require_team_access
+from access_control import require_team_access, require_user
 
 
 router = APIRouter()
 
 
-@router.get('/api/journal/{team_id}')
+@router.get('/api/journal/{team_id}', dependencies=[Depends(require_user)])
 def get_team_history_api(
     request: Request,
     team_id: int,

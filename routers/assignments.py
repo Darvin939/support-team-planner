@@ -1,17 +1,19 @@
 from datetime import date, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 import db
 import utils
 from access_control import (
+    CurrentUser,
     effective_team_filter,
     require_assignment_access,
     require_task_access,
     require_team_access,
     require_team_list_access,
+    require_user,
 )
 from api_models import (
     AssignmentIn,
@@ -28,7 +30,7 @@ from task_rules import task_is_locked
 router = APIRouter()
 
 
-@router.get('/api/assignments/{team_id}')
+@router.get('/api/assignments/{team_id}', dependencies=[Depends(require_user)])
 def get_assignments_api(
     request: Request,
     team_id: int,
@@ -62,7 +64,7 @@ def get_assignments_api(
     ]
 
 
-def _save_assignment(request: Request, data: AssignmentIn):
+def _save_assignment(request: Request, current_user: CurrentUser, data: AssignmentIn):
     block = (data.block or '').strip() or None
     comment = (data.comment or '').strip() or None
     time_spent = (data.time_spent or '').strip() or None
@@ -78,7 +80,7 @@ def _save_assignment(request: Request, data: AssignmentIn):
     task = db.get_task_status(data.task_id)
     if task and task_is_locked(task):
         raise HTTPException(status_code=400, detail='Нельзя изменять назначения завершённой или отменённой задачи')
-    if request.state.role == 'user':
+    if current_user.role == 'user':
         if data.status != 'new':
             raise HTTPException(status_code=403, detail='Недостаточно прав: можно создавать и изменять назначения только со статусом «Новый»')
         if data.assignment_id:
@@ -87,37 +89,41 @@ def _save_assignment(request: Request, data: AssignmentIn):
                 raise HTTPException(status_code=403, detail='Недостаточно прав: нельзя изменять назначение в статусе, отличном от «Новый»')
     db.create_or_update_assignment(
         data.assignment_id, data.task_id, data.date, block, data.status, data.user_id,
-        comment, time_spent, changed_by=request.session.get('user_id'),
+        comment, time_spent, changed_by=current_user.id,
     )
 
 
 @router.post('/api/assignment')
-def save_assignment_api(request: Request, data: AssignmentIn):
-    _save_assignment(request, data)
+def save_assignment_api(request: Request, data: AssignmentIn, current_user: CurrentUser = Depends(require_user)):
+    _save_assignment(request, current_user, data)
     return {'success': True}
 
 
 @router.post('/api/assignments/bulk', response_model=BulkAssignmentResult)
-def bulk_save_assignments_api(request: Request, data: BulkAssignmentUpsertIn):
+def bulk_save_assignments_api(
+    request: Request, data: BulkAssignmentUpsertIn, current_user: CurrentUser = Depends(require_user),
+):
     if not data.assignments:
         raise HTTPException(status_code=400, detail='Не выбраны назначения для сохранения')
     if len(data.assignments) > 200:
         raise HTTPException(status_code=400, detail='За один раз можно сохранить не более 200 назначений')
     with db.composite_transaction():
         for assignment in data.assignments:
-            _save_assignment(request, assignment)
+            _save_assignment(request, current_user, assignment)
     return {'success': True, 'saved': len(data.assignments)}
 
 
 @router.post('/api/assignments/bulk-reschedule')
-def bulk_reschedule_assignments_api(request: Request, data: BulkAssignmentRescheduleIn):
+def bulk_reschedule_assignments_api(
+    request: Request, data: BulkAssignmentRescheduleIn, current_user: CurrentUser = Depends(require_user),
+):
     for move in data.moves:
         require_assignment_access(request, move.assignment_id)
     try:
         moved = db.bulk_reschedule_assignments(
             [move.model_dump() for move in data.moves],
-            role=request.state.role,
-            changed_by=request.session.get('user_id'),
+            role=current_user.role,
+            changed_by=current_user.id,
         )
     except db.BulkAssignmentRescheduleError as exc:
         return JSONResponse({'error': str(exc)}, status_code=exc.status_code)
@@ -126,14 +132,14 @@ def bulk_reschedule_assignments_api(request: Request, data: BulkAssignmentResche
     return {'success': True, 'moved': moved}
 
 
-def _validate_assignment_delete(request: Request, assignment_id: int):
+def _validate_assignment_delete(request: Request, current_user: CurrentUser, assignment_id: int):
     require_assignment_access(request, assignment_id)
     task = db.get_task_status_by_assignment(assignment_id)
     if not task:
         raise HTTPException(status_code=404, detail='Назначение не найдено')
     if task and task_is_locked(task):
         raise HTTPException(status_code=400, detail='Нельзя изменять назначения завершённой или отменённой задачи')
-    if request.state.role == 'user' and task and task['assignment_status'] != 'new':
+    if current_user.role == 'user' and task and task['assignment_status'] != 'new':
         raise HTTPException(
             status_code=403,
             detail='Недостаточно прав: нельзя удалить назначение в статусе, отличном от «Новый»',
@@ -141,14 +147,18 @@ def _validate_assignment_delete(request: Request, assignment_id: int):
 
 
 @router.delete('/api/assignment/{assignment_id}')
-def delete_assignment_api(request: Request, assignment_id: int):
-    _validate_assignment_delete(request, assignment_id)
-    db.delete_assignment(assignment_id, changed_by=request.session.get('user_id'))
+def delete_assignment_api(
+    request: Request, assignment_id: int, current_user: CurrentUser = Depends(require_user),
+):
+    _validate_assignment_delete(request, current_user, assignment_id)
+    db.delete_assignment(assignment_id, changed_by=current_user.id)
     return {'success': True}
 
 
 @router.post('/api/assignments/bulk-delete', response_model=BulkAssignmentDeleteResult)
-def bulk_delete_assignments_api(request: Request, data: BulkAssignmentDeleteIn):
+def bulk_delete_assignments_api(
+    request: Request, data: BulkAssignmentDeleteIn, current_user: CurrentUser = Depends(require_user),
+):
     assignment_ids = data.assignment_ids
     if not assignment_ids:
         raise HTTPException(status_code=400, detail='Не выбраны назначения для удаления')
@@ -158,14 +168,14 @@ def bulk_delete_assignments_api(request: Request, data: BulkAssignmentDeleteIn):
         raise HTTPException(status_code=400, detail='Список содержит повторяющиеся назначения')
 
     for assignment_id in assignment_ids:
-        _validate_assignment_delete(request, assignment_id)
+        _validate_assignment_delete(request, current_user, assignment_id)
     with db.composite_transaction():
         for assignment_id in assignment_ids:
-            db.delete_assignment(assignment_id, changed_by=request.session.get('user_id'))
+            db.delete_assignment(assignment_id, changed_by=current_user.id)
     return {'success': True, 'deleted': len(assignment_ids)}
 
 
-@router.get('/api/assignment/{assignment_id}/history')
+@router.get('/api/assignment/{assignment_id}/history', dependencies=[Depends(require_user)])
 def get_assignment_history_api(request: Request, assignment_id: int, offset: int = 0, limit: int = 20):
     require_assignment_access(request, assignment_id)
     return {
@@ -174,7 +184,7 @@ def get_assignment_history_api(request: Request, assignment_id: int, offset: int
     }
 
 
-@router.get('/api/active-assignments/{team_id}')
+@router.get('/api/active-assignments/{team_id}', dependencies=[Depends(require_user)])
 def get_active_assignments_api(
     request: Request,
     team_id: int,

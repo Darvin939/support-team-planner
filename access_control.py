@@ -1,50 +1,67 @@
-from typing import List, Optional
+from dataclasses import dataclass
+from typing import Callable, List, Optional
 
 from fastapi import HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse
 
 import db
 
-_PUBLIC_PATHS = {'/login', '/logout'}
+
 _ROLE_RANK = {'user': 0, 'editor': 1, 'admin': 2}
-_ADMIN_ONLY_API_PREFIXES = ('/api/users',)
-_EDITOR_API_PREFIXES = ('/api/teams', '/api/freeze-days', '/api/blocks', '/api/block-templates', '/api/segments')
 
 
-def required_rank(method: str, path: str) -> int:
-    if path == '/settings':
-        return _ROLE_RANK['editor']
-    if method == 'GET':
-        return _ROLE_RANK['user']
-    if any(path.startswith(prefix) for prefix in _ADMIN_ONLY_API_PREFIXES):
-        return _ROLE_RANK['admin']
-    if any(path.startswith(prefix) for prefix in _EDITOR_API_PREFIXES):
-        return _ROLE_RANK['editor']
-    return _ROLE_RANK['user']
+@dataclass(frozen=True)
+class CurrentUser:
+    id: int
+    role: str
 
 
-async def require_login(request: Request, call_next):
-    path = request.url.path
-    if path in _PUBLIC_PATHS or path.startswith('/react-assets/'):
-        return await call_next(request)
+def _access_policy(kind: str, minimum_role: Optional[str] = None):
+    def decorate(dependency: Callable):
+        dependency.access_policy = kind
+        dependency.minimum_role = minimum_role
+        return dependency
+    return decorate
+
+
+@_access_policy('public')
+def allow_public() -> None:
+    """Явный маркер публичного маршрута для декларации и route-аудита."""
+
+
+@_access_policy('authenticated')
+def get_current_user(request: Request) -> CurrentUser:
     user_id = request.session.get('user_id')
     user = db.user_exists(user_id) if user_id else None
     if not user_id or not user:
         request.session.clear()
-        if path.startswith('/api/'):
-            return JSONResponse({'error': 'Не авторизован'}, status_code=401)
-        return RedirectResponse(url='/login', status_code=302)
-    role = user['role']
-    request.state.role = role
-    if _ROLE_RANK.get(role, 0) < required_rank(request.method, path):
-        if path.startswith('/api/'):
-            return JSONResponse({'error': 'Недостаточно прав'}, status_code=403)
-        return RedirectResponse(url='/planning', status_code=302)
-    return await call_next(request)
+        raise HTTPException(status_code=401, detail='Не авторизован')
+    current_user = CurrentUser(id=user_id, role=user['role'])
+    request.state.current_user = current_user
+    return current_user
+
+
+def _minimum_role_dependency(minimum_role: str):
+    minimum_rank = _ROLE_RANK[minimum_role]
+
+    @_access_policy('role', minimum_role)
+    def dependency(request: Request) -> CurrentUser:
+        current_user = get_current_user(request)
+        if _ROLE_RANK.get(current_user.role, 0) < minimum_rank:
+            raise HTTPException(status_code=403, detail='Недостаточно прав')
+        return current_user
+
+    dependency.__name__ = f'require_{minimum_role}'
+    return dependency
+
+
+require_user = _minimum_role_dependency('user')
+require_editor = _minimum_role_dependency('editor')
+require_admin = _minimum_role_dependency('admin')
 
 
 def access_user(request: Request):
-    return request.session['user_id'], request.state.role
+    current_user = request.state.current_user
+    return current_user.id, current_user.role
 
 
 def require_team_access(request: Request, team_id: Optional[int]):

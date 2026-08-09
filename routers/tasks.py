@@ -1,11 +1,11 @@
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 import db
-from access_control import require_task_access, require_team_access
+from access_control import CurrentUser, require_editor, require_task_access, require_team_access, require_user
 from api_models import TaskIn, TaskPriorityIn, TaskReorderIn, TaskStatusIn
 from db.pagination import page_result
 from task_dependency_rules import TaskDependencyCycleError
@@ -29,7 +29,7 @@ def _task_json(task):
     }
 
 
-@router.get('/api/tasks/{team_id}')
+@router.get('/api/tasks/{team_id}', dependencies=[Depends(require_user)])
 def get_tasks_api(
     request: Request,
     team_id: int,
@@ -55,7 +55,7 @@ def get_tasks_api(
     return page_result([_task_json(task) for task in tasks], total, 'tasks')
 
 
-@router.get('/api/task/{task_id}')
+@router.get('/api/task/{task_id}', dependencies=[Depends(require_user)])
 def get_task_api(request: Request, task_id: int):
     task = db.get_task_by_id(task_id)
     if not task:
@@ -65,15 +65,15 @@ def get_task_api(request: Request, task_id: int):
 
 
 @router.post('/api/task/{task_id}/restore')
-def restore_task_api(request: Request, task_id: int):
+def restore_task_api(
+    request: Request, task_id: int, current_user: CurrentUser = Depends(require_editor),
+):
     task = db.get_task_by_id(task_id)
     if not task:
         raise HTTPException(status_code=404, detail='Работа не найдена')
     require_team_access(request, task['team_id'])
-    if request.state.role not in ('editor', 'admin'):
-        raise HTTPException(status_code=403, detail='Недостаточно прав для восстановления работы')
     try:
-        restored = db.restore_task(task_id, changed_by=request.session.get('user_id'))
+        restored = db.restore_task(task_id, changed_by=current_user.id)
     except ValueError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
     if not restored:
@@ -81,7 +81,7 @@ def restore_task_api(request: Request, task_id: int):
     return {'success': True}
 
 
-@router.get('/api/tasks/{team_id}/archive')
+@router.get('/api/tasks/{team_id}/archive', dependencies=[Depends(require_user)])
 def get_tasks_archive_api(
     request: Request,
     team_id: int,
@@ -105,7 +105,7 @@ def get_tasks_archive_api(
 
 
 @router.post('/api/task')
-def save_task_api(request: Request, data: TaskIn):
+def save_task_api(request: Request, data: TaskIn, current_user: CurrentUser = Depends(require_user)):
     name = data.name.strip()
     description = (data.description or '').strip() or None
     if not data.team_id or not name:
@@ -135,7 +135,7 @@ def save_task_api(request: Request, data: TaskIn):
                     description,
                     data.criticality,
                     segment_id=data.segment_id,
-                    changed_by=request.session.get('user_id'),
+                    changed_by=current_user.id,
                 )
             )
             if data.dependency_ids is not None:
@@ -148,7 +148,7 @@ def save_task_api(request: Request, data: TaskIn):
 
 
 @router.delete('/api/task/{task_id}')
-def delete_task_api(request: Request, task_id: int):
+def delete_task_api(request: Request, task_id: int, current_user: CurrentUser = Depends(require_user)):
     require_task_access(request, task_id)
     task = db.get_task_status(task_id)
     if task and task_is_locked(task):
@@ -156,28 +156,25 @@ def delete_task_api(request: Request, task_id: int):
             {'error': 'Нельзя удалить завершённую или отменённую задачу'},
             status_code=400,
         )
-    if request.state.role == 'user' and db.task_has_active_assignments(task_id):
+    if current_user.role == 'user' and db.task_has_active_assignments(task_id):
         return JSONResponse(
             {
                 'error': 'Недостаточно прав: нельзя удалить работу, у которой есть назначения в статусе, отличном от «Новый»'
             },
             status_code=403,
         )
-    db.delete_task(task_id, changed_by=request.session.get('user_id'))
+    db.delete_task(task_id, changed_by=current_user.id)
     return {'success': True}
 
 
 @router.patch('/api/tasks/{task_id}/status')
-def update_task_status_api(request: Request, task_id: int, data: TaskStatusIn):
+def update_task_status_api(
+    request: Request, task_id: int, data: TaskStatusIn, current_user: CurrentUser = Depends(require_editor),
+):
     require_task_access(request, task_id)
     task = db.get_task_status(task_id)
     if not task:
         return JSONResponse({'error': 'Task not found'}, status_code=404)
-    if request.state.role == 'user':
-        return JSONResponse(
-            {'error': 'Недостаточно прав для изменения статуса задачи'},
-            status_code=403,
-        )
     current_status = task['task_status']
     allowed = VALID_TASK_TRANSITIONS.get(current_status, set())
     if data.status not in allowed:
@@ -185,24 +182,28 @@ def update_task_status_api(request: Request, task_id: int, data: TaskStatusIn):
             {'error': f'Недопустимый переход: {current_status} → {data.status}'},
             status_code=400,
         )
-    db.update_task_status(task_id, data.status, changed_by=request.session.get('user_id'))
+    db.update_task_status(task_id, data.status, changed_by=current_user.id)
     return {'success': True}
 
 
 @router.patch('/api/tasks/{team_id}/reorder')
-def reorder_tasks_api(request: Request, team_id: int, data: TaskReorderIn):
+def reorder_tasks_api(
+    request: Request, team_id: int, data: TaskReorderIn, current_user: CurrentUser = Depends(require_user),
+):
     require_team_access(request, team_id)
     if not data.task_ids:
         return JSONResponse({'error': 'task_ids required'}, status_code=400)
     try:
-        db.reorder_team_tasks(team_id, data.task_ids, changed_by=request.session.get('user_id'))
+        db.reorder_team_tasks(team_id, data.task_ids, changed_by=current_user.id)
     except ValueError as error:
         return JSONResponse({'error': str(error)}, status_code=400)
     return {'success': True}
 
 
 @router.patch('/api/task/{task_id}/priority')
-def move_task_priority_api(request: Request, task_id: int, data: TaskPriorityIn):
+def move_task_priority_api(
+    request: Request, task_id: int, data: TaskPriorityIn, current_user: CurrentUser = Depends(require_user),
+):
     require_task_access(request, task_id)
     if data.position not in ('start', 'end'):
         return JSONResponse({'error': 'position must be start or end'}, status_code=400)
@@ -210,14 +211,14 @@ def move_task_priority_api(request: Request, task_id: int, data: TaskPriorityIn)
         db.move_task_to_edge(
             task_id,
             data.position,
-            changed_by=request.session.get('user_id'),
+            changed_by=current_user.id,
         )
     except ValueError as error:
         return JSONResponse({'error': str(error)}, status_code=400)
     return {'success': True}
 
 
-@router.get('/api/task/{task_id}/history')
+@router.get('/api/task/{task_id}/history', dependencies=[Depends(require_user)])
 def get_task_history_api(request: Request, task_id: int, offset: int = 0, limit: int = 20):
     require_task_access(request, task_id)
     return {

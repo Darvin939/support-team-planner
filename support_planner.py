@@ -3,11 +3,10 @@ import os
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 import db
-from access_control import require_login
 from routers.assignments import router as assignments_router
 from routers.freeze_days import router as freeze_days_router
 from routers.journal import router as journal_router
@@ -39,6 +38,10 @@ def _api_error(message: str, status_code: int, headers=None) -> JSONResponse:
 @app.exception_handler(HTTPException)
 async def api_http_exception_handler(request: Request, exc: HTTPException):
     if not request.url.path.startswith('/api/'):
+        if exc.status_code == 401:
+            return RedirectResponse(url='/login', status_code=302)
+        if exc.status_code == 403:
+            return RedirectResponse(url='/planning', status_code=302)
         return await http_exception_handler(request, exc)
     message = exc.detail if isinstance(exc.detail, str) and exc.detail.strip() else 'Ошибка запроса'
     return _api_error(message, exc.status_code, exc.headers)
@@ -58,11 +61,6 @@ if not _SESSION_SECRET_KEY:
         'WARNING: SESSION_SECRET_KEY не задан, используется небезопасный ключ по умолчанию '
         '(сессии не переживут смену ключа; задайте переменную окружения для продакшена)'
     )
-
-
-# Starlette prepends middleware: registration order below yields
-# SessionMiddleware -> db connection -> require_login -> route.
-app.middleware('http')(require_login)
 
 
 @app.middleware('http')
