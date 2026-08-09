@@ -58,7 +58,7 @@
 
 ## 9. SQLite schema и migrations
 
-- [ ] 9.1 Разделить connection backend, schema, migrations и registered functions
+- [x] 9.1 Разделить connection backend, schema, migrations и registered functions
 - [x] 9.2 Ввести последовательный migration registry с явными версиями
 - [x] 9.3 Проверить fresh install и upgrade существующей БД
 - [x] 9.4 Проверить SQLite connection lifecycle и WAL regression suite

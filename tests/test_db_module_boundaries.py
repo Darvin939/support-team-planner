@@ -3,6 +3,7 @@ import unittest
 
 import db
 import db.connection
+import db.sqlite
 
 
 class DatabaseModuleBoundaryTest(unittest.TestCase):
@@ -22,6 +23,12 @@ class DatabaseModuleBoundaryTest(unittest.TestCase):
         ):
             module = __import__(f'db.{module_name}', fromlist=['*'])
             self.assertNotIn('db.sqlite', inspect.getsource(module))
+
+    def test_sqlite_backend_does_not_contain_schema_or_migration_sql(self):
+        source = inspect.getsource(db.sqlite)
+        self.assertNotIn('CREATE TABLE', source)
+        self.assertNotIn('ALTER TABLE', source)
+        self.assertNotIn('import auth', source)
 
 
 if __name__ == '__main__':

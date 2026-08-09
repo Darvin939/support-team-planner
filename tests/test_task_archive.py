@@ -9,6 +9,7 @@ import auth
 import db
 import db.sqlite as sqlite_backend
 from db.sqlite import SQLiteBackend
+from db.sqlite_migration_steps import SQLiteMigrationSteps
 from support_planner import app
 
 
@@ -28,8 +29,8 @@ class CompletedAtMigrationTest(unittest.TestCase):
                 (3, 3, 'task_status', 'done', '2026-07-01 10:00:00');
         ''')
 
-        SQLiteBackend._migrate_add_task_completed_at(conn)
-        SQLiteBackend._migrate_add_task_completed_at(conn)
+        SQLiteMigrationSteps.migrate_add_task_completed_at(conn)
+        SQLiteMigrationSteps.migrate_add_task_completed_at(conn)
 
         rows = dict(conn.execute('SELECT id, completed_at FROM tasks').fetchall())
         self.assertEqual('2026-06-01 10:00:00', rows[1])
