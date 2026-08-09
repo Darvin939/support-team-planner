@@ -33,12 +33,13 @@ def create_user_api(data: UserIn):
         return JSONResponse({'error': 'Имя обязательно'}, status_code=400)
     if data.role not in _VALID_ROLES:
         return JSONResponse({'error': 'Недопустимая роль'}, status_code=400)
-    user_id = db.create_user(
-        last_name, first_name, middle_name, password_hash, data.role, login, data.is_assignee, data.team_ids,
-    )
-    if user_id:
+    try:
+        user_id = db.create_user(
+            last_name, first_name, middle_name, password_hash, data.role, login, data.is_assignee, data.team_ids,
+        )
         return {'id': user_id, 'success': True}
-    return JSONResponse({'error': 'Пользователь с таким логином уже существует'}, status_code=400)
+    except db.DuplicateEntityError as exc:
+        return JSONResponse({'error': str(exc)}, status_code=400)
 
 
 @router.put('/api/users/{user_id}', dependencies=[Depends(require_admin)])
@@ -52,13 +53,16 @@ def update_user_api(user_id: int, data: UserIn):
         return JSONResponse({'error': 'Имя обязательно'}, status_code=400)
     if data.role not in _VALID_ROLES:
         return JSONResponse({'error': 'Недопустимая роль'}, status_code=400)
-    success = db.update_user(
-        user_id, last_name, first_name, middle_name, password_hash, data.role, login,
-        data.is_assignee, data.team_ids,
-    )
-    if success:
+    try:
+        db.update_user(
+            user_id, last_name, first_name, middle_name, password_hash, data.role, login,
+            data.is_assignee, data.team_ids,
+        )
         return {'success': True}
-    return JSONResponse({'error': 'Пользователь с таким логином уже существует'}, status_code=400)
+    except db.DuplicateEntityError as exc:
+        return JSONResponse({'error': str(exc)}, status_code=400)
+    except db.EntityNotFoundError as exc:
+        return JSONResponse({'error': str(exc)}, status_code=404)
 
 
 @router.delete('/api/users/{user_id}')

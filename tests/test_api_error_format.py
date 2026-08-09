@@ -161,6 +161,22 @@ class ApiErrorFormatTest(unittest.TestCase):
         self.assertEqual(400, own_delete.status_code)
         self.assertIn('error', own_delete.json())
 
+    def test_user_duplicate_and_not_found_domain_errors_are_explicit(self):
+        payload = {
+            'first_name': 'Duplicate', 'role': 'user', 'login': 'duplicate-login',
+            'is_assignee': True, 'team_ids': [],
+        }
+        with self.login() as client:
+            created = client.post('/api/users', json=payload)
+            duplicate = client.post('/api/users', json=payload)
+            missing = client.put('/api/users/999999', json={**payload, 'login': 'missing-login'})
+        self.assertEqual(200, created.status_code)
+        self.assertEqual(
+            (400, {'error': 'Пользователь с таким логином уже существует'}),
+            (duplicate.status_code, duplicate.json()),
+        )
+        self.assertEqual((404, {'error': 'Пользователь не найден'}), (missing.status_code, missing.json()))
+
 
 if __name__ == '__main__':
     unittest.main()

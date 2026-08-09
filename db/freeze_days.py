@@ -20,10 +20,13 @@ def get_freeze_days_in_period(conn, start_date, end_date):
     return [day['date'] for day in days]
 
 
-@with_db_connection(default_return=False, raise_on_error=False)
+@with_db_connection()
 def add_freeze_day(conn, date_str):
     """Добавить день фриза"""
-    conn.execute('INSERT INTO freeze_days (date) VALUES (?)', (date_str,))
+    try:
+        conn.execute('INSERT INTO freeze_days (date) VALUES (?)', (date_str,))
+    except _backend.duplicate_error:
+        return False
     return True
 
 

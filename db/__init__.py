@@ -8,7 +8,12 @@ from db.connection import (
     set_request_connection,
     with_db_connection,
 )
-from db.errors import BulkAssignmentRescheduleError, IntegrityConstraintError
+from db.errors import (
+    BulkAssignmentRescheduleError,
+    DuplicateEntityError,
+    EntityNotFoundError,
+    IntegrityConstraintError,
+)
 from db.freeze_days import *
 from db.history import *
 from db.reference_data import *

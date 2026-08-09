@@ -1,4 +1,5 @@
 from db.connection import backend as _backend, with_db_connection
+from db.errors import DuplicateEntityError, EntityNotFoundError
 from db.tasks import _record_assignment_history
 from db.grouping import group_rows
 from db.pagination import page_result
@@ -199,18 +200,21 @@ def get_user(conn, user_id):
     return dict(row) if row else None
 
 
-@with_db_connection(default_return=None, raise_on_error=False, commit_on_success=False)
+@with_db_connection()
 def create_user(conn, last_name, first_name, middle_name=None, password_hash=None, role='user', login=None,
                  is_assignee=True, team_ids=None):
     """Создать пользователя. Возвращает None при нарушении UNIQUE (дубль логина) —
     raise_on_error=False нужен именно для этого: без него IntegrityError улетал бы наверх
     необработанным, и вызывающий код никогда не увидел бы свою ветку "уже существует"."""
-    cursor = conn.execute(
-        '''INSERT INTO users (last_name, first_name, middle_name, password_hash, role, login, is_assignee)
-           VALUES (?, ?, ?, ?, ?, ?, ?)''',
-        (last_name, first_name, middle_name, password_hash, role, login, int(is_assignee)))
-    user_id = _backend.last_insert_id(cursor)
-    _set_user_team_ids(conn, user_id, team_ids, role)
+    try:
+        cursor = conn.execute(
+            '''INSERT INTO users (last_name, first_name, middle_name, password_hash, role, login, is_assignee)
+               VALUES (?, ?, ?, ?, ?, ?, ?)''',
+            (last_name, first_name, middle_name, password_hash, role, login, int(is_assignee)))
+        user_id = _backend.last_insert_id(cursor)
+        _set_user_team_ids(conn, user_id, team_ids, role)
+    except _backend.duplicate_error as exc:
+        raise DuplicateEntityError('Пользователь с таким логином уже существует') from exc
     return user_id
 
 
@@ -224,16 +228,17 @@ def _update_login_and_password(conn, user_id, password_hash=None, login=None):
         conn.execute('UPDATE users SET login = ? WHERE id = ?', (login, user_id))
 
 
-@with_db_connection(default_return=False, raise_on_error=False)
+@with_db_connection()
 def update_own_password(conn, user_id, password_hash):
     """Пользователь меняет пароль своей же учётной записи (не через админский update_user) —
     логин, ФИО и роль этой функцией не затрагиваются: логин теперь может менять только admin."""
-    conn.execute('UPDATE users SET password_hash = ? WHERE id = ?', (password_hash, user_id))
+    cursor = conn.execute('UPDATE users SET password_hash = ? WHERE id = ?', (password_hash, user_id))
+    if cursor.rowcount == 0:
+        raise EntityNotFoundError('Пользователь не найден')
     return True
 
 
-@with_db_connection(default_return=False, raise_on_error=False)
-def update_user(conn, user_id, last_name, first_name, middle_name=None, password_hash=None, role='user', login=None,
+def _update_user(conn, user_id, last_name, first_name, middle_name=None, password_hash=None, role='user', login=None,
                  is_assignee=True, team_ids=None):
     """Обновить пользователя. password_hash=None означает "не менять пароль", login=None — "не менять логин".
     Для учётной записи администратора по умолчанию ФИО и роль никогда не перезаписываются этой
@@ -241,7 +246,7 @@ def update_user(conn, user_id, last_name, first_name, middle_name=None, password
     last_name/first_name/middle_name/role, чтобы не зависеть от того, отправил ли клиент эти поля вообще."""
     current = conn.execute('SELECT login FROM users WHERE id = ?', (user_id,)).fetchone()
     if not current:
-        return False
+        raise EntityNotFoundError('Пользователь не найден')
 
     if _is_bootstrap_admin(current):
         _update_login_and_password(conn, user_id, password_hash, login)
@@ -272,6 +277,17 @@ def update_user(conn, user_id, last_name, first_name, middle_name=None, password
                WHERE id = ?''', (last_name, first_name, middle_name, role, login, int(is_assignee), user_id))
     _set_user_team_ids(conn, user_id, team_ids, role)
     return True
+
+
+@with_db_connection()
+def update_user(conn, user_id, last_name, first_name, middle_name=None, password_hash=None, role='user', login=None,
+                is_assignee=True, team_ids=None):
+    try:
+        return _update_user(
+            conn, user_id, last_name, first_name, middle_name, password_hash, role, login, is_assignee, team_ids,
+        )
+    except _backend.duplicate_error as exc:
+        raise DuplicateEntityError('Пользователь с таким логином уже существует') from exc
 
 
 @with_db_connection(commit_on_success=False)
