@@ -35,8 +35,8 @@ export const queryKeys = {
   activeTasks: (teamId: number, search: string, includeIds: string) => ['active-tasks-list', teamId, search, includeIds] as const,
   journal: {
     all: ['journal'] as const,
-    list: (teamId: number | undefined, offset: number, filters: object) =>
-      ['journal', teamId, offset, filters] as const,
+    list: (teamId: number | undefined, offset: number, pageSize: number, filters: object) =>
+      ['journal', teamId, offset, pageSize, filters] as const,
   },
   taskHistory: (taskId: number | null, offset: number) => ['task-history', taskId, offset] as const,
   entityHistory: (kind: string, entityId: number | null, offset: number) => ['entity-history', kind, entityId, offset] as const,

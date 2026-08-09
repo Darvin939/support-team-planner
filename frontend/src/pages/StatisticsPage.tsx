@@ -1,6 +1,6 @@
 import {useEffect, useState} from 'react';
 import type {TableColumnsType} from 'antd';
-import {Card, DatePicker, Empty, Pagination, Select, Space, Table, Typography} from 'antd';
+import {Card, DatePicker, Empty, Select, Space, Table, Typography} from 'antd';
 import dayjs from 'dayjs';
 import {useTeams} from '../hooks/useTeams';
 import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
@@ -10,7 +10,8 @@ import {StatGroupLabel, StatTile} from '../components/StatTile';
 import {FilterField, FilterGrid} from '../components/FilterGrid';
 import {CriticalityBadge} from '../components/planningBadges';
 import {NAME_COLUMN_WIDTH} from '../lib/layout';
-import {DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS} from '../lib/pagination';
+import {DEFAULT_PAGE_SIZE} from '../lib/pagination';
+import {PagePagination} from '../components/PagePagination';
 import {readStoredJson, writeStoredJson} from '../lib/storage';
 import {usePaginationState} from '../hooks/usePaginationState';
 import {
@@ -57,7 +58,6 @@ function StatsSection({
                         showDate,
                         offset,
                         pageSize,
-                        pageSizeOptions,
                         onPageChange,
                         onPageSizeChange,
                       }: {
@@ -66,7 +66,6 @@ function StatsSection({
   showDate: boolean;
   offset: number;
   pageSize: number;
-  pageSizeOptions: string[];
   onPageChange: (offset: number) => void;
   onPageSizeChange: (size: number) => void;
 }) {
@@ -94,24 +93,11 @@ function StatsSection({
         <>
           <Table rowKey="id" columns={buildColumns(showDate)} dataSource={items} pagination={false} size="small"
                  scroll={{x: 'max-content'}}/>
-          {total > pageSize && (
-            <div style={{textAlign: 'center', marginTop: 16}}>
-              <Pagination
-                current={offset / pageSize + 1}
-                pageSize={pageSize}
-                total={total}
-                pageSizeOptions={pageSizeOptions}
-                showSizeChanger
-                onChange={(page, size) => {
-                  if (size !== pageSize) {
-                    onPageSizeChange(size);
-                  } else {
-                    onPageChange((page - 1) * pageSize);
-                  }
-                }}
-              />
-            </div>
-          )}
+          <PagePagination current={offset / pageSize + 1} pageSize={pageSize} total={total}
+                          onChange={(page, size) => {
+                            if (size !== pageSize) onPageSizeChange(size);
+                            else onPageChange((page - 1) * pageSize);
+                          }}/>
         </>
       ) : (
         <Empty description="Нет активных работ"/>
@@ -191,7 +177,6 @@ export function StatisticsPage() {
         showDate={false}
         offset={todayPagination.offset}
         pageSize={pageSize}
-        pageSizeOptions={PAGE_SIZE_OPTIONS}
         onPageChange={todayPagination.setOffset}
         onPageSizeChange={handlePageSizeChange}
       />
@@ -217,7 +202,6 @@ export function StatisticsPage() {
         showDate
         offset={periodPagination.offset}
         pageSize={pageSize}
-        pageSizeOptions={PAGE_SIZE_OPTIONS}
         onPageChange={periodPagination.setOffset}
         onPageSizeChange={handlePageSizeChange}
       />

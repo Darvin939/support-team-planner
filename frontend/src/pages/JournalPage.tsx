@@ -1,20 +1,88 @@
 import {useEffect, useState} from 'react';
 import {useParams} from 'react-router-dom';
-import {Card, DatePicker, Empty, Input, Modal, Select, Tag, Typography} from 'antd';
+import type {TableColumnsType} from 'antd';
+import {Card, DatePicker, Empty, Input, Modal, Select, Table, Tag, Tooltip, Typography} from 'antd';
 import dayjs from 'dayjs';
 import {useTeams} from '../hooks/useTeams';
 import {useUserNames, useUserOptions} from '../hooks/useUserNames';
 import {useIsMobile} from '../hooks/useIsMobile';
 import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
 import {FilterField, FilterGrid} from '../components/FilterGrid';
-import {formatChangedBy, formatHistoryText} from '../lib/historyFormat';
+import {formatChangedBy, formatHistoryText, type HistoryEntry} from '../lib/historyFormat';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT} from '../lib/dateFormats';
 import {useDebouncedValue} from '../hooks/useDebouncedValue';
 import {useStoredTeamRoute} from '../hooks/useStoredTeamRoute';
 import {usePaginationState} from '../hooks/usePaginationState';
-import {JOURNAL_PAGE_SIZE, type JournalFilters, useJournal} from '../hooks/useJournalData';
-import {HISTORY_PAGE_SIZE, HistoryEntries, useEntityHistory} from './planning/historyShared';
+import {JOURNAL_PAGE_SIZE, type JournalFilters, type JournalItem, useJournal} from '../hooks/useJournalData';
+import {HISTORY_PAGE_SIZE, useEntityHistory} from './planning/historyShared';
 import {OffsetPagination} from '../components/OffsetPagination';
+import {PagePagination} from '../components/PagePagination';
+import {TOP_BAR_HEIGHT} from '../components/AppShell';
+
+export function buildJournalColumns(getUserName: (id: string) => string): TableColumnsType<JournalItem> {
+  return [
+    {
+      title: 'Дата и время',
+      dataIndex: 'changed_at',
+      key: 'changed_at',
+      width: 170,
+    },
+    {
+      title: 'Работа',
+      dataIndex: 'task_name',
+      key: 'task_name',
+      width: 260,
+      ellipsis: {showTitle: false},
+      render: (taskName: string | undefined, item) => (
+        <Tooltip title={taskName || '—'}>
+          <span>
+            {taskName || '—'}
+            {item.task_is_deleted ? <Tag style={{marginLeft: 6}}>удалена</Tag> : null}
+          </span>
+        </Tooltip>
+      ),
+    },
+    {
+      title: 'Объект',
+      dataIndex: 'entity',
+      key: 'entity',
+      width: 130,
+      responsive: ['lg'],
+      render: (entity: JournalItem['entity']) => (
+        <Tag>{entity === 'assignment' ? 'Назначение' : 'Работа'}</Tag>
+      ),
+    },
+    {
+      title: 'Изменение',
+      key: 'change',
+      width: 420,
+      ellipsis: {showTitle: false},
+      render: (_, item) => {
+        const text = formatHistoryText(item, getUserName, true);
+        return <Tooltip title={text}><span>{text}</span></Tooltip>;
+      },
+    },
+    {
+      title: 'Автор',
+      key: 'author',
+      width: 180,
+      render: (_, item) => formatChangedBy(item),
+    },
+  ];
+}
+
+export function buildTaskHistoryColumns(getUserName: (id: string) => string): TableColumnsType<HistoryEntry> {
+  return [
+    {title: 'Дата и время', dataIndex: 'changed_at', key: 'changed_at', width: 170},
+    {
+      title: 'Изменение',
+      key: 'change',
+      width: 520,
+      render: (_, entry) => formatHistoryText(entry, getUserName, false),
+    },
+    {title: 'Автор', key: 'author', width: 180, render: (_, entry) => formatChangedBy(entry)},
+  ];
+}
 
 function TaskHistoryModal({taskId, taskName, onClose}: {
   taskId: number | null;
@@ -23,6 +91,7 @@ function TaskHistoryModal({taskId, taskName, onClose}: {
 }) {
   const pagination = usePaginationState(HISTORY_PAGE_SIZE);
   const {data, isLoading} = useEntityHistory('task', taskId, pagination.offset);
+  const getUserName = useUserNames();
 
   useEffect(() => {
     if (taskId !== null) pagination.reset();
@@ -30,8 +99,17 @@ function TaskHistoryModal({taskId, taskName, onClose}: {
 
   return (
     <Modal title={taskName ? `История задачи: ${taskName}` : 'История задачи'} open={taskId !== null} onCancel={onClose}
-           footer={null} width={700}>
-      <HistoryEntries entries={data?.history} loading={isLoading} showAssignmentContext={false}/>
+           footer={null} width={1000} destroyOnHidden>
+      <Table<HistoryEntry>
+        rowKey={(entry) => `${entry.entity ?? 'entity'}-${entry.id}`}
+        size="small"
+        loading={isLoading}
+        dataSource={data?.history ?? []}
+        pagination={false}
+        columns={buildTaskHistoryColumns(getUserName)}
+        locale={{emptyText: 'Изменений пока нет'}}
+        scroll={{x: 870}}
+      />
       {data && <OffsetPagination style={{marginTop: 12, textAlign: 'center'}} offset={pagination.offset}
                                  pageSize={HISTORY_PAGE_SIZE} total={data.total}
                                  onOffsetChange={pagination.setOffset}/>}
@@ -81,7 +159,8 @@ export function JournalPage() {
     changedByUserId,
   };
 
-  const {data} = useJournal(teamId, pagination.offset, filters);
+  const {data, isLoading} = useJournal(teamId, pagination.offset, pagination.pageSize, filters);
+  const columns = buildJournalColumns(getUserName);
 
   function handleTeamSelect(value: number | undefined) {
     selectTeamRoute(value);
@@ -146,29 +225,24 @@ export function JournalPage() {
             </FilterGrid>
           </Card>
 
-          {data && data.items.length === 0 && <Empty description="Изменений пока нет"/>}
-          <div style={{display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16}}>
-            {data?.items.map((item) => (
-              <Card
-                key={`${item.entity}-${item.id}`}
-                size="small"
-                hoverable
-                onClick={() => setModalTask({id: item.task_id, name: item.task_name ?? ''})}
-                styles={{body: {fontSize: '0.9rem'}}}
-              >
-                <div style={{opacity: 0.6, fontSize: '0.8rem'}}>
-                  {item.changed_at} — {formatChangedBy(item)}
-                </div>
-                <div>
-                  «{item.task_name}»{item.task_is_deleted ? <Tag style={{marginLeft: 6}}>удалена</Tag> : null} —{' '}
-                  {formatHistoryText(item, getUserName, true)}
-                </div>
-              </Card>
-            ))}
-          </div>
-          {data && <OffsetPagination style={{textAlign: 'center'}} offset={pagination.offset}
-                                     pageSize={JOURNAL_PAGE_SIZE} total={data.total}
-                                     onOffsetChange={pagination.setOffset} simple={false}/>}
+          <Table<JournalItem>
+            rowKey={(item) => `${item.entity ?? 'entity'}-${item.id}`}
+            columns={columns}
+            dataSource={data?.items ?? []}
+            loading={isLoading}
+            pagination={false}
+            size="small"
+            scroll={{x: 1160}}
+            sticky={{offsetHeader: isMobile ? TOP_BAR_HEIGHT : 0}}
+            locale={{emptyText: 'Изменений пока нет'}}
+            onRow={(item) => ({
+              onClick: () => setModalTask({id: item.task_id, name: item.task_name ?? ''}),
+              style: {cursor: 'pointer'},
+            })}
+            style={{marginBottom: 16}}
+          />
+          {data && <PagePagination current={pagination.page} pageSize={pagination.pageSize} total={data.total}
+                                   onChange={pagination.onChange}/>}
         </>
       )}
 

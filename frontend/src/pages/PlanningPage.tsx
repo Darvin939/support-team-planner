@@ -4,7 +4,6 @@ import {
   Alert,
   Card,
   Empty,
-  Pagination,
   Select,
   Spin,
   Table,
@@ -17,7 +16,7 @@ import {useMe} from '../hooks/useMe';
 import {
   type Assignment,
   type Task,
-} from '../hooks/usePlanningData';
+} from '../domain/types';
 import {useFreezeDays, useSegments} from '../hooks/useSettingsData';
 import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
 import {useIsMobile} from '../hooks/useIsMobile';
@@ -33,11 +32,12 @@ import {usePlanningColumns} from './planning/usePlanningColumns';
 import {API_DATE_FORMAT} from '../lib/dateFormats';
 import {useDebouncedValue} from '../hooks/useDebouncedValue';
 import {useStoredTeamRoute} from '../hooks/useStoredTeamRoute';
-import {DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS} from '../lib/pagination';
+import {DEFAULT_PAGE_SIZE} from '../lib/pagination';
 import {usePaginationState} from '../hooks/usePaginationState';
 import {usePlanningFilters} from './planning/usePlanningFilters';
 import {createPlanningGridViewKey, usePlanningGridTodayCenter} from './planning/usePlanningGridTodayCenter';
 import {TOP_BAR_HEIGHT} from "../components/AppShell.tsx";
+import {PagePagination} from '../components/PagePagination';
 import {usePlanningLookups} from './planning/usePlanningLookups';
 import {usePlanningNavigation} from './planning/usePlanningNavigation';
 import {usePlanningQueries} from './planning/usePlanningQueries';
@@ -367,24 +367,8 @@ export function PlanningPage() {
           </div>
         )}
 
-        {taskData && taskData.total > pageSize && (
-          <div style={{textAlign: 'center', marginTop: 16}}>
-            <Pagination
-              current={page}
-              pageSize={pageSize}
-              total={taskData.total}
-              pageSizeOptions={PAGE_SIZE_OPTIONS}
-              showSizeChanger
-              onChange={(p, size) => {
-                if (size !== pageSize) {
-                  pagination.setPageSize(size);
-                } else {
-                  pagination.setPage(p);
-                }
-              }}
-            />
-          </div>
-        )}
+        {taskData && <PagePagination current={page} pageSize={pageSize} total={taskData.total}
+                                     onChange={pagination.onChange}/>}
       </Card>
 
       <TaskModal

@@ -9,8 +9,9 @@ describe('queryKeys', () => {
     expect(ids).toEqual([7, 2]);
   });
 
-  it('keeps journal queries under the journal root', () => {
-    expect(queryKeys.journal.list(3, 20, {search: ''}).slice(0, 1))
-      .toEqual(queryKeys.journal.all);
+  it('keeps journal queries under the journal root and separates page sizes', () => {
+    const key = queryKeys.journal.list(3, 20, 50, {search: ''});
+    expect(key.slice(0, 1)).toEqual(queryKeys.journal.all);
+    expect(key).toEqual(['journal', 3, 20, 50, {search: ''}]);
   });
 });
