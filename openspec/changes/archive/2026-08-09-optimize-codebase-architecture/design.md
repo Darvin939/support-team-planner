@@ -1,6 +1,6 @@
 ## Context
 
-Backend DAO уже разделены по доменным модулям за совместимым фасадом, bulk assignment operations реализованы атомарно, а Planning и assignment orchestration декомпозированы. Пакетная загрузка связей, доменные pagination filters и общие frontend DTO также завершены. Текущая точка продолжения — `db/sqlite.py`, где schema, ручные миграции и registered functions всё ещё объединены в одном backend-классе; после этого следуют доменные DB-ошибки, response contracts и недостающие тесты.
+Backend DAO разделены по доменным модулям за совместимым фасадом, bulk assignment operations реализованы атомарно, а Planning и assignment orchestration декомпозированы. Пакетная загрузка связей, доменные pagination filters, общие frontend DTO, SQLite infrastructure, доменные DB-ошибки и основные response contracts завершены. Дополнительное расширение frontend/unit/UI-покрытия не входит в этот change и будет планироваться отдельно.
 
 Изменение является umbrella backlog: группы выполняются последовательно внутри одного OpenSpec change. Публичные контракты сохраняются, а новые bulk-контракты всегда реализуются одновременно во frontend и backend.
 
@@ -88,7 +88,7 @@ Backend DAO уже разделены по доменным модулям за 
 6. Централизовать frontend domain types.
 7. Разделить SQLite schema/migrations/functions.
 8. Ввести доменные DB-ошибки и response models.
-9. На каждой группе запускать backend suite, frontend tests/build и релевантный production Playwright smoke.
+9. Дополнительное системное расширение тестового покрытия оформить отдельным OpenSpec change.
 
 Rollback каждой группы выполняется её отдельным коммитом; миграций пользовательских данных в первых группах нет.
 

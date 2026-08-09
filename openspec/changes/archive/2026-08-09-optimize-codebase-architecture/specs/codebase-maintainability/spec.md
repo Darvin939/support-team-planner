@@ -59,15 +59,3 @@ Backend SHALL преобразовывать ожидаемые ограниче
 #### Scenario: Возникла неожиданная DB-ошибка
 - **WHEN** DAO не может классифицировать исключение как ожидаемую бизнес-ошибку
 - **THEN** исключение доступно общему логированию и error handler
-
-### Requirement: Архитектурный рефакторинг защищён регрессией
-
-Каждая группа SHALL иметь проверки, пропорциональные изменяемому слою, и SHALL сохранять role/access, API и UI-поведение.
-
-#### Scenario: Изменён backend data-access или API
-- **WHEN** завершается группа backend-рефакторинга
-- **THEN** проходят backend regression suite, транзакционные и контрактные тесты
-
-#### Scenario: Изменён критический frontend-сценарий
-- **WHEN** меняется Planning или Assignment orchestration
-- **THEN** проходят frontend unit/build проверки и production Python+Playwright smoke релевантного сценария

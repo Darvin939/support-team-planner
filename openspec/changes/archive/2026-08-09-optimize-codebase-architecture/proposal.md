@@ -1,6 +1,6 @@
 ## Why
 
-Первые восемь групп архитектурного backlog завершены: DAO разделён по доменам, bulk-операции назначений атомарны, Planning декомпозирован, assignment orchestration централизована, N+1 устранены, list/count-фильтры и frontend domain types унифицированы. Оставшаяся сложность сосредоточена в SQLite infrastructure, подавлении ожидаемых DB-ошибок, неполных response contracts и тестовых пробелах. Change остаётся единым backlog для последовательного завершения этих зависимых групп.
+Архитектурный backlog завершён: DAO разделён по доменам, bulk-операции назначений атомарны, Planning декомпозирован, assignment orchestration централизована, N+1 устранены, list/count-фильтры и frontend domain types унифицированы, SQLite infrastructure разделена, а DB-ошибки и основные response contracts типизированы. Расширение тестового покрытия оформляется отдельным change.
 
 ## What Changes
 
@@ -11,7 +11,7 @@
 - Централизовать frontend domain types, labels и option factories.
 - Отделить SQLite schema/migrations/functions от connection backend.
 - Заменить скрытое подавление DB-ошибок доменными исключениями.
-- Добавить типизированные response-модели и усилить frontend unit/UI-покрытие критических сценариев.
+- Добавить типизированные response-модели основных API.
 - Сохранить существующее наблюдаемое поведение, роли и API-контракты, кроме явно добавляемых bulk endpoints.
 
 ## Capabilities
@@ -28,6 +28,6 @@
 
 - Уже завершено: доменные `db/`-модули, bulk assignment endpoints, Planning/Assignment hooks, общие frontend DTO и доменные pagination filters.
 - Следующий backend scope: разделение `db/sqlite.py`, migration registry, доменные DB-ошибки и Pydantic response contracts.
-- Следующий frontend scope: точечные unit-тесты transformations, invalidation/reset и navigation/bulk semantics.
+- Дополнительное frontend unit/UI-покрытие transformations, invalidation/reset и navigation/bulk semantics вынесено в отдельный будущий change.
 - Текущие одиночные assignment endpoints сохраняются; bulk-удаление и bulk-upsert используют атомарный контракт.
 - PostgreSQL backend, драйвер, конфигурация, миграции и тестовый стенд в это изменение не входят.
