@@ -318,7 +318,7 @@ export function AssignmentModal({
         time_spent: !timeSpent || timeSpent === '00:00' ? null : timeSpent,
       };
     });
-    autoSaveMutation.mutate(assignments);
+    autoSaveMutation.mutate({assignments, templateId: selectedTemplateId});
   }
 
   const deleteMutation = useDeleteAssignmentMutation({

@@ -7,11 +7,13 @@ import {
   useBulkRescheduleAssignmentsMutation,
   useSaveAssignmentMutation,
 } from '../../hooks/useAssignmentMutations';
+import type {ApiResult} from '../../lib/apiMutate';
 
 export function usePlanningAssignmentActions(options: {
   assignments: Assignment[] | undefined;
   tasks: Task[] | undefined;
   setSelectedAssignmentIds: Dispatch<SetStateAction<Set<number>>>;
+  onTaskCompletionSuggested: (suggestion: NonNullable<ApiResult['task_completion_suggestion']>) => void;
 }) {
   const saveRescheduledAssignment = useSaveAssignmentMutation({
     successMessage: 'Назначение перенесено',
@@ -19,6 +21,11 @@ export function usePlanningAssignmentActions(options: {
   const saveAssignmentStatus = useSaveAssignmentMutation({
     includeTasks: true,
     successMessage: 'Статус назначения обновлён',
+    onSuccess: (result) => {
+      if (result.task_completion_suggestion) {
+        options.onTaskCompletionSuggested(result.task_completion_suggestion);
+      }
+    },
   });
   const bulkDeleteMutation = useBulkDeleteAssignmentsMutation({
     successMessage: ({deleted}) => `Удалено назначений: ${deleted}`,

@@ -343,6 +343,14 @@ def get_task_status_by_assignment(conn, assignment_id):
 
 
 @with_db_connection()
+def set_task_completion_template(conn, task_id, template_id):
+    conn.execute(
+        'UPDATE tasks SET completion_template_id = ? WHERE id = ?',
+        (template_id, task_id),
+    )
+
+
+@with_db_connection()
 def update_task_status(conn, task_id, new_status, changed_by=None):
     """Обновить статус задачи"""
     current = conn.execute("SELECT task_status FROM tasks WHERE id = ?", (task_id,)).fetchone()

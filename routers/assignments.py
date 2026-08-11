@@ -28,6 +28,7 @@ from api_models import (
 )
 from query_parsing import parse_int_csv
 from task_rules import task_is_locked
+from task_rules import VALID_TASK_TRANSITIONS
 
 
 router = APIRouter()
@@ -95,8 +96,12 @@ def _save_assignment(request: Request, current_user: CurrentUser, data: Assignme
     if not db.task_exists(data.task_id):
         raise HTTPException(status_code=404, detail='Task not found')
     team_id = require_task_access(request, data.task_id)
+    previous_status = None
     if data.assignment_id:
         require_assignment_access(request, data.assignment_id)
+        existing_assignment = db.get_task_status_by_assignment(data.assignment_id)
+        if existing_assignment:
+            previous_status = existing_assignment['assignment_status']
     if data.user_id is not None and not db.user_is_eligible_assignee(data.user_id, team_id):
         raise HTTPException(status_code=400, detail='Пользователь недоступен для назначения в этой команде')
     task = db.get_task_status(data.task_id)
@@ -107,12 +112,23 @@ def _save_assignment(request: Request, current_user: CurrentUser, data: Assignme
         data.assignment_id, data.task_id, data.date, block, data.status, data.user_id,
         comment, time_spent, changed_by=current_user.id,
     )
+    if data.status == 'success' and previous_status != 'success':
+        suggestion = db.get_task_completion_suggestion(data.task_id)
+        if suggestion and 'done' in VALID_TASK_TRANSITIONS.get(suggestion['task_status'], set()):
+            return {
+                'task_id': suggestion['task_id'],
+                'task_name': suggestion['task_name'],
+            }
+    return None
 
 
 @router.post('/api/assignment')
 def save_assignment_api(request: Request, data: AssignmentIn, current_user: CurrentUser = Depends(require_user)):
-    _save_assignment(request, current_user, data)
-    return {'success': True}
+    suggestion = _save_assignment(request, current_user, data)
+    response = {'success': True}
+    if suggestion:
+        response['task_completion_suggestion'] = suggestion
+    return response
 
 
 @router.post('/api/assignments/bulk', response_model=BulkAssignmentResult)
@@ -123,9 +139,17 @@ def bulk_save_assignments_api(
         raise HTTPException(status_code=400, detail='Не выбраны назначения для сохранения')
     if len(data.assignments) > 200:
         raise HTTPException(status_code=400, detail='За один раз можно сохранить не более 200 назначений')
+    task_ids = {assignment.task_id for assignment in data.assignments}
+    if data.template_id is not None:
+        if len(task_ids) != 1 or None in task_ids:
+            raise HTTPException(status_code=400, detail='Шаблон можно сохранить только для назначений одной работы')
+        if not db.get_template_by_id(data.template_id):
+            raise HTTPException(status_code=400, detail='Шаблон не найден')
     with db.composite_transaction():
         for assignment in data.assignments:
             _save_assignment(request, current_user, assignment)
+        if data.template_id is not None:
+            db.set_task_completion_template(next(iter(task_ids)), data.template_id)
     return {'success': True, 'saved': len(data.assignments)}
 
 

@@ -1,7 +1,7 @@
 import {message} from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import type {Assignment} from './usePlanningData';
-import {apiMutate} from '../lib/apiMutate';
+import {apiMutate, type ApiResult} from '../lib/apiMutate';
 import {invalidateAssignmentData} from '../lib/queryInvalidation';
 
 export interface AssignmentPayload {
@@ -46,14 +46,14 @@ export function assignmentToPayload(
   };
 }
 
-export function useSaveAssignmentMutation(options: MutationOptions = {}) {
+export function useSaveAssignmentMutation(options: MutationOptions<ApiResult> = {}) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: AssignmentPayload) => apiMutate('/api/assignment', 'POST', payload),
-    onSuccess: () => {
+    onSuccess: (result) => {
       invalidateAssignmentData(queryClient, options.includeTasks);
-      showSuccess(options.successMessage, undefined);
-      options.onSuccess?.();
+      showSuccess(options.successMessage, result);
+      options.onSuccess?.(result);
     },
     onError: (error: Error) => message.error(error.message),
   });
@@ -75,8 +75,8 @@ export function useDeleteAssignmentMutation(options: MutationOptions = {}) {
 export function useBulkSaveAssignmentsMutation(options: MutationOptions<{saved: number}> = {}) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (assignments: AssignmentPayload[]) =>
-      apiMutate('/api/assignments/bulk', 'POST', {assignments})
+    mutationFn: ({assignments, templateId}: {assignments: AssignmentPayload[]; templateId?: number | null}) =>
+      apiMutate('/api/assignments/bulk', 'POST', {assignments, template_id: templateId})
         .then(() => ({saved: assignments.length})),
     onSuccess: (result) => {
       invalidateAssignmentData(queryClient, options.includeTasks);

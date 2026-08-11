@@ -103,6 +103,54 @@ def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, s
                                     new_value=snapshot, changed_by=changed_by)
 
 
+@with_db_connection(commit_on_success=False)
+def get_task_completion_suggestion(conn, task_id):
+    """Вернуть работу, если назначения полностью и успешно покрывают выбранный шаблон."""
+    task = conn.execute(
+        '''SELECT t.id, t.name, t.task_status, t.completion_template_id
+           FROM tasks t
+           JOIN block_templates bt ON bt.id = t.completion_template_id
+           WHERE t.id = ? AND t.is_deleted = 0''',
+        (task_id,),
+    ).fetchone()
+    if not task:
+        return None
+
+    required_blocks = {
+        row['name']
+        for row in conn.execute(
+            '''SELECT b.name FROM template_blocks tb
+               JOIN blocks b ON b.id = tb.block_id
+               WHERE tb.template_id = ?''',
+            (task['completion_template_id'],),
+        ).fetchall()
+    }
+    if not required_blocks:
+        return None
+
+    covered_blocks = set()
+    relevant_statuses = []
+    assignments = conn.execute(
+        'SELECT block, status FROM assignments WHERE task_id = ? AND is_deleted = 0',
+        (task_id,),
+    ).fetchall()
+    for assignment in assignments:
+        assignment_blocks = {
+            value.strip() for value in (assignment['block'] or '').split(',') if value.strip()
+        }
+        matched_blocks = assignment_blocks & required_blocks
+        if not matched_blocks:
+            continue
+        covered_blocks.update(matched_blocks)
+        relevant_statuses.append(assignment['status'])
+
+    if covered_blocks != required_blocks or not relevant_statuses:
+        return None
+    if any(status != 'success' for status in relevant_statuses):
+        return None
+    return {'task_id': task['id'], 'task_name': task['name'], 'task_status': task['task_status']}
+
+
 @with_db_connection()
 def bulk_reschedule_assignments(conn, moves, role, changed_by=None):
     """Атомарно перенести назначения на новые даты с проверкой итоговой раскладки."""

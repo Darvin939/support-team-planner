@@ -102,6 +102,14 @@ class CompositeTransactionApiTest(unittest.TestCase):
                       (11, 1, 1, 'Dependency', NULL, 'low', 2000, 'new')'''
         )
         conn.execute('INSERT INTO task_dependencies (task_id, depends_on_task_id) VALUES (10, 11)')
+        conn.execute("INSERT INTO blocks (id, name) VALUES (1, 'Backend'), (2, 'Frontend'), (3, 'Docs')")
+        conn.execute(
+            "INSERT INTO block_templates (id, name, segment_id) VALUES "
+            "(1, 'Delivery', 1), (2, 'Docs only', 1), (3, 'Empty', 1)"
+        )
+        conn.execute(
+            'INSERT INTO template_blocks (template_id, block_id, schedule_offset) VALUES (1, 1, 0), (1, 2, 1), (2, 3, 0)'
+        )
         conn.commit()
         conn.close()
 
@@ -228,6 +236,126 @@ class CompositeTransactionApiTest(unittest.TestCase):
             "SELECT COUNT(*) FROM assignments WHERE date IN ('2026-08-03', '2026-08-04')"
         ).fetchone()[0])
         conn.execute("DELETE FROM assignments WHERE date IN ('2026-08-03', '2026-08-04')")
+        conn.commit()
+        conn.close()
+
+    def test_bulk_auto_assignment_saves_replaces_and_rolls_back_template(self):
+        first_payload = {
+            'template_id': 1,
+            'assignments': [
+                {'task_id': 10, 'date': '2026-08-20', 'block': 'Backend', 'status': 'new'},
+                {'task_id': 10, 'date': '2026-08-21', 'block': 'Frontend', 'status': 'new'},
+            ],
+        }
+        with self.login('transaction-editor', 'password123') as client:
+            response = client.post('/api/assignments/bulk', json=first_payload)
+        self.assertEqual(200, response.status_code)
+
+        conn = sqlite3.connect(self.path)
+        self.assertEqual(1, conn.execute(
+            'SELECT completion_template_id FROM tasks WHERE id = 10'
+        ).fetchone()[0])
+        conn.close()
+
+        with self.login('transaction-editor', 'password123') as client:
+            response = client.post('/api/assignments/bulk', json={
+                'template_id': 2,
+                'assignments': [{'task_id': 10, 'date': '2026-08-22', 'block': 'Docs', 'status': 'new'}],
+            })
+        self.assertEqual(200, response.status_code)
+
+        original = db.create_or_update_assignment
+        calls = 0
+
+        def fail_second(*args, **kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise RuntimeError('second assignment failed')
+            return original(*args, **kwargs)
+
+        rollback_payload = {
+            'template_id': 1,
+            'assignments': [
+                {'task_id': 10, 'date': '2026-08-23', 'block': 'Backend', 'status': 'new'},
+                {'task_id': 10, 'date': '2026-08-24', 'block': 'Frontend', 'status': 'new'},
+            ],
+        }
+        with self.login('transaction-editor', 'password123') as client, patch.object(
+            db, 'create_or_update_assignment', side_effect=fail_second,
+        ):
+            response = client.post('/api/assignments/bulk', json=rollback_payload)
+        self.assertEqual(500, response.status_code)
+
+        conn = sqlite3.connect(self.path)
+        self.assertEqual(2, conn.execute(
+            'SELECT completion_template_id FROM tasks WHERE id = 10'
+        ).fetchone()[0])
+        self.assertEqual(0, conn.execute(
+            "SELECT COUNT(*) FROM assignments WHERE date IN ('2026-08-23', '2026-08-24')"
+        ).fetchone()[0])
+        conn.execute("DELETE FROM assignments WHERE date BETWEEN '2026-08-20' AND '2026-08-24'")
+        conn.execute('UPDATE tasks SET completion_template_id = NULL WHERE id = 10')
+        conn.commit()
+        conn.close()
+
+    def test_completion_readiness_matrix_and_save_suggestion(self):
+        conn = sqlite3.connect(self.path)
+        conn.execute('UPDATE tasks SET completion_template_id = 1, task_status = \'new\' WHERE id = 10')
+        conn.execute(
+            "INSERT INTO assignments (id, task_id, date, block, status) VALUES "
+            "(210, 10, '2026-08-25', 'Backend', 'success'), "
+            "(211, 10, '2026-08-26', 'Frontend', 'planned'), "
+            "(212, 10, '2026-08-27', 'Unrelated', 'new')"
+        )
+        conn.commit()
+        conn.close()
+
+        self.assertIsNone(db.get_task_completion_suggestion(10))
+
+        with self.login('transaction-editor', 'password123') as client:
+            response = client.post('/api/assignment', json={
+                'assignment_id': 211,
+                'task_id': 10,
+                'date': '2026-08-26',
+                'block': 'Frontend',
+                'status': 'success',
+            })
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(
+            {'task_id': 10, 'task_name': 'Original task'},
+            response.json()['task_completion_suggestion'],
+        )
+        self.assertIsNotNone(db.get_task_completion_suggestion(10))
+
+        conn = sqlite3.connect(self.path)
+        conn.execute('DELETE FROM assignments WHERE id = 210')
+        conn.commit()
+        conn.close()
+        self.assertIsNone(db.get_task_completion_suggestion(10))
+
+        conn = sqlite3.connect(self.path)
+        conn.execute('UPDATE tasks SET completion_template_id = 3 WHERE id = 10')
+        conn.commit()
+        conn.close()
+        self.assertIsNone(db.get_task_completion_suggestion(10))
+
+        conn = sqlite3.connect(self.path)
+        conn.execute("INSERT INTO assignments (id, task_id, date, block, status) VALUES (210, 10, '2026-08-25', 'Backend', 'success')")
+        conn.execute('UPDATE tasks SET completion_template_id = NULL WHERE id = 10')
+        conn.commit()
+        conn.close()
+        self.assertIsNone(db.get_task_completion_suggestion(10))
+
+        conn = sqlite3.connect(self.path)
+        conn.execute('UPDATE tasks SET completion_template_id = 2 WHERE id = 10')
+        conn.commit()
+        conn.close()
+        self.assertIsNone(db.get_task_completion_suggestion(10))
+
+        conn = sqlite3.connect(self.path)
+        conn.execute('DELETE FROM assignments WHERE id IN (210, 211, 212)')
+        conn.execute('UPDATE tasks SET completion_template_id = NULL WHERE id = 10')
         conn.commit()
         conn.close()
 

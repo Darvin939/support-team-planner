@@ -199,6 +199,16 @@ class SQLiteMigrationSteps:
 
         conn.execute("ALTER TABLE tasks ADD COLUMN criticality TEXT NOT NULL DEFAULT 'medium'")
 
+    @staticmethod
+    def migrate_add_task_completion_template(conn) -> None:
+        """Сохраняет шаблон, выбранный для автоназначений работы."""
+        columns = {row[1] for row in conn.execute('PRAGMA table_info(tasks)').fetchall()}
+        if 'completion_template_id' not in columns:
+            conn.execute(
+                'ALTER TABLE tasks ADD COLUMN completion_template_id INTEGER '
+                'REFERENCES block_templates(id) ON DELETE SET NULL'
+            )
+
     _DEFAULT_SEGMENT_NAME = 'По умолчанию'
 
     @staticmethod

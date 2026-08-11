@@ -25,6 +25,7 @@ class BulkAssignmentRescheduleIn(BaseModel):
 
 class BulkAssignmentUpsertIn(BaseModel):
     assignments: List[AssignmentIn]
+    template_id: Optional[int] = None
 
 
 class BulkAssignmentResult(BaseModel):

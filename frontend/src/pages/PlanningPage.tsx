@@ -23,6 +23,10 @@ import {useIsMobile} from '../hooks/useIsMobile';
 import {type DepBadgeEntry} from '../components/planningBadges';
 import {TaskModal} from './planning/TaskModal';
 import {AssignmentModal} from './planning/AssignmentModal';
+import {
+  TaskCompletionSuggestionModal,
+  type TaskCompletionSuggestion,
+} from './planning/TaskCompletionSuggestionModal';
 import {TaskArchiveModal} from './planning/TaskArchiveModal';
 import {useAssignmentDrag} from './planning/useAssignmentDrag';
 import {useAssignmentSelection} from './planning/useAssignmentSelection';
@@ -94,6 +98,7 @@ export function PlanningPage() {
     date: null,
     assignment: null,
   });
+  const [completionSuggestion, setCompletionSuggestion] = useState<TaskCompletionSuggestion | null>(null);
   const {selectedAssignmentIds, setSelectedAssignmentIds} = usePlanningSelection({
     teamId, search: debouncedSearch, showCompleted, page, pageSize,
   });
@@ -176,6 +181,7 @@ export function PlanningPage() {
     assignments,
     tasks: taskData?.tasks,
     setSelectedAssignmentIds,
+    onTaskCompletionSuggested: setCompletionSuggestion,
   });
 
   const chipDragSuppressRef = useAssignmentDrag({
@@ -389,6 +395,14 @@ export function PlanningPage() {
         taskAssignments={assignmentModal.task ? (assignmentsByTask.get(assignmentModal.task.id) ?? jumpAssignments ?? []) : []}
         freezeDays={freezeDays}
         onClose={() => setAssignmentModal({open: false, task: null, date: null, assignment: null})}
+      />
+      <TaskCompletionSuggestionModal
+        suggestion={completionSuggestion}
+        onCancel={() => setCompletionSuggestion(null)}
+        onConfirm={(taskId) => {
+          setCompletionSuggestion(null);
+          statusMutation.mutate({taskId, status: 'done'});
+        }}
       />
       {graphModal.open && (
         <Suspense fallback={null}>

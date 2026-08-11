@@ -61,6 +61,7 @@ SCHEMA = '''
         priority INTEGER NOT NULL DEFAULT 0,
         task_status TEXT NOT NULL DEFAULT 'new',
         completed_at TEXT,
+        completion_template_id INTEGER REFERENCES block_templates(id) ON DELETE SET NULL,
         is_deleted INTEGER NOT NULL DEFAULT 0,
         FOREIGN key (team_id) REFERENCES teams (id) ON DELETE cascade
     );

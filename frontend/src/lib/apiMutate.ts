@@ -2,6 +2,10 @@ export interface ApiResult {
   success?: boolean;
   error?: string;
   id?: number;
+  task_completion_suggestion?: {
+    task_id: number;
+    task_name: string;
+  };
 }
 
 interface ApiErrorPayload {
@@ -35,7 +39,11 @@ export function buildApiUrl(path: string, params: Record<string, string | number
 
 /** POST/PUT/DELETE helper — returns the parsed JSON body and throws with the server's
  * `error` message (matching this app's `{"error": "..."}` convention) on a non-2xx response. */
-export async function apiMutate(url: string, method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', body?: unknown): Promise<ApiResult> {
+export async function apiMutate<T extends ApiResult = ApiResult>(
+  url: string,
+  method: 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+  body?: unknown,
+): Promise<T> {
   const r = await fetch(url, {
     method,
     credentials: 'same-origin',
@@ -43,7 +51,7 @@ export async function apiMutate(url: string, method: 'POST' | 'PUT' | 'PATCH' | 
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (!r.ok) throw await readApiError(r, method, url);
-  return await r.json().catch(() => ({})) as ApiResult;
+  return await r.json().catch(() => ({})) as T;
 }
 
 /** GET helper — returns the parsed JSON body and throws with the server's `error` message on a

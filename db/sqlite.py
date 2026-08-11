@@ -55,5 +55,6 @@ class SQLiteBackend(DBBackend):
             Migration(5, 'create-current-schema', create_current_schema),
             Migration(6, 'add-task-completed-at', steps.migrate_add_task_completed_at),
             Migration(7, 'normalize-and-bootstrap', steps.normalize_and_bootstrap),
+            Migration(8, 'add-task-completion-template', steps.migrate_add_task_completion_template),
         )
         run_migrations(conn, migrations)

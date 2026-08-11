@@ -1,13 +1,10 @@
-# task-status-transitions Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change shared-task-transitions-source. Update Purpose after archive.
-## Requirements
 ### Requirement: One JSON file is the source of truth for task-status transitions
 The set of allowed task-status transitions SHALL be defined in exactly one file
 (`frontend/src/data/taskTransitions.json`), read directly by both the backend (`support_planner.py`) and the
-frontend (`PlanningPage.tsx`) — neither maintains its own independent copy of the transition map.
-Template-driven completion suggestions MUST execute the same standard transition and MUST NOT bypass this map.
+frontend (`PlanningPage.tsx`) — neither maintains its own independent copy of the transition map. A template-driven
+completion suggestion MUST execute the same standard transition and MUST NOT bypass this map.
 
 #### Scenario: Backend enforcement matches the shared file
 - **WHEN** `PATCH /api/tasks/{id}/status` is called with a target status
@@ -31,4 +28,3 @@ Template-driven completion suggestions MUST execute the same standard transition
 #### Scenario: Подтверждение предложения использует стандартный переход
 - **WHEN** пользователь подтверждает предложение завершить работу после успешного выполнения шаблона
 - **THEN** frontend запрашивает переход в `done` через стандартный маршрут, а backend применяет общую карту допустимых переходов
-
