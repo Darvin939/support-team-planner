@@ -1,8 +1,9 @@
 """Наполняет свежую database.db объёмными воспроизводимыми демо-данными.
 
-Создаёт 50 команд, 3 сегмента и соответствующие шаблоны блоков, 60
-пользователей разных ролей с доступами к командам, от 1 до 50 работ на
-команду и назначения в диапазоне +/- 2 недели от текущего дня.
+Создаёт команды, сегменты, блоки и несколько шаблонов, пользователей всех
+ролей/вариантов доступа, работы во всех статусах и состояниях ПСИ,
+назначения во всех статусах, зависимости, историю, фризы и сценарии
+автоматического предложения завершить работу.
 
 Запуск: python seed_demo_data.py
 """
@@ -14,8 +15,8 @@ import db
 
 
 RANDOM_SEED = 42
-TEAM_COUNT = 50
-USER_COUNT = 60
+TEAM_COUNT = 5
+USER_COUNT = 10
 TODAY = date.today()
 
 SEGMENT_TEMPLATES = {
@@ -23,6 +24,14 @@ SEGMENT_TEMPLATES = {
     'Сотрудники': ('ЕФС Сотр', ['SB', 'GF', 'BF']),
     'ППРБ': ('ППРБ', ['SK', 'MG']),
 }
+EXTRA_TEMPLATES = {
+    'ФЛ': ('ЕФС ФЛ короткий', ['GF', 'Б1', 'Б2']),
+    'Сотрудники': ('ЕФС Сотр короткий', ['SB', 'BF']),
+    'ППРБ': ('ППРБ быстрый', ['SK']),
+}
+TASK_STATUSES = ('new', 'ready', 'in_progress', 'done', 'cancelled')
+PSI_STATUSES = ('not_required', 'passed', 'required')
+ASSIGNMENT_STATUSES = ('new', 'planned', 'success', 'rollback', 'cancelled')
 
 VERBS = [
     'Обновление', 'Исправление', 'Доработка', 'Оптимизация', 'Внедрение',
@@ -94,20 +103,26 @@ def create_segments_and_templates():
     ))
     block_ids = {name: db.create_block(name) for name in block_names}
 
-    template_ids = {}
+    template_ids = {segment_name: [] for segment_name in SEGMENT_TEMPLATES}
     for segment_name, (template_name, blocks) in SEGMENT_TEMPLATES.items():
         entries = [
             {'block_id': block_ids[block], 'shift_days': index}
             for index, block in enumerate(blocks)
         ]
-        template_ids[segment_name] = db.create_template(
-            template_name, segment_ids[segment_name], entries,
+        template_ids[segment_name].append(
+            db.create_template(template_name, segment_ids[segment_name], entries)
         )
+        extra_name, extra_blocks = EXTRA_TEMPLATES[segment_name]
+        template_ids[segment_name].append(db.create_template(
+            extra_name,
+            segment_ids[segment_name],
+            [{'block_id': block_ids[block], 'shift_days': index * 2} for index, block in enumerate(extra_blocks)],
+        ))
     return segment_ids, block_ids, template_ids
 
 
 def create_teams(template_ids):
-    all_template_ids = list(template_ids.values())
+    all_template_ids = [template_id for values in template_ids.values() for template_id in values]
     return {
         f'Команда поддержки {number:02d}': db.create_team(
             f'Команда поддержки {number:02d}', all_template_ids,
@@ -149,9 +164,10 @@ def create_users(team_ids):
             allowed_teams = None
         else:
             required_team = teams[(number - 1) % len(teams)]
+            optional_teams = [team_id for team_id in teams if team_id != required_team]
             extra_teams = random.sample(
-                [team_id for team_id in teams if team_id != required_team],
-                random.randint(0, 7),
+                optional_teams,
+                random.randint(0, min(7, len(optional_teams))),
             )
             allowed_teams = [required_team, *extra_teams]
         user_id = db.create_user(
@@ -179,55 +195,76 @@ def assignment_status(task_status, offset):
     return random.choice(['new', 'planned', 'success', 'rollback', 'cancelled'])
 
 
-def create_tasks_and_assignments(team_ids, segment_ids, assignees_by_team):
+def create_tasks_and_assignments(team_ids, segment_ids, template_ids, users, assignees_by_team):
     total_tasks = total_assignments = total_dependencies = 0
     global_task_number = 0
     segment_names = list(SEGMENT_TEMPLATES)
+    changed_by_ids = [user['id'] for user in users]
 
     for team_name, team_id in team_ids.items():
         team_tasks = []
         # Независимое случайное число работ для каждой команды: 1..50.
-        for _ in range(random.randint(1, 50)):
+        team_task_count = random.randint(5, 50)
+        for local_index in range(team_task_count):
             global_task_number += 1
             segment_name = random.choice(segment_names)
+            task_status = TASK_STATUSES[(global_task_number - 1) % len(TASK_STATUSES)]
+            psi_status = PSI_STATUSES[(global_task_number - 1) % len(PSI_STATUSES)]
+            # Первая работа каждой команды гарантированно демонстрирует предложение завершения.
+            if local_index == 0:
+                task_status = 'in_progress'
+                psi_status = 'passed'
             task_id = db.create_or_update_task(
                 None,
                 team_id,
                 random_name(global_task_number, segment_name),
                 random_description(team_name),
                 criticality=random.choice(['high', 'medium', 'low']),
+                psi_status=psi_status,
                 segment_id=segment_ids[segment_name],
+                changed_by=random.choice(changed_by_ids),
             )
             team_tasks.append(task_id)
             total_tasks += 1
 
-            task_status = random.choices(
-                ['new', 'done', 'cancelled'], weights=[78, 14, 8], k=1,
-            )[0]
             if task_status != 'new':
-                db.update_task_status(task_id, task_status)
+                db.update_task_status(task_id, task_status, changed_by=random.choice(changed_by_ids))
+
+            selected_template_id = random.choice(template_ids[segment_name])
+            if local_index == 0 or global_task_number % 4 == 0:
+                db.set_task_completion_template(task_id, selected_template_id)
 
             # От нуля до восьми назначений, даты уникальны в пределах работы.
-            offsets = random.sample(range(-14, 15), random.randint(0, 8))
-            for offset in offsets:
-                status = assignment_status(task_status, offset)
+            if psi_status == 'required':
+                offsets = []
+            elif local_index == 0:
+                offsets = list(range(len(SEGMENT_TEMPLATES[segment_name][1])))
+            else:
+                offsets = random.sample(range(-14, 15), random.randint(0, 8))
+            for assignment_index, offset in enumerate(offsets):
+                status = 'success' if local_index == 0 else ASSIGNMENT_STATUSES[total_assignments % len(ASSIGNMENT_STATUSES)]
                 time_spent = None
                 if status in ('success', 'rollback') and random.random() < 0.8:
                     minutes = random.choice([30, 60, 90, 120, 180, 240, 360, 480])
                     time_spent = f'{minutes // 60:02d}:{minutes % 60:02d}'
 
                 blocks = SEGMENT_TEMPLATES[segment_name][1]
+                block = blocks[assignment_index] if local_index == 0 else random.choice([*blocks, None])
                 db.create_or_update_assignment(
                     None,
                     task_id,
                     day(offset),
-                    random.choice([*blocks, None]),
+                    block,
                     status,
                     random.choice([*assignees_by_team[team_id], None]),
                     random.choice(COMMENTS),
                     time_spent=time_spent,
+                    changed_by=random.choice(changed_by_ids),
                 )
                 total_assignments += 1
+                if total_assignments % 37 == 0:
+                    created = db.get_assignment(task_id, day(offset))
+                    db.delete_assignment(created['id'], changed_by=random.choice(changed_by_ids))
 
         # Зависимости направлены только назад, поэтому циклы невозможны.
         for index, task_id in enumerate(team_tasks[1:], start=1):
@@ -238,7 +275,18 @@ def create_tasks_and_assignments(team_ids, segment_ids, assignees_by_team):
                 db.set_task_dependencies(task_id, dependencies)
                 total_dependencies += len(dependencies)
 
+        # Одна удалённая работа и зависимость от неё позволяют проверить отображение удалённых связей.
+        if len(team_tasks) > 2:
+            db.set_task_dependencies(team_tasks[-2], [team_tasks[-1]])
+            total_dependencies += 1
+            db.delete_task(team_tasks[-1], changed_by=random.choice(changed_by_ids))
+
     return total_tasks, total_assignments, total_dependencies
+
+
+def create_freeze_days():
+    for offset in (-10, -1, 0, 1, 7, 14):
+        db.add_freeze_day(day(offset))
 
 
 def main():
@@ -252,8 +300,9 @@ def main():
         segment_ids, block_ids, template_ids = create_segments_and_templates()
         team_ids = create_teams(template_ids)
         users, assignees_by_team = create_users(team_ids)
+        create_freeze_days()
         tasks, assignments, dependencies = create_tasks_and_assignments(
-            team_ids, segment_ids, assignees_by_team,
+            team_ids, segment_ids, template_ids, users, assignees_by_team,
         )
         conn.commit()
     except Exception:
@@ -264,10 +313,10 @@ def main():
         conn.close()
 
     roles = {role: sum(u['role'] == role for u in users) for role in ('user', 'editor', 'admin')}
-    print(f'Сегменты: {len(segment_ids)}, блоки: {len(block_ids)}, шаблоны: {len(template_ids)}')
+    print(f'Сегменты: {len(segment_ids)}, блоки: {len(block_ids)}, шаблоны: {sum(map(len, template_ids.values()))}')
     print(f'Команды: {len(team_ids)}, пользователи: {len(users)} ({roles})')
     print(f'Работы: {tasks}, назначения: {assignments}, зависимости: {dependencies}')
-    print('Пароль демо-пользователей: password123')
+    print('UI: ivanov / password123 (editor), petrova / password123 (user); пароль остальных: password123')
 
 
 if __name__ == '__main__':

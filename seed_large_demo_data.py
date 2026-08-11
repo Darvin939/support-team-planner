@@ -2,7 +2,9 @@
 
 The regular ``seed_demo_data.py`` remains the small human-friendly demo seed.
 This script uses batched SQL inserts and creates isolated entities whose names
-start with ``LOADTEST``.
+start with ``LOADTEST``. Along with volume it creates the full reference-data
+graph: segments, blocks, templates, team access, users of every role, freeze
+days, all task/assignment/PSI statuses, histories and dependencies.
 
 Default volume: 1,000,000 tasks, 2,000,000 assignments and about 100,000
 dependencies across 50 teams.
@@ -26,13 +28,15 @@ import auth
 from db.sqlite import SQLiteBackend
 
 TEAM_PREFIX = "LOADTEST"
-SEGMENT_NAME = "LOADTEST segment"
 ADMIN_LOGIN = "load_admin"
 ADMIN_PASSWORD = "password123"
 CRITICALITIES = ("low", "medium", "high")
-TASK_STATUSES = ("new", "new", "new", "new", "done", "cancelled")
+TASK_STATUSES = ("new", "ready", "in_progress", "done", "cancelled")
+PSI_STATUSES = ("not_required", "passed", "not_required", "required")
 ASSIGNMENT_STATUSES = ("new", "planned", "success", "rollback", "cancelled")
-BLOCKS = ("Analysis", "Development", "Review", "Release", None)
+BLOCKS = ("LOAD_ANALYSIS", "LOAD_DEVELOPMENT", "LOAD_REVIEW", "LOAD_RELEASE")
+SEGMENTS = ("LOADTEST core", "LOADTEST integrations", "LOADTEST channels")
+TEMPLATE_SUFFIXES = ("standard", "fast")
 
 
 def positive_int(value: str) -> int:
@@ -112,24 +116,64 @@ def remove_existing_seed(conn: sqlite3.Connection) -> None:
     print(f"Previous seed deleted in {time.monotonic() - started:.1f}s")
 
 
-def ensure_reference_data(conn: sqlite3.Connection) -> tuple[int, int]:
-    conn.execute("INSERT OR IGNORE INTO segments(name) VALUES (?)", (SEGMENT_NAME,))
-    segment_id = conn.execute("SELECT id FROM segments WHERE name = ?", (SEGMENT_NAME,)).fetchone()[0]
+def ensure_reference_data(conn: sqlite3.Connection) -> tuple[list[int], list[int], list[int]]:
+    for name in SEGMENTS:
+        conn.execute("INSERT OR IGNORE INTO segments(name) VALUES (?)", (name,))
+    segment_ids = [
+        conn.execute("SELECT id FROM segments WHERE name = ?", (name,)).fetchone()[0]
+        for name in SEGMENTS
+    ]
+    for name in BLOCKS:
+        conn.execute("INSERT OR IGNORE INTO blocks(name) VALUES (?)", (name,))
+    block_ids = {
+        name: conn.execute("SELECT id FROM blocks WHERE name = ?", (name,)).fetchone()[0]
+        for name in BLOCKS
+    }
 
-    admin = conn.execute("SELECT id FROM users WHERE login = ?", (ADMIN_LOGIN,)).fetchone()
-    if admin is None:
-        cursor = conn.execute(
-            """
-            INSERT INTO users(last_name, first_name, middle_name, password_hash, role, login, is_assignee)
-            VALUES (?, ?, ?, ?, 'admin', ?, 0)
-            """,
-            ("Load", "Administrator", None, auth.hash_password(ADMIN_PASSWORD), ADMIN_LOGIN),
+    template_ids = []
+    for segment_name, segment_id in zip(SEGMENTS, segment_ids):
+        for suffix in TEMPLATE_SUFFIXES:
+            template_name = f"{TEAM_PREFIX} {segment_name.removeprefix('LOADTEST ')} {suffix}"
+            conn.execute(
+                "INSERT OR IGNORE INTO block_templates(name, segment_id) VALUES (?, ?)",
+                (template_name, segment_id),
+            )
+            template_id = conn.execute(
+                "SELECT id FROM block_templates WHERE name = ?", (template_name,)
+            ).fetchone()[0]
+            template_ids.append(template_id)
+            names = BLOCKS[:2] if suffix == "fast" else BLOCKS
+            conn.executemany(
+                "INSERT OR IGNORE INTO template_blocks(template_id, block_id, schedule_offset) VALUES (?, ?, ?)",
+                ((template_id, block_ids[name], index) for index, name in enumerate(names)),
+            )
+
+    password_hash = auth.hash_password(ADMIN_PASSWORD)
+    user_specs = (
+        ("Load", "Administrator", "admin", ADMIN_LOGIN, 0),
+        ("Load", "Editor", "editor", "load_editor", 1),
+        ("Load", "Executor", "user", "load_user", 1),
+        ("Load", "Observer", "user", "load_observer", 0),
+    )
+    for last_name, first_name, role, login, is_assignee in user_specs:
+        conn.execute(
+            """INSERT INTO users
+               (last_name, first_name, password_hash, role, login, is_assignee)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT(login) DO UPDATE SET
+                   last_name = excluded.last_name,
+                   first_name = excluded.first_name,
+                   password_hash = excluded.password_hash,
+                   role = excluded.role,
+                   is_assignee = excluded.is_assignee""",
+            (last_name, first_name, password_hash, role, login, is_assignee),
         )
-        admin_id = cursor.lastrowid
-    else:
-        admin_id = admin[0]
+    user_ids = [
+        conn.execute("SELECT id FROM users WHERE login = ?", (spec[3],)).fetchone()[0]
+        for spec in user_specs
+    ]
     conn.commit()
-    return segment_id, admin_id
+    return segment_ids, template_ids, user_ids
 
 
 def create_teams(conn: sqlite3.Connection, count: int) -> list[int]:
@@ -147,9 +191,41 @@ def create_teams(conn: sqlite3.Connection, count: int) -> list[int]:
     ]
 
 
-def task_row(task_id: int, team_id: int, segment_id: int, team_position: int) -> tuple:
+def configure_teams_and_users(
+    conn: sqlite3.Connection, team_ids: list[int], template_ids: list[int], user_ids: list[int]
+) -> None:
+    conn.executemany(
+        "INSERT OR IGNORE INTO team_templates(team_id, template_id) VALUES (?, ?)",
+        ((team_id, template_id) for team_id in team_ids for template_id in template_ids),
+    )
+    conn.executemany(
+        "INSERT OR IGNORE INTO team_blocks(team_id, block_name, schedule_offset) VALUES (?, ?, ?)",
+        ((team_id, block, index) for team_id in team_ids for index, block in enumerate(BLOCKS)),
+    )
+    # Admin has global access. Editor and executor see all teams, observer sees
+    # only half of them and cannot be selected as assignee.
+    editor_id, executor_id, observer_id = user_ids[1:]
+    conn.executemany(
+        "INSERT OR IGNORE INTO user_team_access(user_id, team_id) VALUES (?, ?)",
+        [(editor_id, team_id) for team_id in team_ids]
+        + [(executor_id, team_id) for team_id in team_ids]
+        + [(observer_id, team_id) for team_id in team_ids[1::2]],
+    )
+    for offset in (-7, -1, 0, 1, 7, 30):
+        conn.execute(
+            "INSERT OR IGNORE INTO freeze_days(date) VALUES (?)",
+            ((date.today() + timedelta(days=offset)).isoformat(),),
+        )
+    conn.commit()
+
+
+def task_row(task_id: int, team_id: int, segment_id: int, template_id: int, team_position: int) -> tuple:
     criticality = CRITICALITIES[task_id % len(CRITICALITIES)]
     status = TASK_STATUSES[task_id % len(TASK_STATUSES)]
+    psi_status = PSI_STATUSES[task_id % len(PSI_STATUSES)]
+    is_deleted = int(task_id % 997 == 0)
+    completion_template_id = template_id if psi_status != "required" and task_id % 10 == 0 else None
+    completed_at = date.today().isoformat() if status in ("done", "cancelled") else None
     description = None
     if task_id % 4 == 0:
         description = f"Synthetic load record {task_id}; https://example.test/load/{task_id}"
@@ -162,29 +238,38 @@ def task_row(task_id: int, team_id: int, segment_id: int, team_position: int) ->
         criticality,
         team_position * 1000,
         status,
+        psi_status,
+        completed_at,
+        completion_template_id,
+        is_deleted,
     )
 
 
-def assignment_rows(first_assignment_id: int, task_ids: list[int], per_task: int, today: date):
+def assignment_rows(
+    first_assignment_id: int, task_ids: list[int], per_task: int, today: date, assignee_ids: list[int]
+):
     assignment_id = first_assignment_id
     for task_id in task_ids:
+        psi_status = PSI_STATUSES[task_id % len(PSI_STATUSES)]
+        task_deleted = task_id % 997 == 0
+        completion_ready = psi_status != "required" and task_id % 10 == 0 and per_task >= 2
         for number in range(per_task):
             # 17 is coprime with 730, so dates stay unique for up to 730 rows per task.
             offset = ((task_id + number * 17) % 730) - 365
             assignment_date = (today + timedelta(days=offset)).isoformat()
-            status = ASSIGNMENT_STATUSES[(task_id + number) % len(ASSIGNMENT_STATUSES)]
+            status = "success" if completion_ready and number < 2 else ASSIGNMENT_STATUSES[(task_id + number) % len(ASSIGNMENT_STATUSES)]
             time_spent = f"{(task_id + number) % 9:02d}:{((task_id + number) * 7) % 60:02d}" if status in ("success", "rollback") else None
             yield (
                 assignment_id,
                 task_id,
                 assignment_date,
-                BLOCKS[(task_id + number) % len(BLOCKS)],
+                BLOCKS[number] if completion_ready and number < 2 else BLOCKS[(task_id + number) % len(BLOCKS)],
                 status,
-                None,
+                assignee_ids[(task_id + number) % len(assignee_ids)],
                 f"Load-test assignment {assignment_id}" if assignment_id % 5 == 0 else None,
                 0,
                 time_spent,
-                0,
+                int(psi_status == "required" or task_deleted),
             )
             assignment_id += 1
 
@@ -192,7 +277,9 @@ def assignment_rows(first_assignment_id: int, task_ids: list[int], per_task: int
 def seed_rows(
     conn: sqlite3.Connection,
     team_ids: list[int],
-    segment_id: int,
+    segment_ids: list[int],
+    template_ids: list[int],
+    user_ids: list[int],
     task_count: int,
     assignments_per_task: int,
     dependency_every: int,
@@ -214,8 +301,14 @@ def seed_rows(
         dependencies = []
         for global_offset, task_id in enumerate(batch_task_ids, start=batch_offset):
             team_id = team_ids[global_offset % len(team_ids)]
+            segment_index = global_offset % len(segment_ids)
             team_positions[team_id] += 1
-            tasks.append(task_row(task_id, team_id, segment_id, team_positions[team_id]))
+            # Fast template has two required blocks, so the default two assignments
+            # can form a guaranteed completion-suggestion scenario.
+            template_id = template_ids[segment_index * len(TEMPLATE_SUFFIXES) + 1]
+            tasks.append(task_row(
+                task_id, team_id, segment_ids[segment_index], template_id, team_positions[team_id]
+            ))
             previous_task = previous_task_by_team.get(team_id)
             if dependency_every and previous_task is not None and (global_offset + 1) % dependency_every == 0:
                 dependencies.append((task_id, previous_task))
@@ -225,8 +318,10 @@ def seed_rows(
         try:
             conn.executemany(
                 """
-                INSERT INTO tasks(id, team_id, segment_id, name, description, criticality, priority, task_status, is_deleted)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+                INSERT INTO tasks
+                    (id, team_id, segment_id, name, description, criticality, priority, task_status,
+                     psi_status, completed_at, completion_template_id, is_deleted)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 tasks,
             )
@@ -236,7 +331,13 @@ def seed_rows(
                     INSERT INTO assignments(id, task_id, date, block, status, user_id, comment, is_psi, time_spent, is_deleted)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    assignment_rows(next_assignment_id + inserted_assignments, batch_task_ids, assignments_per_task, today),
+                    assignment_rows(
+                        next_assignment_id + inserted_assignments,
+                        batch_task_ids,
+                        assignments_per_task,
+                        today,
+                        user_ids[1:3],
+                    ),
                 )
                 inserted_assignments += current_size * assignments_per_task
             if dependencies:
@@ -245,6 +346,22 @@ def seed_rows(
                     dependencies,
                 )
                 inserted_dependencies += len(dependencies)
+            conn.executemany(
+                """INSERT INTO task_history
+                   (task_id, action, field_name, old_value, new_value, changed_by_user_id)
+                   VALUES (?, 'create', NULL, NULL, ?, ?)""",
+                ((task_id, f'{TEAM_PREFIX} seeded task', user_ids[1]) for task_id in batch_task_ids if task_id % 100 == 0),
+            )
+            if assignments_per_task:
+                first_id = next_assignment_id + inserted_assignments - current_size * assignments_per_task
+                last_id = next_assignment_id + inserted_assignments
+                history_ids = range(first_id, last_id, 250)
+                conn.executemany(
+                    """INSERT INTO assignment_history
+                       (assignment_id, task_id, date, action, new_value, changed_by_user_id)
+                       SELECT id, task_id, date, 'create', ?, ? FROM assignments WHERE id = ?""",
+                    ((f'{TEAM_PREFIX} seeded assignment', user_ids[1], assignment_id) for assignment_id in history_ids),
+                )
             conn.commit()
         except Exception:
             conn.rollback()
@@ -292,12 +409,15 @@ def main() -> int:
             )
         if args.replace:
             remove_existing_seed(conn)
-        segment_id, _admin_id = ensure_reference_data(conn)
+        segment_ids, template_ids, user_ids = ensure_reference_data(conn)
         team_ids = create_teams(conn, args.teams)
+        configure_teams_and_users(conn, team_ids, template_ids, user_ids)
         tasks, assignments, dependencies = seed_rows(
             conn,
             team_ids,
-            segment_id,
+            segment_ids,
+            template_ids,
+            user_ids,
             args.tasks,
             args.assignments_per_task,
             args.dependency_every,
@@ -316,7 +436,7 @@ def main() -> int:
         f"Done in {elapsed:.1f}s: teams={format_count(len(team_ids))}, tasks={format_count(tasks)}, "
         f"assignments={format_count(assignments)}, dependencies={format_count(dependencies)}"
     )
-    print(f"UI login: {ADMIN_LOGIN} / {ADMIN_PASSWORD}")
+    print(f"UI logins (password {ADMIN_PASSWORD}): {ADMIN_LOGIN}, load_editor, load_user, load_observer")
     return 0
 
 
