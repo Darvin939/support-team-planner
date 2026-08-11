@@ -10,6 +10,7 @@ export interface TaskPayload {
   name: string;
   description: string | null;
   criticality: string;
+  psi_status: 'not_required' | 'required' | 'passed';
   segment_id: number;
   dependency_ids: number[];
 }

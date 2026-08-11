@@ -505,5 +505,100 @@ class CompositeTransactionApiTest(unittest.TestCase):
         conn.close()
 
 
+    def test_task_psi_can_be_changed_by_user_but_not_on_terminal_task(self):
+        payload = {
+            'task_id': 10, 'team_id': 1, 'name': 'Original task',
+            'description': 'Original description', 'criticality': 'medium',
+            'segment_id': 1, 'psi_status': 'passed',
+        }
+        with self.login('transaction-user', 'password123') as client:
+            response = client.post('/api/task', json=payload)
+            self.assertEqual(200, response.status_code)
+
+        conn = sqlite3.connect(self.path)
+        self.assertEqual('passed', conn.execute('SELECT psi_status FROM tasks WHERE id = 10').fetchone()[0])
+        history = conn.execute(
+            "SELECT old_value, new_value, changed_by_user_id FROM task_history "
+            "WHERE task_id = 10 AND field_name = 'psi_status' ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        self.assertEqual(('not_required', 'passed', 3), history)
+        conn.execute("UPDATE tasks SET task_status = 'done' WHERE id = 10")
+        conn.commit()
+        conn.close()
+
+        payload['psi_status'] = 'not_required'
+        with self.login('transaction-user', 'password123') as client:
+            response = client.post('/api/task', json=payload)
+            self.assertEqual(400, response.status_code)
+
+        conn = sqlite3.connect(self.path)
+        conn.execute("UPDATE tasks SET task_status = 'new', psi_status = 'not_required' WHERE id = 10")
+        conn.commit()
+        conn.close()
+
+    def test_required_psi_blocks_planning_and_bulk_is_atomic(self):
+        conn = sqlite3.connect(self.path)
+        conn.execute("UPDATE tasks SET psi_status = 'required' WHERE id = 10")
+        conn.commit()
+        conn.close()
+
+        assignment = {'task_id': 10, 'date': '2026-09-10', 'block': 'Backend', 'status': 'new'}
+        with self.login() as client:
+            self.assertEqual(400, client.post('/api/assignment', json=assignment).status_code)
+            response = client.post('/api/assignments/bulk', json={'assignments': [
+                {'task_id': 11, 'date': '2026-09-11', 'block': 'Docs', 'status': 'new'},
+                assignment,
+            ]})
+            self.assertEqual(400, response.status_code)
+
+        conn = sqlite3.connect(self.path)
+        self.assertEqual(0, conn.execute(
+            "SELECT COUNT(*) FROM assignments WHERE date IN ('2026-09-10', '2026-09-11')"
+        ).fetchone()[0])
+        conn.execute("UPDATE tasks SET psi_status = 'passed' WHERE id = 10")
+        conn.commit()
+        conn.close()
+
+        with self.login() as client:
+            self.assertEqual(200, client.post('/api/assignment', json=assignment).status_code)
+
+        conn = sqlite3.connect(self.path)
+        assignment_id = conn.execute("SELECT id FROM assignments WHERE task_id = 10 AND date = '2026-09-10'").fetchone()[0]
+        conn.execute("UPDATE tasks SET psi_status = 'required' WHERE id = 10")
+        conn.commit()
+        conn.close()
+        with self.login() as client:
+            self.assertEqual(400, client.post('/api/assignments/bulk-reschedule', json={
+                'moves': [{'assignment_id': assignment_id, 'new_date': '2026-09-12'}],
+            }).status_code)
+            updated = dict(assignment, assignment_id=assignment_id, status='planned', comment='cleanup')
+            self.assertEqual(200, client.post('/api/assignment', json=updated).status_code)
+            self.assertEqual(200, client.delete(f'/api/assignment/{assignment_id}').status_code)
+
+        conn = sqlite3.connect(self.path)
+        conn.execute("UPDATE tasks SET psi_status = 'not_required' WHERE id = 10")
+        conn.execute('DELETE FROM assignments WHERE id = ?', (assignment_id,))
+        conn.commit()
+        conn.close()
+
+    def test_required_psi_cannot_be_enabled_with_existing_assignment(self):
+        conn = sqlite3.connect(self.path)
+        conn.execute("INSERT INTO assignments (id, task_id, date, status) VALUES (220, 10, '2026-09-20', 'new')")
+        conn.commit()
+        conn.close()
+        payload = {
+            'task_id': 10, 'team_id': 1, 'name': 'Original task',
+            'description': 'Original description', 'criticality': 'medium',
+            'segment_id': 1, 'psi_status': 'required',
+        }
+        with self.login() as client:
+            response = client.post('/api/task', json=payload)
+            self.assertEqual(400, response.status_code)
+        conn = sqlite3.connect(self.path)
+        conn.execute('DELETE FROM assignments WHERE id = 220')
+        conn.commit()
+        conn.close()
+
+
 if __name__ == '__main__':
     unittest.main()

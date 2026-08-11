@@ -1,7 +1,8 @@
 import {type CSSProperties, useState} from 'react';
 import {CheckOutlined, CloseOutlined} from '@ant-design/icons';
 import {Button, Popover, Space, theme, Tooltip} from 'antd';
-import {ASSIGNMENT_STATUS_LABELS, TASK_STATUS_LABELS} from '../lib/historyFormat';
+import {ASSIGNMENT_STATUS_LABELS, TASK_STATUS_LABELS} from '../domain/types';
+import type {PsiStatus} from '../domain/types';
 
 export function tintedStyle(color: string): CSSProperties {
   return {
@@ -33,6 +34,22 @@ export function TaskStatusBadge({value}: { value: string }) {
     <Tooltip title={TASK_STATUS_LABELS[value] ?? value}>
       <span style={{color, fontSize: '0.95rem', display: 'inline-flex', alignItems: 'center'}}>{icon}</span>
     </Tooltip>
+  );
+}
+
+export function PsiStatusBadge({value, compact = false}: {value: PsiStatus; compact?: boolean}) {
+  const {token} = theme.useToken();
+  if (value === 'not_required') return null;
+  return (
+    <span
+      data-psi-status-marker={value}
+      style={{
+        ...tintedStyle(value === 'required' ? token.colorWarning : token.colorSuccess),
+        ...(compact ? {padding: '0 5px', fontSize: '0.62rem', lineHeight: 1.45, flexShrink: 0} : {}),
+      }}
+    >
+      {value === 'required' ? 'Требуется ПСИ' : 'ПСИ ✓'}
+    </span>
   );
 }
 

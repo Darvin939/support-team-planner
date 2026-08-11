@@ -2,6 +2,7 @@ export type Criticality = 'high' | 'medium' | 'low';
 export type TaskStatus = 'new' | 'ready' | 'in_progress' | 'done' | 'cancelled';
 export type AssignmentStatus = 'new' | 'planned' | 'rollback' | 'success' | 'cancelled';
 export type UserRole = 'admin' | 'editor' | 'user';
+export type PsiStatus = 'not_required' | 'required' | 'passed';
 
 export interface Task {
   id: number;
@@ -9,6 +10,7 @@ export interface Task {
   description: string | null;
   criticality: Criticality;
   task_status: TaskStatus;
+  psi_status: PsiStatus;
   segment_id: number;
   segment_name: string;
   completed_at: string | null;
@@ -98,6 +100,16 @@ export const CRITICALITY_OPTIONS = [
   {value: 'medium', label: 'Средняя'},
   {value: 'high', label: 'Высокая'},
 ] satisfies Array<{value: Criticality; label: string}>;
+
+export const PSI_STATUS_OPTIONS = [
+  {value: 'not_required', label: 'Не требуется'},
+  {value: 'required', label: 'Требуется'},
+  {value: 'passed', label: 'Пройдено'},
+] satisfies Array<{value: PsiStatus; label: string}>;
+
+export const PSI_STATUS_LABELS: Record<PsiStatus, string> = {
+  not_required: 'Не требуется', required: 'Требуется ПСИ', passed: 'ПСИ пройдено',
+};
 
 export const ROLE_OPTIONS = [
   {value: 'user', label: 'Пользователь'},

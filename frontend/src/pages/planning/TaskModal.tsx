@@ -4,9 +4,9 @@ import {useActiveTasksList} from '../../hooks/usePlanningData';
 import {useMe} from '../../hooks/useMe';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import {useSegments} from '../../hooks/useSettingsData';
-import {CriticalityBadge, TaskStatusBadge, tintedStyle} from '../../components/planningBadges';
+import {CriticalityBadge, PsiStatusBadge, TaskStatusBadge, tintedStyle} from '../../components/planningBadges';
 import {linkify} from '../../lib/linkify';
-import {CRITICALITY_LABELS, type Task} from '../../domain/types';
+import {CRITICALITY_LABELS, PSI_STATUS_LABELS, PSI_STATUS_OPTIONS, type PsiStatus, type Task} from '../../domain/types';
 import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';
 import {useIsMobile} from '../../hooks/useIsMobile';
 import {useDeleteTaskMutation, useSaveTaskMutation} from '../../hooks/useTaskMutations';
@@ -16,6 +16,7 @@ interface TaskFormValues {
   description: string;
   criticality: string;
   segment_id: number;
+  psi_status: PsiStatus;
 }
 
 const CRITICALITY_ORDER = ['low', 'medium', 'high'] as const;
@@ -58,6 +59,7 @@ export function TaskModal({
       description: task?.description ?? '',
       criticality: task?.criticality ?? 'medium',
       segment_id: task?.segment_id ?? segments?.[0]?.id,
+      psi_status: task?.psi_status ?? 'not_required',
     });
     setDepIds(new Set(existingDepIds));
     setDepSearch('');
@@ -68,13 +70,14 @@ export function TaskModal({
 
   function saveTask(values: TaskFormValues) {
     saveMutation.mutate({
-        task_id: task?.id,
-        team_id: teamId,
-        name: values.name,
-        description: values.description || null,
-        criticality: values.criticality,
-        segment_id: values.segment_id,
-        dependency_ids: [...depIds],
+      task_id: task?.id,
+      team_id: teamId,
+      name: values.name,
+      description: values.description || null,
+      criticality: values.criticality,
+      psi_status: values.psi_status,
+      segment_id: values.segment_id,
+      dependency_ids: [...depIds],
     });
   }
 
@@ -166,6 +169,10 @@ export function TaskModal({
               <div>
                 <strong>Сегмент:</strong> {task?.segment_name}
               </div>
+              <div>
+                <strong>ПСИ:</strong> {task &&
+                  <PsiStatusBadge value={task.psi_status}/>} {task ? PSI_STATUS_LABELS[task.psi_status] : ''}
+              </div>
             </div>
           ) : (
             <>
@@ -188,6 +195,9 @@ export function TaskModal({
                           options={segments?.map((s) => ({value: s.id, label: s.name}))}/>
                 </Form.Item>
               </div>
+              <Form.Item name="psi_status" label="Приёмо-сдаточные испытания" rules={[{required: true}]}>
+                <Select options={PSI_STATUS_OPTIONS}/>
+              </Form.Item>
             </>
           )}
           {!isTerminal && (

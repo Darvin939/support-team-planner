@@ -60,6 +60,7 @@ SCHEMA = '''
         criticality text NOT NULL DEFAULT 'medium',
         priority INTEGER NOT NULL DEFAULT 0,
         task_status TEXT NOT NULL DEFAULT 'new',
+        psi_status TEXT NOT NULL DEFAULT 'not_required',
         completed_at TEXT,
         completion_template_id INTEGER REFERENCES block_templates(id) ON DELETE SET NULL,
         is_deleted INTEGER NOT NULL DEFAULT 0,

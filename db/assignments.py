@@ -32,6 +32,15 @@ def get_assignment(conn, task_id, date_str):
 
 
 @with_db_connection(commit_on_success=False)
+def get_assignment_by_id(conn, assignment_id):
+    return conn.execute(
+        '''SELECT id, task_id, date, block, status, user_id, comment, time_spent, is_deleted
+           FROM assignments WHERE id = ?''',
+        (assignment_id,),
+    ).fetchone()
+
+
+@with_db_connection(commit_on_success=False)
 def get_assignments_by_team_in_period(conn, team_id, start_date, end_date, task_ids=None):
     """Получить все назначения команды в период (опционально ограниченные списком task_ids)"""
     if task_ids is not None and len(task_ids) == 0:
@@ -165,7 +174,8 @@ def bulk_reschedule_assignments(conn, moves, role, changed_by=None):
 
     placeholders = ','.join('?' * len(assignment_ids))
     rows = conn.execute(
-        f'''SELECT a.id, a.task_id, a.date, a.status, a.is_deleted, t.task_status, t.is_deleted AS task_is_deleted
+        f'''SELECT a.id, a.task_id, a.date, a.status, a.is_deleted, t.task_status, t.psi_status,
+                   t.is_deleted AS task_is_deleted
             FROM assignments a
             JOIN tasks t ON t.id = a.task_id
             WHERE a.id IN ({placeholders})''',
@@ -184,6 +194,8 @@ def bulk_reschedule_assignments(conn, moves, role, changed_by=None):
         if row['task_status'] in ('done', 'cancelled'):
             raise BulkAssignmentRescheduleError(
                 'Нельзя изменять назначения завершённой или отменённой задачи')
+        if row['psi_status'] == 'required':
+            raise BulkAssignmentRescheduleError('Нельзя планировать назначения: требуется пройти ПСИ')
         if role == 'user' and row['status'] != 'new':
             raise BulkAssignmentRescheduleError(
                 'Недостаточно прав: нельзя изменять назначение в статусе, отличном от «Новый»',

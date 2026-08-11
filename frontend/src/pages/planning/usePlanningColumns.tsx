@@ -28,7 +28,7 @@ import {
 } from '@ant-design/icons';
 import type {AssignmentStatus, Assignment, Task, TaskDep} from '../../domain/types';
 import {ASSIGNMENT_STATUS_LABELS, ASSIGNMENT_STATUS_OPTIONS, TASK_STATUS_LABELS} from '../../domain/types';
-import {CriticalityBadge, DepBadge, type DepBadgeEntry, ScheduleChip} from '../../components/planningBadges';
+import {CriticalityBadge, DepBadge, type DepBadgeEntry, PsiStatusBadge, ScheduleChip} from '../../components/planningBadges';
 import {linkify} from '../../lib/linkify';
 import {API_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT} from '../../lib/dateFormats';
 import {NAME_COLUMN_WIDTH} from '../../lib/layout';
@@ -268,12 +268,16 @@ export function usePlanningColumns({
                       marginTop: 2,
                       color: token.colorTextTertiary,
                       fontSize: '0.72rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
                       overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
                     }}
                   >
-                    Сегмент: {task.segment_name}
+                    <span style={{overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
+                      Сегмент: {task.segment_name}
+                    </span>
+                    <PsiStatusBadge value={task.psi_status} compact/>
                   </div>
                 </div>
               </div>
@@ -333,16 +337,18 @@ export function usePlanningColumns({
             'data-schedule-cell': true,
             'data-task-id': task.id,
             'data-date': dateStr,
+            title: task.psi_status === 'required' ? 'Требуется пройти ПСИ до планирования назначений' : undefined,
             style: {
               ...cellTint,
               padding: 3,
               borderLeft: `1px solid ${token.colorBorder}`,
-              cursor: task.task_status === 'done' || task.task_status === 'cancelled' ? 'not-allowed' : 'pointer',
+              cursor: task.task_status === 'done' || task.task_status === 'cancelled' || task.psi_status === 'required' ? 'not-allowed' : 'pointer',
               ...(isSelected ? {boxShadow: `inset 0 0 0 2px ${token.colorPrimary}`} : {}),
             },
             onClick: (e: ReactMouseEvent<HTMLElement>) => {
               if (chipDragSuppressRef.current || panSuppressRef.current || selectSuppressRef.current) return;
               if (task.task_status === 'done' || task.task_status === 'cancelled') return;
+              if (task.psi_status === 'required' && !assignment) return;
               const clickedAssignment = assignmentByKey.get(`${task.id}-${dateStr}`) ?? null;
               if (e.ctrlKey || e.metaKey) {
                 if (clickedAssignment) onToggleAssignment(clickedAssignment.id);
@@ -359,10 +365,11 @@ export function usePlanningColumns({
         render: (_, task) => {
           const assignment = assignmentByKey.get(`${task.id}-${dateStr}`);
           const isTerminal = task.task_status === 'done' || task.task_status === 'cancelled';
+          const psiBlocked = task.psi_status === 'required';
           if (!assignment) return null;
           if (isTerminal) return <ScheduleChip assignment={assignment} draggable={false}/>;
           if (!canChangeAssignmentStatus(isUser)) {
-            return <ScheduleChip assignment={assignment} draggable={assignment.status === 'new'}/>;
+            return <ScheduleChip assignment={assignment} draggable={!psiBlocked && assignment.status === 'new'}/>;
           }
           const statusItems: MenuProps['items'] = [
             {
@@ -390,7 +397,7 @@ export function usePlanningColumns({
               }}
             >
               <div>
-                <ScheduleChip assignment={assignment} draggable/>
+                <ScheduleChip assignment={assignment} draggable={!psiBlocked}/>
               </div>
             </Dropdown>
           );

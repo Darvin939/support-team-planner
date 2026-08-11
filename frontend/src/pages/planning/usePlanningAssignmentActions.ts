@@ -55,7 +55,7 @@ export function usePlanningAssignmentActions(options: {
     bulkRescheduleMutation,
     isTaskLocked: (taskId: number) => {
       const task = options.tasks?.find((item) => item.id === taskId);
-      return !task || task.task_status === 'done' || task.task_status === 'cancelled';
+      return !task || task.task_status === 'done' || task.task_status === 'cancelled' || task.psi_status === 'required';
     },
   };
 }

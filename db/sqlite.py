@@ -56,5 +56,6 @@ class SQLiteBackend(DBBackend):
             Migration(6, 'add-task-completed-at', steps.migrate_add_task_completed_at),
             Migration(7, 'normalize-and-bootstrap', steps.normalize_and_bootstrap),
             Migration(8, 'add-task-completion-template', steps.migrate_add_task_completion_template),
+            Migration(9, 'add-task-psi-status', steps.migrate_add_task_psi_status),
         )
         run_migrations(conn, migrations)

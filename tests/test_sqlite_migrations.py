@@ -47,7 +47,7 @@ class SQLiteInfrastructureTests(unittest.TestCase):
         conn.row_factory = sqlite3.Row
         try:
             SQLiteBackend().init_schema(conn)
-            self.assertEqual(current_version(conn), 8)
+            self.assertEqual(current_version(conn), 9)
             tables = {row[0] for row in conn.execute(
                 "SELECT name FROM sqlite_master WHERE type = 'table'"
             )}
@@ -83,12 +83,12 @@ class SQLiteInfrastructureTests(unittest.TestCase):
         ''')
         try:
             SQLiteBackend().init_schema(conn)
-            self.assertEqual(current_version(conn), 8)
+            self.assertEqual(current_version(conn), 9)
             self.assertEqual(conn.execute('SELECT name FROM tasks WHERE id = 3').fetchone()[0], 'Legacy task')
             self.assertEqual(conn.execute('SELECT user_id FROM assignments WHERE id = 4').fetchone()[0], 2)
             task_columns = {row[1] for row in conn.execute('PRAGMA table_info(tasks)')}
             self.assertTrue({
-                'priority', 'criticality', 'segment_id', 'completed_at', 'completion_template_id',
+                'priority', 'criticality', 'segment_id', 'completed_at', 'completion_template_id', 'psi_status',
             } <= task_columns)
         finally:
             conn.close()

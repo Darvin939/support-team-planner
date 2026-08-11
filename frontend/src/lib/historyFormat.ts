@@ -4,7 +4,7 @@ export const HISTORY_FIELD_LABELS: Record<string, string> = {
   // employee_id — старое имя поля, всё ещё встречается в исторических записях, созданных до
   // переименования employees -> users; user_id — новые записи. Оба должны отображаться одинаково.
   employee_id: 'Исполнитель', user_id: 'Исполнитель',
-  comment: 'Комментарий', is_psi: 'ПСИ', time_spent: 'Время выполнения', is_deleted: 'Удаление',
+  comment: 'Комментарий', is_psi: 'ПСИ', psi_status: 'ПСИ', time_spent: 'Время выполнения', is_deleted: 'Удаление',
 };
 
 export interface HistoryEntry {
@@ -39,6 +39,7 @@ export function formatHistoryValue(field: string, value: string | null, getUserN
   if (field === 'status') return ASSIGNMENT_STATUS_LABELS[value as keyof typeof ASSIGNMENT_STATUS_LABELS] || value;
   if (field === 'employee_id' || field === 'user_id') return getUserName(value);
   if (field === 'is_psi') return value === '1' ? 'Да' : 'Нет';
+  if (field === 'psi_status') return ({not_required: 'Не требуется', required: 'Требуется', passed: 'Пройдено'} as Record<string, string>)[value] ?? value;
   return value;
 }
 

@@ -97,16 +97,27 @@ def _save_assignment(request: Request, current_user: CurrentUser, data: Assignme
         raise HTTPException(status_code=404, detail='Task not found')
     team_id = require_task_access(request, data.task_id)
     previous_status = None
+    existing_assignment = None
     if data.assignment_id:
         require_assignment_access(request, data.assignment_id)
-        existing_assignment = db.get_task_status_by_assignment(data.assignment_id)
-        if existing_assignment:
-            previous_status = existing_assignment['assignment_status']
+        existing_status = db.get_task_status_by_assignment(data.assignment_id)
+        existing_assignment = db.get_assignment_by_id(data.assignment_id)
+        if existing_status:
+            previous_status = existing_status['assignment_status']
     if data.user_id is not None and not db.user_is_eligible_assignee(data.user_id, team_id):
         raise HTTPException(status_code=400, detail='Пользователь недоступен для назначения в этой команде')
     task = db.get_task_status(data.task_id)
     if task and task_is_locked(task):
         raise HTTPException(status_code=400, detail='Нельзя изменять назначения завершённой или отменённой задачи')
+    if task and task['psi_status'] == 'required':
+        planning_changed = not existing_assignment or any((
+            existing_assignment['task_id'] != data.task_id,
+            existing_assignment['date'] != data.date,
+            existing_assignment['block'] != block,
+            existing_assignment['user_id'] != data.user_id,
+        ))
+        if planning_changed:
+            raise HTTPException(status_code=400, detail='Нельзя планировать назначения: требуется пройти ПСИ')
     _validate_user_assignment_status(current_user, data)
     db.create_or_update_assignment(
         data.assignment_id, data.task_id, data.date, block, data.status, data.user_id,

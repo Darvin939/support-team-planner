@@ -22,6 +22,7 @@ def _task_json(task):
         'description': task['description'],
         'criticality': task['criticality'],
         'task_status': task['task_status'],
+        'psi_status': task['psi_status'],
         'segment_id': task['segment_id'],
         'segment_name': task['segment_name'],
         'completed_at': task['completed_at'],
@@ -115,6 +116,7 @@ def save_task_api(request: Request, data: TaskIn, current_user: CurrentUser = De
         return JSONResponse({'error': 'criticality must be low, medium or high'}, status_code=400)
     if not data.segment_id or not any(segment['id'] == data.segment_id for segment in db.get_all_segments()):
         return JSONResponse({'error': 'Указан несуществующий сегмент'}, status_code=400)
+    psi_status = data.psi_status or 'not_required'
     if data.task_id:
         if not db.task_exists(data.task_id):
             return JSONResponse({'error': 'Задача не найдена'}, status_code=404)
@@ -123,6 +125,13 @@ def save_task_api(request: Request, data: TaskIn, current_user: CurrentUser = De
         if task and task_is_locked(task):
             return JSONResponse(
                 {'error': 'Нельзя редактировать завершённую или отменённую задачу'},
+                status_code=400,
+            )
+        if data.psi_status is None:
+            psi_status = task['psi_status']
+        if psi_status == 'required' and task['psi_status'] != 'required' and db.task_has_any_assignments(data.task_id):
+            return JSONResponse(
+                {'error': 'Перед включением требования ПСИ удалите активные назначения работы'},
                 status_code=400,
             )
     try:
@@ -134,6 +143,7 @@ def save_task_api(request: Request, data: TaskIn, current_user: CurrentUser = De
                     name,
                     description,
                     data.criticality,
+                    psi_status=psi_status,
                     segment_id=data.segment_id,
                     changed_by=current_user.id,
                 )

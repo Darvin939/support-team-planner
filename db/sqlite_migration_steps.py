@@ -209,6 +209,13 @@ class SQLiteMigrationSteps:
                 'REFERENCES block_templates(id) ON DELETE SET NULL'
             )
 
+    @staticmethod
+    def migrate_add_task_psi_status(conn) -> None:
+        """Добавляет состояние приёмо-сдаточных испытаний на уровне работы."""
+        columns = {row[1] for row in conn.execute('PRAGMA table_info(tasks)').fetchall()}
+        if 'psi_status' not in columns:
+            conn.execute("ALTER TABLE tasks ADD COLUMN psi_status TEXT NOT NULL DEFAULT 'not_required'")
+
     _DEFAULT_SEGMENT_NAME = 'По умолчанию'
 
     @staticmethod

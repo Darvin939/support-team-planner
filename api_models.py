@@ -1,4 +1,4 @@
-from typing import List, Optional, Union
+from typing import List, Literal, Optional, Union
 
 from pydantic import BaseModel
 
@@ -48,6 +48,7 @@ class TaskOut(BaseModel):
     description: Optional[str] = None
     criticality: str
     task_status: str
+    psi_status: Literal['not_required', 'required', 'passed']
     segment_id: int
     segment_name: str
     completed_at: Optional[str] = None
@@ -141,6 +142,7 @@ class TaskIn(BaseModel):
     name: str = ""
     description: Optional[str] = None
     criticality: str = "medium"
+    psi_status: Optional[Literal['not_required', 'required', 'passed']] = None
     segment_id: Optional[int] = None
     dependency_ids: Optional[List[int]] = None
 
