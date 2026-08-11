@@ -34,6 +34,7 @@ import {API_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT} from '../../lib/dateFormats'
 import {NAME_COLUMN_WIDTH} from '../../lib/layout';
 import {getCellTint, getHeaderTint} from './cellTint';
 import taskTransitionsJson from '../../data/taskTransitions.json';
+import {canChangeAssignmentStatus} from './assignmentStatusRolePolicy';
 
 // Единственный источник истины — frontend/src/data/taskTransitions.json, тот же файл читает и
 // support_planner.py (см. openspec/changes/shared-task-transitions-source).
@@ -359,8 +360,10 @@ export function usePlanningColumns({
           const assignment = assignmentByKey.get(`${task.id}-${dateStr}`);
           const isTerminal = task.task_status === 'done' || task.task_status === 'cancelled';
           if (!assignment) return null;
-          const locked = isUser && assignment.status !== 'new';
-          if (isTerminal || locked) return <ScheduleChip assignment={assignment} draggable={false}/>;
+          if (isTerminal) return <ScheduleChip assignment={assignment} draggable={false}/>;
+          if (!canChangeAssignmentStatus(isUser)) {
+            return <ScheduleChip assignment={assignment} draggable={assignment.status === 'new'}/>;
+          }
           const statusItems: MenuProps['items'] = [
             {
               key: 'status-group',

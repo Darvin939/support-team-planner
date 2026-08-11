@@ -33,6 +33,25 @@ from task_rules import task_is_locked
 router = APIRouter()
 
 
+def _validate_user_assignment_status(current_user: CurrentUser, data: AssignmentIn):
+    if current_user.role != 'user':
+        return
+    if not data.assignment_id:
+        if data.status != 'new':
+            raise HTTPException(
+                status_code=403,
+                detail='Недостаточно прав: пользователь может создать назначение только со статусом «Новый»',
+            )
+        return
+
+    existing = db.get_task_status_by_assignment(data.assignment_id)
+    if existing and data.status != existing['assignment_status']:
+        raise HTTPException(
+            status_code=403,
+            detail='Недостаточно прав: пользователь не может менять статус назначения',
+        )
+
+
 @router.get('/api/assignments/{team_id}', dependencies=[Depends(require_user)], response_model=list[AssignmentOut])
 def get_assignments_api(
     request: Request,
@@ -83,13 +102,7 @@ def _save_assignment(request: Request, current_user: CurrentUser, data: Assignme
     task = db.get_task_status(data.task_id)
     if task and task_is_locked(task):
         raise HTTPException(status_code=400, detail='Нельзя изменять назначения завершённой или отменённой задачи')
-    if current_user.role == 'user':
-        if data.status != 'new':
-            raise HTTPException(status_code=403, detail='Недостаточно прав: можно создавать и изменять назначения только со статусом «Новый»')
-        if data.assignment_id:
-            existing = db.get_task_status_by_assignment(data.assignment_id)
-            if existing and existing['assignment_status'] != 'new':
-                raise HTTPException(status_code=403, detail='Недостаточно прав: нельзя изменять назначение в статусе, отличном от «Новый»')
+    _validate_user_assignment_status(current_user, data)
     db.create_or_update_assignment(
         data.assignment_id, data.task_id, data.date, block, data.status, data.user_id,
         comment, time_spent, changed_by=current_user.id,

@@ -33,6 +33,8 @@ import {useIsMobile} from '../../hooks/useIsMobile';
 import {useAutoScheduleDragScroll} from './useAutoScheduleDragScroll';
 import {getCellTint, getHeaderTint} from './cellTint';
 import {useAssignmentModalState} from './useAssignmentModalState';
+import {AssignmentStatusField} from './AssignmentStatusField';
+import {assignmentStatusForSave} from './assignmentStatusRolePolicy';
 
 export interface AssignmentFormValues {
   date: dayjs.Dayjs;
@@ -42,14 +44,6 @@ export interface AssignmentFormValues {
   user_id: number | null;
   comment: string;
 }
-
-const STATUS_OPTIONS = [
-  {value: 'new', label: 'Новый'},
-  {value: 'planned', label: 'Запланировано'},
-  {value: 'rollback', label: 'Откат'},
-  {value: 'success', label: 'Успешно'},
-  {value: 'cancelled', label: 'Отменено'},
-];
 
 function confirmOverwrite(dates: string[]): Promise<boolean> {
   return new Promise((resolve) => {
@@ -282,7 +276,7 @@ export function AssignmentModal({
       task_id: task.id,
       date: values.date.format(API_DATE_FORMAT),
       block: blockNames || null,
-      status: values.status,
+      status: assignmentStatusForSave(isUser, values.status),
       user_id: values.user_id,
       comment: values.comment || null,
       time_spent: timeSpent === '00:00' ? null : timeSpent,
@@ -458,9 +452,7 @@ export function AssignmentModal({
             </div>
           )}
 
-          <Form.Item name="status" label="Статус">
-            <Select disabled={autoAssignEnabled || isUser} options={STATUS_OPTIONS}/>
-          </Form.Item>
+          <AssignmentStatusField disabled={autoAssignEnabled || isUser}/>
 
           {!autoAssignEnabled && (
             <>

@@ -231,6 +231,105 @@ class CompositeTransactionApiTest(unittest.TestCase):
         conn.commit()
         conn.close()
 
+    def test_user_assignment_status_policy_for_single_upsert(self):
+        with self.login('transaction-user', 'password123') as client:
+            created = client.post('/api/assignment', json={
+                'task_id': 10, 'date': '2026-08-10', 'block': 'Initial', 'status': 'new',
+            })
+            forbidden_create = client.post('/api/assignment', json={
+                'task_id': 10, 'date': '2026-08-11', 'status': 'planned',
+            })
+
+        self.assertEqual(200, created.status_code)
+        self.assertEqual(403, forbidden_create.status_code)
+
+        conn = sqlite3.connect(self.path)
+        assignment_id = conn.execute(
+            "SELECT id FROM assignments WHERE task_id = 10 AND date = '2026-08-10'"
+        ).fetchone()[0]
+        conn.execute("UPDATE assignments SET status = 'planned' WHERE id = ?", (assignment_id,))
+        conn.commit()
+        conn.close()
+
+        with self.login('transaction-user', 'password123') as client:
+            unchanged_status = client.post('/api/assignment', json={
+                'assignment_id': assignment_id, 'task_id': 10, 'date': '2026-08-10',
+                'block': 'Changed', 'status': 'planned',
+            })
+            changed_status = client.post('/api/assignment', json={
+                'assignment_id': assignment_id, 'task_id': 10, 'date': '2026-08-10',
+                'block': 'Changed again', 'status': 'success',
+            })
+
+        self.assertEqual(200, unchanged_status.status_code)
+        self.assertEqual(403, changed_status.status_code)
+        conn = sqlite3.connect(self.path)
+        self.assertEqual(
+            ('Changed', 'planned'),
+            conn.execute('SELECT block, status FROM assignments WHERE id = ?', (assignment_id,)).fetchone(),
+        )
+        self.assertEqual(0, conn.execute(
+            "SELECT COUNT(*) FROM assignments WHERE task_id = 10 AND date = '2026-08-11'"
+        ).fetchone()[0])
+        conn.execute('DELETE FROM assignments WHERE id = ?', (assignment_id,))
+        conn.commit()
+        conn.close()
+
+    def test_user_bulk_status_change_rolls_back_entire_upsert(self):
+        conn = sqlite3.connect(self.path)
+        conn.execute(
+            "INSERT INTO assignments (id, task_id, date, block, status) "
+            "VALUES (204, 10, '2026-08-12', 'Original', 'new')"
+        )
+        conn.commit()
+        conn.close()
+
+        payload = {'assignments': [
+            {'task_id': 10, 'date': '2026-08-13', 'block': 'Would be created', 'status': 'new'},
+            {'assignment_id': 204, 'task_id': 10, 'date': '2026-08-12', 'block': 'Forbidden', 'status': 'planned'},
+        ]}
+        with self.login('transaction-user', 'password123') as client:
+            response = client.post('/api/assignments/bulk', json=payload)
+
+        self.assertEqual(403, response.status_code)
+        conn = sqlite3.connect(self.path)
+        self.assertEqual(
+            ('Original', 'new'),
+            conn.execute('SELECT block, status FROM assignments WHERE id = 204').fetchone(),
+        )
+        self.assertEqual(0, conn.execute(
+            "SELECT COUNT(*) FROM assignments WHERE task_id = 10 AND date = '2026-08-13'"
+        ).fetchone()[0])
+        conn.execute('DELETE FROM assignments WHERE id = 204')
+        conn.commit()
+        conn.close()
+
+    def test_editor_and_admin_can_change_assignment_status(self):
+        conn = sqlite3.connect(self.path)
+        conn.execute(
+            "INSERT INTO assignments (id, task_id, date, status) VALUES (205, 10, '2026-08-14', 'new')"
+        )
+        conn.commit()
+        conn.close()
+
+        for login, password, target_status in (
+            ('transaction-editor', 'password123', 'planned'),
+            ('admin', 'q12345678', 'success'),
+        ):
+            with self.login(login, password) as client:
+                response = client.post('/api/assignment', json={
+                    'assignment_id': 205, 'task_id': 10, 'date': '2026-08-14', 'status': target_status,
+                })
+            self.assertEqual(200, response.status_code)
+
+        conn = sqlite3.connect(self.path)
+        self.assertEqual('success', conn.execute(
+            'SELECT status FROM assignments WHERE id = 205'
+        ).fetchone()[0])
+        conn.execute('DELETE FROM assignments WHERE id = 205')
+        conn.commit()
+        conn.close()
+
     def test_bulk_assignment_delete_is_atomic_when_an_item_is_missing(self):
         conn = sqlite3.connect(self.path)
         conn.execute(
