@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react';
-import {Button, Checkbox, Form, Input, Modal, Popconfirm, Select, Space, theme} from 'antd';
+import {Button, Checkbox, Form, Input, Modal, Popconfirm, Select, Space, Tabs, theme} from 'antd';
 import {useActiveTasksList} from '../../hooks/usePlanningData';
 import {useMe} from '../../hooks/useMe';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
@@ -38,6 +38,7 @@ export function TaskModal({
   const [form] = Form.useForm<TaskFormValues>();
   const [depIds, setDepIds] = useState<Set<number>>(new Set());
   const [depSearch, setDepSearch] = useState('');
+  const [activeTab, setActiveTab] = useState('main');
   const debouncedDepSearch = useDebouncedValue(depSearch, 500);
   const {
     data: activeTasks,
@@ -63,6 +64,7 @@ export function TaskModal({
     });
     setDepIds(new Set(existingDepIds));
     setDepSearch('');
+    setActiveTab('main');
   }, [open, task, existingDepIds, form, segments]);
 
   const saveMutation = useSaveTaskMutation(onClose);
@@ -112,7 +114,7 @@ export function TaskModal({
       }
       open={open}
       onCancel={onClose}
-      width={isMobile ? '95%' : historyOpen ? 820 : 520}
+      width={isMobile ? '95%' : historyOpen ? 1080 : 760}
       footer={
         <Space>
           {task && <HistoryToggleButton open={historyOpen} onClick={() => setHistoryOpen((v) => !v)}/>}
@@ -175,58 +177,80 @@ export function TaskModal({
               </div>
             </div>
           ) : (
-            <>
-              <Form.Item name="name" label="Имя" rules={[{required: true, message: 'Введите имя'}]}>
-                <Input/>
-              </Form.Item>
-              <Form.Item name="description" label="Описание">
-                <Input.TextArea rows={4}/>
-              </Form.Item>
-              <div style={{display: 'flex', gap: 12}}>
-                <Form.Item name="criticality" label="Критичность"
-                           rules={[{required: true, message: 'Выберите критичность'}]} style={{flex: 1, minWidth: 0}}>
-                  <Select
-                    options={CRITICALITY_ORDER.map((value) => ({value, label: CRITICALITY_LABELS[value]}))}
-                  />
-                </Form.Item>
-                <Form.Item name="segment_id" label="Сегмент" rules={[{required: true, message: 'Выберите сегмент'}]}
-                           style={{flex: 1, minWidth: 0}}>
-                  <Select placeholder="Выберите сегмент"
-                          options={segments?.map((s) => ({value: s.id, label: s.name}))}/>
-                </Form.Item>
-              </div>
-              <Form.Item name="psi_status" label="Приёмо-сдаточные испытания" rules={[{required: true}]}>
-                <Select options={PSI_STATUS_OPTIONS}/>
-              </Form.Item>
-            </>
-          )}
-          {!isTerminal && (
-            <Form.Item label="Зависит от">
-              <Input.Search placeholder="Поиск..." value={depSearch} onChange={(e) => setDepSearch(e.target.value)}
-                            style={{marginBottom: 8}} allowClear/>
-              <div style={{
-                maxHeight: 160,
-                overflowY: 'auto',
-                border: '1px solid rgba(128,128,128,0.3)',
-                borderRadius: 6,
-                padding: '4px 8px'
-              }}>
-                {filteredDeps.length === 0 && (
-                  <span style={{color: 'rgba(128,128,128,0.8)'}}>{depsLoading ? 'Загрузка...' : 'Нет совпадений'}</span>
-                )}
-                {filteredDeps.map((t) => (
-                  <div key={t.id} style={{padding: '4px 0'}}>
-                    <Checkbox checked={depIds.has(t.id)} onChange={() => toggleDep(t.id)}>
-                      <Space size={6}>
-                        <CriticalityBadge value={t.criticality}/>
-                        <TaskStatusBadge value={t.task_status}/>
-                        {t.name}
-                      </Space>
-                    </Checkbox>
-                  </div>
-                ))}
-              </div>
-            </Form.Item>
+            <Tabs
+              activeKey={activeTab}
+              onChange={setActiveTab}
+              items={[
+                {
+                  key: 'main',
+                  label: 'Основное',
+                  children: (
+                    <>
+                      <Form.Item name="name" label="Имя" rules={[{required: true, message: 'Введите имя'}]}>
+                        <Input/>
+                      </Form.Item>
+                      <Form.Item name="description" label="Описание">
+                        <Input.TextArea rows={7}/>
+                      </Form.Item>
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))',
+                        columnGap: 16,
+                      }}>
+                        <Form.Item name="criticality" label="Критичность"
+                                   rules={[{required: true, message: 'Выберите критичность'}]}>
+                          <Select
+                            options={CRITICALITY_ORDER.map((value) => ({value, label: CRITICALITY_LABELS[value]}))}
+                          />
+                        </Form.Item>
+                        <Form.Item name="segment_id" label="Сегмент"
+                                   rules={[{required: true, message: 'Выберите сегмент'}]}>
+                          <Select placeholder="Выберите сегмент"
+                                  options={segments?.map((s) => ({value: s.id, label: s.name}))}/>
+                        </Form.Item>
+                        <Form.Item name="psi_status" label="ПСИ" rules={[{required: true}]}>
+                          <Select options={PSI_STATUS_OPTIONS}/>
+                        </Form.Item>
+                      </div>
+                    </>
+                  ),
+                },
+                {
+                  key: 'dependencies',
+                  label: `Зависимости (${depIds.size})`,
+                  children: (
+                    <Form.Item label="Зависит от">
+                      <Input.Search placeholder="Поиск..." value={depSearch}
+                                    onChange={(e) => setDepSearch(e.target.value)} style={{marginBottom: 8}} allowClear/>
+                      <div style={{
+                        maxHeight: 320,
+                        overflowY: 'auto',
+                        border: '1px solid rgba(128,128,128,0.3)',
+                        borderRadius: 6,
+                        padding: '4px 8px'
+                      }}>
+                        {filteredDeps.length === 0 && (
+                          <span style={{color: 'rgba(128,128,128,0.8)'}}>
+                            {depsLoading ? 'Загрузка...' : 'Нет совпадений'}
+                          </span>
+                        )}
+                        {filteredDeps.map((t) => (
+                          <div key={t.id} style={{padding: '4px 0'}}>
+                            <Checkbox checked={depIds.has(t.id)} onChange={() => toggleDep(t.id)}>
+                              <Space size={6}>
+                                <CriticalityBadge value={t.criticality}/>
+                                <TaskStatusBadge value={t.task_status}/>
+                                {t.name}
+                              </Space>
+                            </Checkbox>
+                          </div>
+                        ))}
+                      </div>
+                    </Form.Item>
+                  ),
+                },
+              ]}
+            />
           )}
         </Form>
         <HistoryPanel kind="task" entityId={task?.id ?? null} open={historyOpen}/>
