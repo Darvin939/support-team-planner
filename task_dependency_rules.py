@@ -1,4 +1,5 @@
 import db
+from task_rules import is_terminal_task_status
 
 
 class TaskDependencyCycleError(Exception):
@@ -17,7 +18,7 @@ def validate_task_dependency_edit(task_id: int, depends_on_task_id: int) -> None
         raise TaskDependencyEditError('Задача не найдена', 404)
     if task['team_id'] != dep_task['team_id']:
         raise TaskDependencyEditError('Задачи принадлежат разным командам', 400)
-    if task['task_status'] in ('done', 'cancelled'):
+    if is_terminal_task_status(task['task_status']):
         raise TaskDependencyEditError(
             'Нельзя редактировать завершённую или отменённую задачу',
             400,

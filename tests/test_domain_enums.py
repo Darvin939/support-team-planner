@@ -9,7 +9,9 @@ from api_models import (
     AssignmentIn,
     AssignmentStatus,
     Criticality,
+    PriorityPosition,
     TaskIn,
+    TaskPriorityIn,
     TaskStatus,
     TaskStatusIn,
     UserIn,
@@ -40,6 +42,7 @@ class DomainEnumContractTest(unittest.TestCase):
         )
         self.assertEqual(('low', 'medium', 'high'), get_args(Criticality))
         self.assertEqual(('user', 'editor', 'admin'), get_args(UserRole))
+        self.assertEqual(('start', 'end'), get_args(PriorityPosition))
 
     def test_input_models_reject_unknown_enum_values(self):
         cases = (
@@ -47,6 +50,7 @@ class DomainEnumContractTest(unittest.TestCase):
             (AssignmentIn, {'status': 'unknown'}),
             (TaskIn, {'criticality': 'urgent'}),
             (UserIn, {'role': 'owner'}),
+            (TaskPriorityIn, {'position': 'middle'}),
         )
         for model, payload in cases:
             with self.subTest(model=model.__name__), self.assertRaises(ValidationError):
@@ -61,6 +65,15 @@ class DomainEnumContractTest(unittest.TestCase):
             self.assertEqual(value, TaskIn(criticality=value).criticality)
         for value in get_args(UserRole):
             self.assertEqual(value, UserIn(role=value).role)
+        for value in get_args(PriorityPosition):
+            self.assertEqual(value, TaskPriorityIn(position=value).position)
+
+    def test_routes_do_not_repeat_pydantic_enum_membership_checks(self):
+        task_routes = (ROOT / 'routers' / 'tasks.py').read_text(encoding='utf-8')
+        user_routes = (ROOT / 'routers' / 'users.py').read_text(encoding='utf-8')
+        self.assertNotIn("data.criticality not in", task_routes)
+        self.assertNotIn("data.position not in", task_routes)
+        self.assertNotIn('_VALID_ROLES', user_routes)
 
     def test_demo_seeds_only_declare_current_task_statuses(self):
         expected = set(get_args(TaskStatus))

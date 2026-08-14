@@ -76,6 +76,7 @@ class ApiModelsContractTest(unittest.TestCase):
             ('AssignmentIn', 'status'): ['new', 'planned', 'rollback', 'success', 'cancelled'],
             ('TaskIn', 'criticality'): ['low', 'medium', 'high'],
             ('UserIn', 'role'): ['user', 'editor', 'admin'],
+            ('TaskPriorityIn', 'position'): ['start', 'end'],
         }
         for (model, field), values in expected.items():
             with self.subTest(model=model, field=field):

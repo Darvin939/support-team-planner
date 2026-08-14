@@ -10,9 +10,6 @@ from api_models import UserIn
 
 
 router = APIRouter()
-_VALID_ROLES = {'admin', 'editor', 'user'}
-
-
 @router.get('/api/users', dependencies=[Depends(require_user)])
 def get_users_api(offset: Optional[int] = None, limit: Optional[int] = None, search: Optional[str] = None):
     if offset is None and limit is None and search is None:
@@ -31,8 +28,6 @@ def create_user_api(data: UserIn):
     login = (data.login or '').strip() or None
     if not first_name:
         return JSONResponse({'error': 'Имя обязательно'}, status_code=400)
-    if data.role not in _VALID_ROLES:
-        return JSONResponse({'error': 'Недопустимая роль'}, status_code=400)
     try:
         user_id = db.create_user(
             last_name, first_name, middle_name, password_hash, data.role, login, data.is_assignee, data.team_ids,
@@ -51,8 +46,6 @@ def update_user_api(user_id: int, data: UserIn):
     login = (data.login or '').strip() or None
     if not first_name and not db.is_bootstrap_admin_id(user_id):
         return JSONResponse({'error': 'Имя обязательно'}, status_code=400)
-    if data.role not in _VALID_ROLES:
-        return JSONResponse({'error': 'Недопустимая роль'}, status_code=400)
     try:
         db.update_user(
             user_id, last_name, first_name, middle_name, password_hash, data.role, login,

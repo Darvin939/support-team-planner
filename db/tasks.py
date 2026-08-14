@@ -1,18 +1,21 @@
 import json
 
 from db.connection import backend as _backend, with_db_connection
+from task_rules import is_terminal_task_status, terminal_task_status_sql
 
 _PRIORITY_GAP = 1000
 
 
 def _active_task_filter(include_recent_completed, qualified=False):
     prefix = 'tasks.' if qualified else ''
+    predicate, params = terminal_task_status_sql(f'{prefix}task_status', negated=True)
     if include_recent_completed:
         return (
-            f"AND ({prefix}task_status NOT IN ('done', 'cancelled') OR "
-            f"({prefix}completed_at IS NOT NULL AND {prefix}completed_at >= datetime('now', '-30 days')))"
+            f"AND ({predicate} OR "
+            f"({prefix}completed_at IS NOT NULL AND {prefix}completed_at >= datetime('now', '-30 days')))",
+            list(params),
         )
-    return f"AND {prefix}task_status NOT IN ('done', 'cancelled')"
+    return f'AND {predicate}', list(params)
 
 # === TASKS CRUD ===
 def _fuzzy_search_clause(search, name_col='name', description_col='description'):
@@ -34,8 +37,9 @@ def _fuzzy_search_clause(search, name_col='name', description_col='description')
 @with_db_connection(commit_on_success=False)
 def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, include_recent_completed=False):
     """Получить задачи команды с пагинацией и поиском"""
-    completed_clause = _active_task_filter(include_recent_completed, qualified=True)
+    completed_clause, completed_params = _active_task_filter(include_recent_completed, qualified=True)
     params = [team_id]
+    params += completed_params
     search_clause, search_params = _fuzzy_search_clause(search, 'tasks.name', 'tasks.description')
     params += search_params
     params += [limit, offset]
@@ -68,8 +72,9 @@ def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, include_re
 @with_db_connection(commit_on_success=False)
 def get_tasks_count_by_team(conn, team_id, search=None, include_recent_completed=False):
     """Получить общее количество задач команды (с учётом поиска)"""
-    completed_clause = _active_task_filter(include_recent_completed)
+    completed_clause, completed_params = _active_task_filter(include_recent_completed)
     params = [team_id]
+    params += completed_params
     search_clause, search_params = _fuzzy_search_clause(search)
     params += search_params
     return conn.execute(
@@ -93,8 +98,9 @@ def get_task_by_id(conn, task_id):
 
 
 def _archive_filter(search, completed_from, completed_to):
-    clauses = ["tasks.task_status IN ('done', 'cancelled')"]
-    params = []
+    terminal_clause, terminal_params = terminal_task_status_sql('tasks.task_status')
+    clauses = [terminal_clause]
+    params = list(terminal_params)
     search_clause, search_params = _fuzzy_search_clause(search, 'tasks.name', 'tasks.description')
     if search_clause:
         clauses.append(search_clause.removeprefix('AND '))
@@ -278,7 +284,7 @@ def reorder_team_tasks(conn, team_id, task_ids, changed_by=None):
         raise ValueError('Некоторые задачи не найдены в этой команде или удалены')
     if len({r['criticality'] for r in rows}) > 1:
         raise ValueError('Приоритет можно менять только в пределах одного уровня критичности')
-    if any(r['task_status'] in ('done', 'cancelled') for r in rows):
+    if any(is_terminal_task_status(r['task_status']) for r in rows):
         raise ValueError('Нельзя менять приоритет завершённой или отменённой задачи')
 
     priorities_desc = sorted(priority_by_id.values(), reverse=True)
@@ -302,7 +308,7 @@ def move_task_to_edge(conn, task_id, position, changed_by=None):
                          (task_id,)).fetchone()
     if not task or task['is_deleted']:
         raise ValueError('Задача не найдена')
-    if task['task_status'] in ('done', 'cancelled'):
+    if is_terminal_task_status(task['task_status']):
         raise ValueError('Нельзя менять приоритет завершённой или отменённой задачи')
 
     agg_col = 'MAX(priority)' if position == 'start' else 'MIN(priority)'
@@ -377,8 +383,8 @@ def update_task_status(conn, task_id, new_status, changed_by=None):
         _record_task_history(conn, task_id, 'update', field_name='task_status',
                               old_value=current['task_status'], new_value=new_status, changed_by=changed_by)
     old_status = current['task_status'] if current else None
-    old_terminal = old_status in ('done', 'cancelled')
-    new_terminal = new_status in ('done', 'cancelled')
+    old_terminal = is_terminal_task_status(old_status)
+    new_terminal = is_terminal_task_status(new_status)
     if new_terminal and not old_terminal:
         conn.execute("UPDATE tasks SET task_status = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?",
                      (new_status, task_id))
@@ -397,7 +403,7 @@ def restore_task(conn, task_id, changed_by=None):
     ).fetchone()
     if not current or current['is_deleted']:
         return False
-    if current['task_status'] not in ('done', 'cancelled'):
+    if not is_terminal_task_status(current['task_status']):
         raise ValueError('Восстановить можно только завершённую или отменённую работу')
     _record_task_history(conn, task_id, 'update', field_name='task_status',
                          old_value=current['task_status'], new_value='new', changed_by=changed_by)

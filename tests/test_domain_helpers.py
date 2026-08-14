@@ -3,7 +3,15 @@ from unittest.mock import patch
 
 from query_parsing import parse_int_csv
 from task_dependency_rules import TaskDependencyEditError, validate_task_dependency_edit
-from task_rules import VALID_TASK_TRANSITIONS, task_is_locked
+from api_models import TaskStatus
+from task_rules import (
+    TERMINAL_TASK_STATUSES,
+    VALID_TASK_TRANSITIONS,
+    is_terminal_task_status,
+    task_is_locked,
+    terminal_task_status_sql,
+)
+from typing import get_args
 
 
 class DomainHelpersTest(unittest.TestCase):
@@ -15,6 +23,16 @@ class DomainHelpersTest(unittest.TestCase):
 
     def test_task_transition_rules_are_loaded_from_shared_source(self):
         self.assertEqual({'new': {'done', 'cancelled'}}, VALID_TASK_TRANSITIONS)
+
+    def test_terminal_statuses_match_statuses_without_outgoing_transitions(self):
+        self.assertEqual(set(get_args(TaskStatus)) - set(VALID_TASK_TRANSITIONS), set(TERMINAL_TASK_STATUSES))
+        self.assertTrue(is_terminal_task_status('done'))
+        self.assertFalse(is_terminal_task_status('new'))
+
+    def test_terminal_sql_predicate_is_parameterized(self):
+        predicate, params = terminal_task_status_sql('tasks.task_status', negated=True)
+        self.assertEqual('tasks.task_status NOT IN (?, ?)', predicate)
+        self.assertEqual(set(TERMINAL_TASK_STATUSES), set(params))
 
     def test_csv_int_parser(self):
         self.assertIsNone(parse_int_csv(None))

@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime
 
 from db.connection import backend as _backend, with_db_connection
+from task_rules import is_terminal_task_status
 from db.errors import BulkAssignmentRescheduleError
 from db.tasks import _record_assignment_history
 
@@ -191,7 +192,7 @@ def bulk_reschedule_assignments(conn, moves, role, changed_by=None):
     normalized_moves = []
     for move in moves:
         row = rows_by_id[move['assignment_id']]
-        if row['task_status'] in ('done', 'cancelled'):
+        if is_terminal_task_status(row['task_status']):
             raise BulkAssignmentRescheduleError(
                 'Нельзя изменять назначения завершённой или отменённой задачи')
         if row['psi_status'] == 'required':

@@ -170,6 +170,11 @@ class ApiErrorFormatTest(unittest.TestCase):
             })
         self.assertEqual((422, {'error': 'Некорректный запрос'}), (response.status_code, response.json()))
 
+    def test_unknown_priority_position_is_rejected_before_handler(self):
+        with self.login() as client:
+            response = client.patch('/api/task/999999/priority', json={'position': 'middle'})
+        self.assertEqual((422, {'error': 'Некорректный запрос'}), (response.status_code, response.json()))
+
     def test_user_duplicate_and_not_found_domain_errors_are_explicit(self):
         payload = {
             'first_name': 'Duplicate', 'role': 'user', 'login': 'duplicate-login',

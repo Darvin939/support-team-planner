@@ -115,8 +115,6 @@ def save_task_api(request: Request, data: TaskIn, current_user: CurrentUser = De
     if not data.team_id or not name:
         return JSONResponse({'error': 'Team ID and name required'}, status_code=400)
     require_team_access(request, data.team_id)
-    if data.criticality not in ('low', 'medium', 'high'):
-        return JSONResponse({'error': 'criticality must be low, medium or high'}, status_code=400)
     if instruction_url:
         parsed_instruction_url = urlparse(instruction_url)
         if (
@@ -227,8 +225,6 @@ def move_task_priority_api(
     request: Request, task_id: int, data: TaskPriorityIn, current_user: CurrentUser = Depends(require_user),
 ):
     require_task_access(request, task_id)
-    if data.position not in ('start', 'end'):
-        return JSONResponse({'error': 'position must be start or end'}, status_code=400)
     try:
         db.move_task_to_edge(
             task_id,

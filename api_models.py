@@ -7,6 +7,7 @@ AssignmentStatus = Literal['new', 'planned', 'rollback', 'success', 'cancelled']
 Criticality = Literal['low', 'medium', 'high']
 UserRole = Literal['user', 'editor', 'admin']
 PsiStatus = Literal['not_required', 'required', 'passed']
+PriorityPosition = Literal['start', 'end']
 
 
 class AssignmentIn(BaseModel):
@@ -215,7 +216,7 @@ class TaskReorderIn(BaseModel):
 
 
 class TaskPriorityIn(BaseModel):
-    position: str
+    position: PriorityPosition
 
 
 class TaskDependencyIn(BaseModel):

@@ -1,5 +1,6 @@
 from db.connection import with_db_connection
 from db.tasks import _fuzzy_search_clause
+from task_rules import terminal_task_status_sql
 
 # === TASK DEPENDENCIES ===
 
@@ -133,7 +134,9 @@ def get_dependency_graph_for_team(conn, team_id, task_id=None):
     (done/cancelled), не возвращается — обе стороны завершены, и такая связь не несёт полезной
     информации для текущего планирования."""
     # @formatter:off
-    terminal_edge_filter = "NOT (src.task_status IN ('done', 'cancelled') AND dep.task_status IN ('done', 'cancelled'))"
+    src_terminal_clause, terminal_params = terminal_task_status_sql('src.task_status')
+    dep_terminal_clause, dep_terminal_params = terminal_task_status_sql('dep.task_status')
+    terminal_edge_filter = f'NOT ({src_terminal_clause} AND {dep_terminal_clause})'
     if task_id is not None:
         component_ids = _dependency_component_ids(conn, task_id)
         placeholders = ','.join('?' * len(component_ids))
@@ -154,7 +157,7 @@ def get_dependency_graph_for_team(conn, team_id, task_id=None):
                 WHERE src.team_id = ? AND src.is_deleted = 0 AND dep.is_deleted = 0
                   AND td.task_id IN ({placeholders}) AND td.depends_on_task_id IN ({placeholders})
                   AND {terminal_edge_filter}''',
-            (team_id, *params, *params)
+            (team_id, *params, *params, *terminal_params, *dep_terminal_params)
         ).fetchall()
     else:
         edges = conn.execute(
@@ -164,7 +167,7 @@ def get_dependency_graph_for_team(conn, team_id, task_id=None):
                 JOIN tasks dep ON td.depends_on_task_id = dep.id
                 WHERE src.team_id = ? AND src.is_deleted = 0 AND dep.is_deleted = 0
                   AND {terminal_edge_filter}''',
-            (team_id,)
+            (team_id, *terminal_params, *dep_terminal_params)
         ).fetchall()
         node_ids = {e['task_id'] for e in edges} | {e['dep_id'] for e in edges}
         placeholders = ','.join('?' * len(node_ids)) if node_ids else 'NULL'
@@ -182,7 +185,8 @@ def get_dependency_graph_for_team(conn, team_id, task_id=None):
 
 @with_db_connection(commit_on_success=False)
 def get_active_tasks_flat(conn, team_id, search=None, limit=50, include_ids=None):
-    params = [team_id]
+    active_clause, terminal_params = terminal_task_status_sql('task_status', negated=True)
+    params = [team_id, *terminal_params]
     search_clause, search_params = _fuzzy_search_clause(search)
     params += search_params
     params.append(limit)
@@ -206,7 +210,7 @@ def get_active_tasks_flat(conn, team_id, search=None, limit=50, include_ids=None
             FROM tasks
             WHERE team_id = ?
               AND is_deleted = 0
-              AND task_status NOT IN ('done', 'cancelled')
+              AND {active_clause}
               {search_clause}
             ORDER BY name
             LIMIT ?

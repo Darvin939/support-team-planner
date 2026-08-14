@@ -1,16 +1,18 @@
 from db.connection import with_db_connection
+from task_rules import terminal_task_status_sql
 
 # === STATISTICS ===
 def _active_assignments_where(team_id, start_date, end_date, team_ids=None):
     """WHERE-условие + параметры, общие для выборки активных назначений и их агрегатов"""
     # @formatter:off
-    where = '''WHERE a.status IN ('new', 'planned')
+    terminal_clause, terminal_params = terminal_task_status_sql('t.task_status', negated=True)
+    where = f'''WHERE a.status IN ('new', 'planned')
                  AND a.is_deleted = 0
-                 AND t.task_status NOT IN ('done', 'cancelled')
+                 AND {terminal_clause}
                  AND t.is_deleted = 0
                  AND a.date BETWEEN ? AND ?'''
     # @formatter:on
-    params = [start_date, end_date]
+    params = [*terminal_params, start_date, end_date]
 
     if team_ids:
         placeholders = ','.join('?' * len(team_ids))
