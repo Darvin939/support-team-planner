@@ -28,7 +28,7 @@ import {
 } from '@ant-design/icons';
 import type {AssignmentStatus, Assignment, Task, TaskDep, TaskStatus} from '../../domain/types';
 import {ASSIGNMENT_STATUS_LABELS, ASSIGNMENT_STATUS_OPTIONS, TASK_STATUS_LABELS} from '../../domain/types';
-import {CriticalityBadge, DepBadge, type DepBadgeEntry, PsiStatusBadge, ScheduleChip} from '../../components/planningBadges';
+import {DepBadge, type DepBadgeEntry, PsiStatusBadge, ScheduleChip} from '../../components/planningBadges';
 import {linkify} from '../../lib/linkify';
 import {API_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT} from '../../lib/dateFormats';
 import {NAME_COLUMN_WIDTH} from '../../lib/layout';
@@ -36,6 +36,7 @@ import {getCellTint, getHeaderTint} from './cellTint';
 import {TaskInstructionLink} from './TaskInstructionLink';
 import taskTransitionsJson from '../../data/taskTransitions.json';
 import {canChangeAssignmentStatus} from './assignmentStatusRolePolicy';
+import {TaskNameWithCriticality} from './TaskNameWithCriticality';
 
 // Единственный источник истины — frontend/src/data/taskTransitions.json, тот же файл читает и
 // support_planner.py (см. openspec/changes/shared-task-transitions-source).
@@ -258,10 +259,8 @@ export function usePlanningColumns({
                 >
                   {isTerminal ? <InfoCircleOutlined/> : <EditOutlined/>}
                 </Button>
-                <CriticalityBadge value={task.criticality}/>
                 <div style={{minWidth: 0, flex: 1}}>
-                  <span style={{display: 'block', fontWeight: 500, overflowWrap: 'anywhere'}}
-                        data-task-row-name>{task.name}</span>
+                  <TaskNameWithCriticality name={task.name} criticality={task.criticality}/>
                   <div
                     data-task-row-segment
                     title={`Сегмент: ${task.segment_name}`}
