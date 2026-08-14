@@ -168,10 +168,20 @@ export function ScheduleChip({assignment, onClick, draggable}: {
         fontSize: '0.68rem',
         color: statusColor
       }}>{ASSIGNMENT_STATUS_LABELS[assignment.status] ?? assignment.status}</span>
-      {assignment.comment && <span style={{
+      {assignment.comment && <span
+        data-assignment-comment
+        title={assignment.comment}
+        style={{
         fontSize: '0.63rem',
         fontStyle: 'italic',
-        color: token.colorTextTertiary
+        color: token.colorTextTertiary,
+        display: '-webkit-box',
+        WebkitBoxOrient: 'vertical',
+        WebkitLineClamp: 3,
+        overflow: 'hidden',
+        overflowWrap: 'break-word',
+        minWidth: 0,
+        maxWidth: '100%',
       }}>{assignment.comment}</span>}
       <span style={{fontSize: '0.68rem', color: token.colorTextSecondary}}>{assignment.user_name}</span>
       {assignment.time_spent && (

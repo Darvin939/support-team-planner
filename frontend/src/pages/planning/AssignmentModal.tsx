@@ -25,7 +25,7 @@ import {
   useDeleteAssignmentMutation,
   useSaveAssignmentMutation,
 } from '../../hooks/useAssignmentMutations';
-import type {AssignmentStatus, BlockTemplateEntry, Assignment, Task} from '../../domain/types';
+import type {Assignment, AssignmentStatus, BlockTemplateEntry, Task} from '../../domain/types';
 import {getAutoScheduleDateRange} from '../../lib/autoSchedule';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT, TIME_FORMAT} from '../../lib/dateFormats';
 import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';
@@ -469,7 +469,7 @@ export function AssignmentModal({
                 />
               </Form.Item>
               <Form.Item name="comment" label="Комментарий">
-                <Input maxLength={45} placeholder="Комментарий..."/>
+                <Input.TextArea placeholder="Комментарий..." autoSize={{minRows: 1, maxRows: 3}}/>
               </Form.Item>
             </>
           )}
