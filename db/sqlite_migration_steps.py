@@ -216,6 +216,13 @@ class SQLiteMigrationSteps:
         if 'psi_status' not in columns:
             conn.execute("ALTER TABLE tasks ADD COLUMN psi_status TEXT NOT NULL DEFAULT 'not_required'")
 
+    @staticmethod
+    def migrate_add_task_instruction_url(conn) -> None:
+        """Добавляет отдельную nullable-ссылку на инструкцию, не изменяя описание."""
+        columns = {row[1] for row in conn.execute('PRAGMA table_info(tasks)').fetchall()}
+        if 'instruction_url' not in columns:
+            conn.execute('ALTER TABLE tasks ADD COLUMN instruction_url TEXT')
+
     _DEFAULT_SEGMENT_NAME = 'По умолчанию'
 
     @staticmethod

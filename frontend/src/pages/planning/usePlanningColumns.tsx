@@ -33,6 +33,7 @@ import {linkify} from '../../lib/linkify';
 import {API_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT} from '../../lib/dateFormats';
 import {NAME_COLUMN_WIDTH} from '../../lib/layout';
 import {getCellTint, getHeaderTint} from './cellTint';
+import {TaskInstructionLink} from './TaskInstructionLink';
 import taskTransitionsJson from '../../data/taskTransitions.json';
 import {canChangeAssignmentStatus} from './assignmentStatusRolePolicy';
 
@@ -279,6 +280,7 @@ export function usePlanningColumns({
                     </span>
                     <PsiStatusBadge value={task.psi_status} compact/>
                   </div>
+                  <TaskInstructionLink url={task.instruction_url}/>
                 </div>
               </div>
               {taskDeps.length > 0 &&

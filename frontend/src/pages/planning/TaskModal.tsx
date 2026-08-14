@@ -14,6 +14,7 @@ import {useDeleteTaskMutation, useSaveTaskMutation} from '../../hooks/useTaskMut
 interface TaskFormValues {
   name: string;
   description: string;
+  instruction_url: string;
   criticality: string;
   segment_id: number;
   psi_status: PsiStatus;
@@ -58,6 +59,7 @@ export function TaskModal({
     form.setFieldsValue({
       name: task?.name ?? '',
       description: task?.description ?? '',
+      instruction_url: task?.instruction_url ?? '',
       criticality: task?.criticality ?? 'medium',
       segment_id: task?.segment_id ?? segments?.[0]?.id,
       psi_status: task?.psi_status ?? 'not_required',
@@ -76,6 +78,7 @@ export function TaskModal({
       team_id: teamId,
       name: values.name,
       description: values.description || null,
+      instruction_url: values.instruction_url?.trim() || null,
       criticality: values.criticality,
       psi_status: values.psi_status,
       segment_id: values.segment_id,
@@ -165,6 +168,16 @@ export function TaskModal({
                   <span style={{color: token.colorTextTertiary}}>—</span>
                 )}
               </div>
+              <div style={{overflowWrap: 'anywhere'}}>
+                <strong>Ссылка на инструкцию:</strong>{' '}
+                {task?.instruction_url ? (
+                  <a href={task.instruction_url} target="_blank" rel="noopener noreferrer">
+                    {task.instruction_url}
+                  </a>
+                ) : (
+                  <span style={{color: token.colorTextTertiary}}>—</span>
+                )}
+              </div>
               <div>
                 <strong>Критичность:</strong> {CRITICALITY_LABELS[task?.criticality ?? ''] ?? task?.criticality}
               </div>
@@ -191,6 +204,27 @@ export function TaskModal({
                       </Form.Item>
                       <Form.Item name="description" label="Описание">
                         <Input.TextArea rows={7}/>
+                      </Form.Item>
+                      <Form.Item
+                        name="instruction_url"
+                        label="Ссылка на инструкцию"
+                        rules={[
+                          {max: 2048, message: 'Ссылка не должна быть длиннее 2048 символов'},
+                          {
+                            validator: async (_, value: string | undefined) => {
+                              if (!value?.trim()) return;
+                              try {
+                                const url = new URL(value.trim());
+                                if ((url.protocol === 'http:' || url.protocol === 'https:') && url.hostname) return;
+                              } catch {
+                                // Единое сообщение ниже для всех невалидных URL.
+                              }
+                              throw new Error('Укажите полную HTTP(S)-ссылку');
+                            },
+                          },
+                        ]}
+                      >
+                        <Input type="url" placeholder="https://example.com/instruction"/>
                       </Form.Item>
                       <div style={{
                         display: 'grid',

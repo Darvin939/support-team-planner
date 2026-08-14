@@ -1,38 +1,4 @@
-# task-management Specification
-
-## Purpose
-TBD - created by archiving change fix-task-edit-missing-id. Update Purpose after archive.
-## Requirements
-### Requirement: Editing a task requires it to exist
-`POST /api/task` SHALL return a 404 error when `task_id` is provided but does not refer to an existing,
-non-deleted task, instead of creating a new task under a different id.
-
-#### Scenario: Editing a deleted task
-- **WHEN** a client submits `POST /api/task` with a `task_id` belonging to a soft-deleted task
-- **THEN** the API responds `404 {'error': 'Задача не найдена'}` and no new task is created
-
-#### Scenario: Editing a nonexistent task
-- **WHEN** a client submits `POST /api/task` with a `task_id` that has never existed
-- **THEN** the API responds `404 {'error': 'Задача не найдена'}` and no new task is created
-
-#### Scenario: Creating a task (unchanged)
-- **WHEN** a client submits `POST /api/task` with no `task_id`
-- **THEN** the API creates a new task as before
-
-### Requirement: Получение работы по идентификатору не зависит от списочных фильтров
-`GET /api/task/{task_id}` SHALL возвращать одну существующую неудалённую работу после проверки доступа пользователя к её команде независимо от статуса и даты завершения работы.
-
-#### Scenario: Получена старая завершённая работа
-- **WHEN** авторизованный пользователь запрашивает доступную ему неудалённую работу в терминальном статусе, завершённую более 30 дней назад
-- **THEN** API возвращает работу, даже если она отсутствует в основном списке планирования
-
-#### Scenario: Работа не существует или удалена
-- **WHEN** пользователь запрашивает отсутствующую либо soft-deleted работу
-- **THEN** API отвечает статусом 404
-
-#### Scenario: Команда работы недоступна пользователю
-- **WHEN** пользователь запрашивает существующую работу команды, к которой у него нет доступа
-- **THEN** API отклоняет запрос согласно действующим правилам контроля доступа
+## ADDED Requirements
 
 ### Requirement: Работа хранит отдельную ссылку на инструкцию
 
@@ -65,4 +31,3 @@ non-deleted task, instead of creating a new task under a different id.
 #### Scenario: Повторный запуск миграции
 - **WHEN** migration-step запускается после того, как колонка `instruction_url` уже создана
 - **THEN** схема и данные остаются без изменений и ошибки не возникают
-

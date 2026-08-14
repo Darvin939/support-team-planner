@@ -76,6 +76,7 @@ const task: Task = {
   id: 1,
   name: 'Тестовая работа',
   description: 'Подробное описание',
+  instruction_url: 'https://example.test/instruction',
   criticality: 'medium',
   task_status: 'new',
   psi_status: 'not_required',
@@ -97,6 +98,8 @@ describe('TaskModal', () => {
 
     expect(screen.getByRole('tab', {name: 'Основное'}).getAttribute('aria-selected')).toBe('true');
     expect(screen.getByRole('tab', {name: 'Зависимости (1)'})).not.toBeNull();
+    expect((screen.getByRole('textbox', {name: 'Ссылка на инструкцию'}) as HTMLInputElement).value)
+      .toBe('https://example.test/instruction');
 
     fireEvent.click(screen.getByRole('tab', {name: 'Зависимости (1)'}));
     expect((screen.getByRole('checkbox', {name: /Зависимость Альфа/}) as HTMLInputElement).checked).toBe(true);
@@ -131,11 +134,50 @@ describe('TaskModal', () => {
         team_id: 7,
         name: 'Обновлённая работа',
         description: 'Подробное описание',
+        instruction_url: 'https://example.test/instruction',
         criticality: 'medium',
         psi_status: 'not_required',
         segment_id: 10,
         dependency_ids: [3],
       });
     });
+  });
+
+  it('rejects an invalid instruction URL before save', async () => {
+    renderModal([]);
+
+    fireEvent.change(screen.getByRole('textbox', {name: 'Ссылка на инструкцию'}), {
+      target: {value: 'javascript:alert(1)'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Обновить'}));
+
+    expect(await screen.findByText('Укажите полную HTTP(S)-ссылку')).not.toBeNull();
+    expect(mocks.save).not.toHaveBeenCalled();
+  });
+
+  it('shows separate safe links for the instruction and a URL inside the description', () => {
+    render(
+      <TaskModal
+        open
+        teamId={7}
+        task={{
+          ...task,
+          task_status: 'done',
+          description: 'Детали: https://example.test/description-link',
+          instruction_url: 'https://example.test/instruction-link',
+        }}
+        existingDepIds={[]}
+        onClose={vi.fn()}
+      />,
+    );
+
+    const instructionLink = screen.getByRole('link', {name: 'https://example.test/instruction-link'});
+    expect(instructionLink.getAttribute('target')).toBe('_blank');
+    expect(instructionLink.getAttribute('rel')).toContain('noopener');
+    expect(instructionLink.getAttribute('rel')).toContain('noreferrer');
+
+    const descriptionLink = screen.getByRole('link', {name: 'https://example.test/description-link'});
+    expect(descriptionLink.getAttribute('target')).toBe('_blank');
+    expect(descriptionLink.getAttribute('rel')).toContain('noreferrer');
   });
 });

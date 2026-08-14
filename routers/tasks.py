@@ -1,5 +1,6 @@
 from datetime import date
 from typing import Optional
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -20,6 +21,7 @@ def _task_json(task):
         'id': task['id'],
         'name': task['name'],
         'description': task['description'],
+        'instruction_url': task['instruction_url'],
         'criticality': task['criticality'],
         'task_status': task['task_status'],
         'psi_status': task['psi_status'],
@@ -109,11 +111,20 @@ def get_tasks_archive_api(
 def save_task_api(request: Request, data: TaskIn, current_user: CurrentUser = Depends(require_user)):
     name = data.name.strip()
     description = (data.description or '').strip() or None
+    instruction_url = (data.instruction_url or '').strip() or None
     if not data.team_id or not name:
         return JSONResponse({'error': 'Team ID and name required'}, status_code=400)
     require_team_access(request, data.team_id)
     if data.criticality not in ('low', 'medium', 'high'):
         return JSONResponse({'error': 'criticality must be low, medium or high'}, status_code=400)
+    if instruction_url:
+        parsed_instruction_url = urlparse(instruction_url)
+        if (
+            len(instruction_url) > 2048
+            or parsed_instruction_url.scheme not in ('http', 'https')
+            or not parsed_instruction_url.hostname
+        ):
+            return JSONResponse({'error': 'Некорректная ссылка на инструкцию'}, status_code=400)
     if not data.segment_id or not any(segment['id'] == data.segment_id for segment in db.get_all_segments()):
         return JSONResponse({'error': 'Указан несуществующий сегмент'}, status_code=400)
     psi_status = data.psi_status or 'not_required'
@@ -146,6 +157,7 @@ def save_task_api(request: Request, data: TaskIn, current_user: CurrentUser = De
                     psi_status=psi_status,
                     segment_id=data.segment_id,
                     changed_by=current_user.id,
+                    instruction_url=instruction_url,
                 )
             )
             if data.dependency_ids is not None:

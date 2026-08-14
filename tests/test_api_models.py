@@ -73,7 +73,7 @@ class ApiModelsContractTest(unittest.TestCase):
     def test_core_response_models_match_frontend_dto_fields(self):
         self.assertEqual(
             {
-                'id', 'name', 'description', 'criticality', 'task_status', 'psi_status', 'segment_id',
+                'id', 'name', 'description', 'instruction_url', 'criticality', 'task_status', 'psi_status', 'segment_id',
                 'segment_name', 'completed_at', 'has_active_assignments',
             },
             set(self.schemas['TaskOut']['properties']),

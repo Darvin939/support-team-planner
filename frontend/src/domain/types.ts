@@ -8,6 +8,7 @@ export interface Task {
   id: number;
   name: string;
   description: string | null;
+  instruction_url: string | null;
   criticality: Criticality;
   task_status: TaskStatus;
   psi_status: PsiStatus;

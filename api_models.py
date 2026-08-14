@@ -46,6 +46,7 @@ class TaskOut(BaseModel):
     id: int
     name: str
     description: Optional[str] = None
+    instruction_url: Optional[str] = None
     criticality: str
     task_status: str
     psi_status: Literal['not_required', 'required', 'passed']
@@ -141,6 +142,7 @@ class TaskIn(BaseModel):
     team_id: Optional[int] = None
     name: str = ""
     description: Optional[str] = None
+    instruction_url: Optional[str] = None
     criticality: str = "medium"
     psi_status: Optional[Literal['not_required', 'required', 'passed']] = None
     segment_id: Optional[int] = None

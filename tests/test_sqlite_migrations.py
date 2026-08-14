@@ -47,7 +47,7 @@ class SQLiteInfrastructureTests(unittest.TestCase):
         conn.row_factory = sqlite3.Row
         try:
             SQLiteBackend().init_schema(conn)
-            self.assertEqual(current_version(conn), 9)
+            self.assertEqual(current_version(conn), 10)
             tables = {row[0] for row in conn.execute(
                 "SELECT name FROM sqlite_master WHERE type = 'table'"
             )}
@@ -83,13 +83,38 @@ class SQLiteInfrastructureTests(unittest.TestCase):
         ''')
         try:
             SQLiteBackend().init_schema(conn)
-            self.assertEqual(current_version(conn), 9)
+            self.assertEqual(current_version(conn), 10)
             self.assertEqual(conn.execute('SELECT name FROM tasks WHERE id = 3').fetchone()[0], 'Legacy task')
             self.assertEqual(conn.execute('SELECT user_id FROM assignments WHERE id = 4').fetchone()[0], 2)
             task_columns = {row[1] for row in conn.execute('PRAGMA table_info(tasks)')}
             self.assertTrue({
                 'priority', 'criticality', 'segment_id', 'completed_at', 'completion_template_id', 'psi_status',
+                'instruction_url',
             } <= task_columns)
+        finally:
+            conn.close()
+
+    def test_instruction_url_migration_preserves_description_and_is_idempotent(self):
+        conn = sqlite3.connect(':memory:')
+        conn.executescript('''
+            CREATE TABLE tasks (
+                id INTEGER PRIMARY KEY,
+                description TEXT
+            );
+            INSERT INTO tasks (id, description)
+            VALUES (1, 'Инструкция: https://example.test/docs');
+        ''')
+        try:
+            steps = sqlite_backend.SQLiteMigrationSteps()
+            steps.migrate_add_task_instruction_url(conn)
+            steps.migrate_add_task_instruction_url(conn)
+
+            columns = [row[1] for row in conn.execute('PRAGMA table_info(tasks)')]
+            self.assertEqual(1, columns.count('instruction_url'))
+            self.assertEqual(
+                ('Инструкция: https://example.test/docs', None),
+                conn.execute('SELECT description, instruction_url FROM tasks WHERE id = 1').fetchone(),
+            )
         finally:
             conn.close()
 

@@ -160,6 +160,7 @@ class CompositeTransactionApiTest(unittest.TestCase):
                 'team_id': 1,
                 'name': 'Changed task',
                 'description': 'Changed description',
+                'instruction_url': 'https://example.test/changed',
                 'criticality': 'high',
                 'segment_id': 1,
                 'dependency_ids': [],
@@ -168,15 +169,116 @@ class CompositeTransactionApiTest(unittest.TestCase):
 
         conn = sqlite3.connect(self.path)
         task = conn.execute(
-            'SELECT name, description, criticality FROM tasks WHERE id = 10'
+            'SELECT name, description, instruction_url, criticality FROM tasks WHERE id = 10'
         ).fetchone()
-        self.assertEqual(('Original task', 'Original description', 'medium'), task)
+        self.assertEqual(('Original task', 'Original description', None, 'medium'), task)
         self.assertEqual([(11,)], conn.execute(
             'SELECT depends_on_task_id FROM task_dependencies WHERE task_id = 10'
         ).fetchall())
         self.assertEqual(0, conn.execute(
             'SELECT COUNT(*) FROM task_history WHERE task_id = 10'
         ).fetchone()[0])
+        conn.close()
+
+    def test_task_instruction_url_create_update_clear_and_history(self):
+        with self.login() as client:
+            created = client.post('/api/task', json={
+                'team_id': 1,
+                'name': 'Instruction task',
+                'description': 'Description with https://example.test/inside-description',
+                'instruction_url': 'https://example.test/new-instruction',
+                'criticality': 'low',
+                'segment_id': 1,
+                'dependency_ids': [],
+            })
+            self.assertEqual(200, created.status_code)
+            created_id = created.json()['id']
+            self.assertEqual(
+                'https://example.test/new-instruction',
+                client.get(f'/api/task/{created_id}').json()['instruction_url'],
+            )
+
+        conn = sqlite3.connect(self.path)
+        snapshot = conn.execute(
+            "SELECT new_value FROM task_history WHERE task_id = ? AND action = 'create'",
+            (created_id,),
+        ).fetchone()[0]
+        self.assertIn('"instruction_url": "https://example.test/new-instruction"', snapshot)
+        conn.execute('DELETE FROM task_history WHERE task_id = ?', (created_id,))
+        conn.execute('DELETE FROM tasks WHERE id = ?', (created_id,))
+        conn.commit()
+        conn.close()
+
+        payload = {
+            'task_id': 10,
+            'team_id': 1,
+            'name': 'Original task',
+            'description': 'Original description',
+            'instruction_url': '  https://example.test/instructions/10  ',
+            'criticality': 'medium',
+            'segment_id': 1,
+            'dependency_ids': [11],
+        }
+        with self.login() as client:
+            response = client.post('/api/task', json=payload)
+            self.assertEqual(200, response.status_code)
+            self.assertEqual(
+                'https://example.test/instructions/10',
+                client.get('/api/task/10').json()['instruction_url'],
+            )
+            self.assertEqual(
+                'https://example.test/instructions/10',
+                client.get('/api/tasks/1').json()['tasks'][0]['instruction_url'],
+            )
+
+            payload['instruction_url'] = '   '
+            response = client.post('/api/task', json=payload)
+            self.assertEqual(200, response.status_code)
+            self.assertIsNone(client.get('/api/task/10').json()['instruction_url'])
+
+        conn = sqlite3.connect(self.path)
+        history = conn.execute(
+            "SELECT old_value, new_value FROM task_history "
+            "WHERE task_id = 10 AND field_name = 'instruction_url' ORDER BY id"
+        ).fetchall()
+        self.assertEqual(
+            [(None, 'https://example.test/instructions/10'), ('https://example.test/instructions/10', None)],
+            history,
+        )
+        conn.execute("DELETE FROM task_history WHERE task_id = 10 AND field_name = 'instruction_url'")
+        conn.commit()
+        conn.close()
+
+    def test_task_instruction_url_validation_does_not_change_task_or_dependencies(self):
+        payload = {
+            'task_id': 10,
+            'team_id': 1,
+            'name': 'Should not be saved',
+            'description': 'Should not be saved',
+            'criticality': 'high',
+            'segment_id': 1,
+            'dependency_ids': [],
+        }
+        invalid_urls = ('relative/path', 'https:///missing-host', 'javascript:alert(1)', 'https://x.test/' + 'a' * 2040)
+        with self.login() as client:
+            for invalid_url in invalid_urls:
+                response = client.post('/api/task', json={**payload, 'instruction_url': invalid_url})
+                self.assertEqual(400, response.status_code)
+                self.assertEqual({'error': 'Некорректная ссылка на инструкцию'}, response.json())
+
+        conn = sqlite3.connect(self.path)
+        self.assertEqual(
+            ('Original task', 'Original description', None, 'medium'),
+            conn.execute(
+                'SELECT name, description, instruction_url, criticality FROM tasks WHERE id = 10'
+            ).fetchone(),
+        )
+        self.assertEqual(
+            [(11,)],
+            conn.execute(
+                'SELECT depends_on_task_id FROM task_dependencies WHERE task_id = 10'
+            ).fetchall(),
+        )
         conn.close()
 
     def test_team_creation_rolls_back_templates_when_access_grant_fails(self):

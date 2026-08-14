@@ -41,7 +41,8 @@ def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, include_re
     params += [limit, offset]
     # @formatter:off
     return conn.execute(
-        f'''SELECT tasks.id, tasks.name, tasks.description, tasks.criticality, tasks.task_status, tasks.psi_status,
+        f'''SELECT tasks.id, tasks.name, tasks.description, tasks.instruction_url,
+                   tasks.criticality, tasks.task_status, tasks.psi_status,
                    tasks.segment_id, segments.name AS segment_name, tasks.completed_at,
                    EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0
                           AND a.status != 'new') AS has_active_assignments
@@ -80,7 +81,7 @@ def get_tasks_count_by_team(conn, team_id, search=None, include_recent_completed
 @with_db_connection(commit_on_success=False)
 def get_task_by_id(conn, task_id):
     return conn.execute(
-        '''SELECT tasks.id, tasks.team_id, tasks.name, tasks.description, tasks.criticality,
+        '''SELECT tasks.id, tasks.team_id, tasks.name, tasks.description, tasks.instruction_url, tasks.criticality,
                   tasks.task_status, tasks.psi_status, tasks.segment_id, segments.name AS segment_name,
                   tasks.completed_at,
                   EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0
@@ -112,7 +113,8 @@ def get_archived_tasks_by_team(conn, team_id, offset=0, limit=20, search=None,
                                completed_from=None, completed_to=None):
     filters, filter_params = _archive_filter(search, completed_from, completed_to)
     return conn.execute(
-        f'''SELECT tasks.id, tasks.name, tasks.description, tasks.criticality, tasks.task_status, tasks.psi_status,
+        f'''SELECT tasks.id, tasks.name, tasks.description, tasks.instruction_url,
+                   tasks.criticality, tasks.task_status, tasks.psi_status,
                    tasks.segment_id, segments.name AS segment_name, tasks.completed_at,
                    EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0
                           AND a.status != 'new') AS has_active_assignments
@@ -189,17 +191,20 @@ def task_has_any_assignments(conn, task_id):
 
 @with_db_connection()
 def create_or_update_task(conn, task_id, team_id, name, description, criticality='medium', psi_status='not_required',
-                           segment_id=None, changed_by=None):
+                           segment_id=None, changed_by=None, instruction_url=None):
     """Создать или обновить задачу. priority этой функцией напрямую не редактируется — им
     управляют reorder_team_tasks/move_task_to_edge — за исключением одного случая: если на UPDATE
     меняется criticality, задача пересчитывается в конец списка НОВОГО уровня критичности (как
     новая задача), т.к. её старое числовое значение priority больше ничего не значит относительно
     задач другого уровня. На CREATE новая задача всегда уходит в конец списка своего уровня
     критичности (наименьший приоритет внутри него)."""
-    existing = conn.execute('SELECT name, description, criticality, psi_status, priority, segment_id FROM tasks WHERE id = ?',
+    existing = conn.execute(
+        'SELECT name, description, instruction_url, criticality, psi_status, priority, segment_id '
+        'FROM tasks WHERE id = ?',
                              (task_id,)).fetchone()
     if existing:
-        for field, new_val in (('name', name), ('description', description), ('criticality', criticality),
+        for field, new_val in (('name', name), ('description', description),
+                                ('instruction_url', instruction_url), ('criticality', criticality),
                                 ('psi_status', psi_status),
                                 ('segment_id', segment_id)):
             old_val = existing[field]
@@ -217,22 +222,25 @@ def create_or_update_task(conn, task_id, team_id, name, description, criticality
             '''UPDATE tasks
                SET name        = ?,
                    description = ?,
+                   instruction_url = ?,
                    criticality = ?,
                    psi_status  = ?,
                    segment_id  = ?,
                    priority    = ?
                WHERE id = ?''',
-            (name, description, criticality, psi_status, segment_id, new_priority, task_id)
+            (name, description, instruction_url, criticality, psi_status, segment_id, new_priority, task_id)
         )
     else:
         new_priority = _priority_at_tier_end(conn, team_id, criticality)
         cursor = conn.execute(
-            'INSERT INTO tasks (team_id, name, description, criticality, psi_status, segment_id, priority) '
-            'VALUES (?, ?, ?, ?, ?, ?, ?)',
-            (team_id, name, description, criticality, psi_status, segment_id, new_priority)
+            'INSERT INTO tasks '
+            '(team_id, name, description, instruction_url, criticality, psi_status, segment_id, priority) '
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            (team_id, name, description, instruction_url, criticality, psi_status, segment_id, new_priority)
         )
         task_id = _backend.last_insert_id(cursor)
         snapshot = json.dumps({'team_id': team_id, 'name': name, 'description': description,
+                                'instruction_url': instruction_url,
                                 'criticality': criticality, 'psi_status': psi_status,
                                 'segment_id': segment_id, 'priority': new_priority},
                                ensure_ascii=False)

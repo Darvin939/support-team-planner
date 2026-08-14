@@ -9,6 +9,7 @@ export interface TaskPayload {
   team_id: number;
   name: string;
   description: string | null;
+  instruction_url: string | null;
   criticality: string;
   psi_status: 'not_required' | 'required' | 'passed';
   segment_id: number;

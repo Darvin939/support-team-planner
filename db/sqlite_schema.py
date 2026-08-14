@@ -57,6 +57,7 @@ SCHEMA = '''
         segment_id INTEGER NOT NULL REFERENCES segments(id),
         name text NOT NULL,
         description text,
+        instruction_url text,
         criticality text NOT NULL DEFAULT 'medium',
         priority INTEGER NOT NULL DEFAULT 0,
         task_status TEXT NOT NULL DEFAULT 'new',

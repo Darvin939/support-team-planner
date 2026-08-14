@@ -1,5 +1,6 @@
 export const HISTORY_FIELD_LABELS: Record<string, string> = {
-  name: 'Название', description: 'Описание', criticality: 'Критичность', priority: 'Приоритет', task_status: 'Статус',
+  name: 'Название', description: 'Описание', instruction_url: 'Ссылка на инструкцию',
+  criticality: 'Критичность', priority: 'Приоритет', task_status: 'Статус',
   date: 'Дата', block: 'Блок', status: 'Статус',
   // employee_id — старое имя поля, всё ещё встречается в исторических записях, созданных до
   // переименования employees -> users; user_id — новые записи. Оба должны отображаться одинаково.
