@@ -2,7 +2,7 @@ import {message} from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import {apiMutate} from '../lib/apiMutate';
 import {invalidateTaskData} from '../lib/queryInvalidation';
-import {TASK_STATUS_LABELS} from '../domain/types';
+import {TASK_STATUS_LABELS, type Criticality, type PsiStatus, type TaskStatus} from '../domain/types';
 
 export interface TaskPayload {
   task_id?: number;
@@ -10,8 +10,8 @@ export interface TaskPayload {
   name: string;
   description: string | null;
   instruction_url: string | null;
-  criticality: string;
-  psi_status: 'not_required' | 'required' | 'passed';
+  criticality: Criticality;
+  psi_status: PsiStatus;
   segment_id: number;
   dependency_ids: number[];
 }
@@ -62,12 +62,12 @@ export function useRestoreTaskMutation() {
 export function useTaskStatusMutation(getTaskName: (taskId: number) => string | undefined) {
   const invalidate = useTaskMutationInvalidation({activeAssignments: true});
   return useMutation({
-    mutationFn: ({taskId, status}: {taskId: number; status: string}) =>
+    mutationFn: ({taskId, status}: {taskId: number; status: TaskStatus}) =>
       apiMutate(`/api/tasks/${taskId}/status`, 'PATCH', {status}).then(() => ({taskId, status})),
     onSuccess: async ({taskId, status}) => {
       await invalidate();
       if (status === 'done' || status === 'cancelled') {
-        message.success(`«${getTaskName(taskId) ?? taskId}» — ${TASK_STATUS_LABELS[status] ?? status}`);
+        message.success(`«${getTaskName(taskId) ?? taskId}» — ${TASK_STATUS_LABELS[status]}`);
       }
     },
     onError: (error: Error) => message.error(error.message),

@@ -6,7 +6,7 @@ import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import {useSegments} from '../../hooks/useSettingsData';
 import {CriticalityBadge, PsiStatusBadge, TaskStatusBadge, tintedStyle} from '../../components/planningBadges';
 import {linkify} from '../../lib/linkify';
-import {CRITICALITY_LABELS, PSI_STATUS_LABELS, PSI_STATUS_OPTIONS, type PsiStatus, type Task} from '../../domain/types';
+import {CRITICALITY_LABELS, CRITICALITY_OPTIONS, PSI_STATUS_LABELS, PSI_STATUS_OPTIONS, type Criticality, type PsiStatus, type Task} from '../../domain/types';
 import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';
 import {useIsMobile} from '../../hooks/useIsMobile';
 import {useDeleteTaskMutation, useSaveTaskMutation} from '../../hooks/useTaskMutations';
@@ -15,12 +15,11 @@ interface TaskFormValues {
   name: string;
   description: string;
   instruction_url: string;
-  criticality: string;
+  criticality: Criticality;
   segment_id: number;
   psi_status: PsiStatus;
 }
 
-const CRITICALITY_ORDER = ['low', 'medium', 'high'] as const;
 const TERMINAL_STATUS_LABEL: Record<string, string> = {done: 'Выполнена', cancelled: 'Отменена'};
 
 export function TaskModal({
@@ -179,7 +178,7 @@ export function TaskModal({
                 )}
               </div>
               <div>
-                <strong>Критичность:</strong> {CRITICALITY_LABELS[task?.criticality ?? ''] ?? task?.criticality}
+                <strong>Критичность:</strong> {task ? CRITICALITY_LABELS[task.criticality] : '—'}
               </div>
               <div>
                 <strong>Сегмент:</strong> {task?.segment_name}
@@ -234,7 +233,7 @@ export function TaskModal({
                         <Form.Item name="criticality" label="Критичность"
                                    rules={[{required: true, message: 'Выберите критичность'}]}>
                           <Select
-                            options={CRITICALITY_ORDER.map((value) => ({value, label: CRITICALITY_LABELS[value]}))}
+                            options={CRITICALITY_OPTIONS}
                           />
                         </Form.Item>
                         <Form.Item name="segment_id" label="Сегмент"

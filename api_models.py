@@ -2,13 +2,19 @@ from typing import List, Literal, Optional, Union
 
 from pydantic import BaseModel
 
+TaskStatus = Literal['new', 'done', 'cancelled']
+AssignmentStatus = Literal['new', 'planned', 'rollback', 'success', 'cancelled']
+Criticality = Literal['low', 'medium', 'high']
+UserRole = Literal['user', 'editor', 'admin']
+PsiStatus = Literal['not_required', 'required', 'passed']
+
 
 class AssignmentIn(BaseModel):
     assignment_id: Optional[int] = None
     task_id: Optional[int] = None
     date: Optional[str] = None
     block: Optional[str] = None
-    status: str = "new"
+    status: AssignmentStatus = "new"
     user_id: Optional[int] = None
     comment: Optional[str] = None
     time_spent: Optional[str] = None
@@ -47,9 +53,9 @@ class TaskOut(BaseModel):
     name: str
     description: Optional[str] = None
     instruction_url: Optional[str] = None
-    criticality: str
-    task_status: str
-    psi_status: Literal['not_required', 'required', 'passed']
+    criticality: Criticality
+    task_status: TaskStatus
+    psi_status: PsiStatus
     segment_id: int
     segment_name: str
     completed_at: Optional[str] = None
@@ -66,7 +72,7 @@ class AssignmentOut(BaseModel):
     task_id: int
     date: str
     block: Optional[str] = None
-    status: str
+    status: AssignmentStatus
     user_id: Optional[int] = None
     user_name: Optional[str] = None
     comment: Optional[str] = None
@@ -105,10 +111,10 @@ class ActiveAssignmentOut(BaseModel):
     id: int
     task_id: int
     task_name: str
-    criticality: str
+    criticality: Criticality
     date: str
     block: Optional[str] = None
-    status: str
+    status: AssignmentStatus
     user_name: Optional[str] = None
     comment: Optional[str] = None
     team_id: int
@@ -143,8 +149,8 @@ class TaskIn(BaseModel):
     name: str = ""
     description: Optional[str] = None
     instruction_url: Optional[str] = None
-    criticality: str = "medium"
-    psi_status: Optional[Literal['not_required', 'required', 'passed']] = None
+    criticality: Criticality = "medium"
+    psi_status: Optional[PsiStatus] = None
     segment_id: Optional[int] = None
     dependency_ids: Optional[List[int]] = None
 
@@ -178,7 +184,7 @@ class UserIn(BaseModel):
     first_name: str = ""
     middle_name: Optional[str] = None
     password: Optional[str] = None
-    role: str = "user"
+    role: UserRole = "user"
     login: Optional[str] = None
     is_assignee: bool = True
     team_ids: Optional[List[int]] = None
@@ -201,7 +207,7 @@ class FreezeDayMonthIn(BaseModel):
 
 
 class TaskStatusIn(BaseModel):
-    status: str
+    status: TaskStatus
 
 
 class TaskReorderIn(BaseModel):

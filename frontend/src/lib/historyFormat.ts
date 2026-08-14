@@ -36,11 +36,11 @@ export function formatHistoryValue(field: string, value: string | null, getUserN
   if (field === 'is_deleted') return value === '1' ? 'Да' : 'Нет';
   if (value === null || value === undefined || value === '') return '—';
   if (field === 'criticality') return CRITICALITY_LABELS[value as keyof typeof CRITICALITY_LABELS] || value;
-  if (field === 'task_status') return TASK_STATUS_LABELS[value as keyof typeof TASK_STATUS_LABELS] || value;
+  if (field === 'task_status') return TASK_STATUS_LABELS[value as keyof typeof TASK_STATUS_LABELS] ?? value;
   if (field === 'status') return ASSIGNMENT_STATUS_LABELS[value as keyof typeof ASSIGNMENT_STATUS_LABELS] || value;
   if (field === 'employee_id' || field === 'user_id') return getUserName(value);
   if (field === 'is_psi') return value === '1' ? 'Да' : 'Нет';
-  if (field === 'psi_status') return ({not_required: 'Не требуется', required: 'Требуется', passed: 'Пройдено'} as Record<string, string>)[value] ?? value;
+  if (field === 'psi_status') return PSI_STATUS_LABELS[value as keyof typeof PSI_STATUS_LABELS] ?? value;
   return value;
 }
 
@@ -68,6 +68,6 @@ export function formatHistoryText(
   return showAssignmentContext && isAssignmentRow ? `Назначение на ${entry.date} — ${changeText}` : changeText;
 }
 
-import {ASSIGNMENT_STATUS_LABELS, CRITICALITY_LABELS, TASK_STATUS_LABELS} from '../domain/types';
+import {ASSIGNMENT_STATUS_LABELS, CRITICALITY_LABELS, PSI_STATUS_LABELS, TASK_STATUS_LABELS} from '../domain/types';
 
 export {ASSIGNMENT_STATUS_LABELS, CRITICALITY_LABELS, TASK_STATUS_LABELS} from '../domain/types';

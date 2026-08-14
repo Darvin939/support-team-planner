@@ -26,7 +26,7 @@ import {
   VerticalAlignBottomOutlined,
   VerticalAlignTopOutlined,
 } from '@ant-design/icons';
-import type {AssignmentStatus, Assignment, Task, TaskDep} from '../../domain/types';
+import type {AssignmentStatus, Assignment, Task, TaskDep, TaskStatus} from '../../domain/types';
 import {ASSIGNMENT_STATUS_LABELS, ASSIGNMENT_STATUS_OPTIONS, TASK_STATUS_LABELS} from '../../domain/types';
 import {CriticalityBadge, DepBadge, type DepBadgeEntry, PsiStatusBadge, ScheduleChip} from '../../components/planningBadges';
 import {linkify} from '../../lib/linkify';
@@ -70,7 +70,7 @@ interface UsePlanningColumnsOptions {
   onToggleAssignment: (assignmentId: number) => void;
   onClearSelection: () => void;
   priorityMutation: MutateFn<{ taskId: number; position: 'start' | 'end' }>;
-  statusMutation: MutateFn<{ taskId: number; status: string }>;
+  statusMutation: MutateFn<{ taskId: number; status: TaskStatus }>;
   assignmentStatusMutation: MutateFn<{ assignmentId: number; status: AssignmentStatus }>;
   setGraphModal: Dispatch<SetStateAction<{ open: boolean; taskId?: number }>>;
   setTaskModal: Dispatch<SetStateAction<{ open: boolean; task: Task | null }>>;
@@ -182,7 +182,7 @@ export function usePlanningColumns({
                 label: 'Статус',
                 children: transitions.map((s) => ({
                   key: s,
-                  label: TASK_STATUS_LABELS[s] ?? s,
+                  label: TASK_STATUS_LABELS[s as TaskStatus] ?? s,
                   icon: s === 'done' ? <CheckOutlined/> : <CloseOutlined/>,
                 })),
               },

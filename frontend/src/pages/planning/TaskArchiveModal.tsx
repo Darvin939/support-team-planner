@@ -2,7 +2,7 @@ import {useEffect, useState} from 'react';
 import {Button, DatePicker, Input, Modal, Popconfirm, Space, Table, theme, Typography} from 'antd';
 import dayjs, {type Dayjs} from 'dayjs';
 import {OffsetPagination} from '../../components/OffsetPagination';
-import {TASK_STATUS_LABELS} from '../../domain/types';
+import {TASK_STATUS_LABELS, type TaskStatus} from '../../domain/types';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import {type Task, useTaskArchive} from '../../hooks/usePlanningData';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT} from '../../lib/dateFormats';
@@ -51,7 +51,7 @@ export function TaskArchiveModal({open, teamId, canRestore, onClose}: {
           {title: 'Статус', dataIndex: 'task_status', key: 'status', render: (status: string) =>
             <span data-archive-task-status={status}
                   style={tintedStyle(status === 'done' ? token.colorSuccess : token.colorError)}>
-              {TASK_STATUS_LABELS[status] ?? status}
+              {TASK_STATUS_LABELS[status as TaskStatus] ?? status}
             </span>},
           {title: 'Дата завершения', dataIndex: 'completed_at', key: 'completed_at',
             render: (value: string | null) => value ? dayjs(value).format('DD.MM.YYYY HH:mm') :

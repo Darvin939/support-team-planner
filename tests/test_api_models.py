@@ -70,6 +70,22 @@ class ApiModelsContractTest(unittest.TestCase):
             entries['items']['$ref'],
         )
 
+    def test_domain_enum_inputs_are_explicit(self):
+        expected = {
+            ('TaskStatusIn', 'status'): ['new', 'done', 'cancelled'],
+            ('AssignmentIn', 'status'): ['new', 'planned', 'rollback', 'success', 'cancelled'],
+            ('TaskIn', 'criticality'): ['low', 'medium', 'high'],
+            ('UserIn', 'role'): ['user', 'editor', 'admin'],
+        }
+        for (model, field), values in expected.items():
+            with self.subTest(model=model, field=field):
+                self.assertEqual(values, self.schemas[model]['properties'][field]['enum'])
+
+        self.assertEqual(
+            ['new', 'done', 'cancelled'],
+            self.schemas['TaskOut']['properties']['task_status']['enum'],
+        )
+
     def test_core_response_models_match_frontend_dto_fields(self):
         self.assertEqual(
             {

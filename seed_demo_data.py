@@ -29,7 +29,7 @@ EXTRA_TEMPLATES = {
     'Сотрудники': ('ЕФС Сотр короткий', ['SB', 'BF']),
     'ППРБ': ('ППРБ быстрый', ['SK']),
 }
-TASK_STATUSES = ('new', 'ready', 'in_progress', 'done', 'cancelled')
+TASK_STATUSES = ('new', 'done', 'cancelled')
 PSI_STATUSES = ('not_required', 'passed', 'required')
 ASSIGNMENT_STATUSES = ('new', 'planned', 'success', 'rollback', 'cancelled')
 
@@ -212,7 +212,7 @@ def create_tasks_and_assignments(team_ids, segment_ids, template_ids, users, ass
             psi_status = PSI_STATUSES[(global_task_number - 1) % len(PSI_STATUSES)]
             # Первая работа каждой команды гарантированно демонстрирует предложение завершения.
             if local_index == 0:
-                task_status = 'in_progress'
+                task_status = 'new'
                 psi_status = 'passed'
             task_id = db.create_or_update_task(
                 None,

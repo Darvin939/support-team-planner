@@ -157,9 +157,18 @@ class ApiErrorFormatTest(unittest.TestCase):
                 user['id'] for user in client.get('/api/users').json() if user['login'] == 'admin'
             )
             own_delete = client.delete(f'/api/users/{current_user_id}')
-        self.assertEqual((400, {'error': 'Недопустимая роль'}), (invalid_role.status_code, invalid_role.json()))
+        self.assertEqual((422, {'error': 'Некорректный запрос'}), (invalid_role.status_code, invalid_role.json()))
         self.assertEqual(400, own_delete.status_code)
         self.assertIn('error', own_delete.json())
+
+    def test_unknown_assignment_status_is_rejected_before_write(self):
+        with self.login() as client:
+            response = client.post('/api/assignment', json={
+                'task_id': 10,
+                'date': '2026-08-15',
+                'status': 'unknown',
+            })
+        self.assertEqual((422, {'error': 'Некорректный запрос'}), (response.status_code, response.json()))
 
     def test_user_duplicate_and_not_found_domain_errors_are_explicit(self):
         payload = {

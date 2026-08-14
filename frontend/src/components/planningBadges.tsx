@@ -2,7 +2,7 @@ import {type CSSProperties, useState} from 'react';
 import {CheckOutlined, CloseOutlined} from '@ant-design/icons';
 import {Button, Popover, Space, theme, Tooltip} from 'antd';
 import {ASSIGNMENT_STATUS_LABELS, TASK_STATUS_LABELS} from '../domain/types';
-import type {PsiStatus} from '../domain/types';
+import type {AssignmentStatus, Criticality, PsiStatus, TaskStatus} from '../domain/types';
 
 export function tintedStyle(color: string): CSSProperties {
   return {
@@ -17,12 +17,12 @@ export function tintedStyle(color: string): CSSProperties {
   };
 }
 
-const CRIT_SHORT_LABEL: Record<string, string> = {high: 'В', medium: 'С', low: 'Н'};
+const CRIT_SHORT_LABEL: Record<Criticality, string> = {high: 'В', medium: 'С', low: 'Н'};
 
 export function CriticalityBadge({value}: { value: string }) {
   const {token} = theme.useToken();
   const color = value === 'high' ? token.colorError : value === 'medium' ? token.colorWarning : token.colorSuccess;
-  return <span style={tintedStyle(color)}>{CRIT_SHORT_LABEL[value] ?? value}</span>;
+  return <span style={tintedStyle(color)}>{CRIT_SHORT_LABEL[value as Criticality] ?? value}</span>;
 }
 
 export function TaskStatusBadge({value}: { value: string }) {
@@ -31,7 +31,7 @@ export function TaskStatusBadge({value}: { value: string }) {
   const color = value === 'done' ? token.colorSuccess : token.colorError;
   const icon = value === 'done' ? <CheckOutlined/> : <CloseOutlined/>;
   return (
-    <Tooltip title={TASK_STATUS_LABELS[value] ?? value}>
+    <Tooltip title={TASK_STATUS_LABELS[value as TaskStatus] ?? value}>
       <span style={{color, fontSize: '0.95rem', display: 'inline-flex', alignItems: 'center'}}>{icon}</span>
     </Tooltip>
   );
@@ -130,7 +130,7 @@ export function BlockRail({block}: { block: string | null }) {
 export interface AssignmentLite {
   id: number;
   block: string | null;
-  status: 'new' | 'planned' | 'rollback' | 'success' | 'cancelled';
+  status: AssignmentStatus;
   user_name: string | null;
   comment: string | null;
   time_spent: string | null;

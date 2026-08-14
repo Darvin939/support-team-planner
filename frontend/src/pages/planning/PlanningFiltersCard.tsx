@@ -2,7 +2,7 @@ import type {Dispatch, SetStateAction} from 'react';
 import {Card, Checkbox, DatePicker, Input, Select, Typography} from 'antd';
 import dayjs, {type Dayjs} from 'dayjs';
 import {FilterField, FilterGrid} from '../../components/FilterGrid';
-import {ASSIGNMENT_STATUS_OPTIONS, CRITICALITY_OPTIONS, TASK_STATUS_OPTIONS, type Segment} from '../../domain/types';
+import {ASSIGNMENT_STATUS_OPTIONS, CRITICALITY_OPTIONS, TASK_STATUS_OPTIONS, type AssignmentStatus, type Criticality, type Segment, type TaskStatus} from '../../domain/types';
 import {DISPLAY_DATE_FORMAT} from '../../lib/dateFormats';
 
 export function PlanningFiltersCard(props: {
@@ -11,14 +11,14 @@ export function PlanningFiltersCard(props: {
   onRangeChange: (dates: [Dayjs | null, Dayjs | null] | null) => void;
   search: string;
   setSearch: Dispatch<SetStateAction<string>>;
-  criticalities: string[];
-  setCriticalities: Dispatch<SetStateAction<string[]>>;
+  criticalities: Criticality[];
+  setCriticalities: Dispatch<SetStateAction<Criticality[]>>;
   segmentIds: number[];
   setSegmentIds: Dispatch<SetStateAction<number[]>>;
-  assignmentStatuses: string[];
-  setAssignmentStatuses: Dispatch<SetStateAction<string[]>>;
-  taskStatuses: string[];
-  setTaskStatuses: Dispatch<SetStateAction<string[]>>;
+  assignmentStatuses: AssignmentStatus[];
+  setAssignmentStatuses: Dispatch<SetStateAction<AssignmentStatus[]>>;
+  taskStatuses: TaskStatus[];
+  setTaskStatuses: Dispatch<SetStateAction<TaskStatus[]>>;
   segments: Segment[] | undefined;
   showCompleted: boolean;
   setShowCompleted: Dispatch<SetStateAction<boolean>>;

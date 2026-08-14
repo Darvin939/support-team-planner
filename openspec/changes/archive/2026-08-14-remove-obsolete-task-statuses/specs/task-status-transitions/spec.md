@@ -1,8 +1,5 @@
-# task-status-transitions Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change shared-task-transitions-source. Update Purpose after archive.
-## Requirements
 ### Requirement: One JSON file is the source of truth for task-status transitions
 The current task-status vocabulary SHALL contain exactly `new`, `done`, and `cancelled`. The set of allowed task-status transitions SHALL be defined in exactly one file (`frontend/src/data/taskTransitions.json`), read directly by both the backend and the frontend — neither maintains its own independent transition map. Template-driven completion suggestions MUST execute the same standard transition and MUST NOT bypass this map. Legacy `ready` and `in_progress` values MUST NOT be created by штатные demo seed-скрипты and SHALL NOT require a frontend compatibility layer.
 
@@ -34,6 +31,8 @@ The current task-status vocabulary SHALL contain exactly `new`, `done`, and `can
 - **WHEN** выполняется разовая обслуживающая операция над текущей тестовой БД
 - **THEN** `ready` и `in_progress` заменяются на `new` в работах и значениях истории статуса без добавления application migration
 
+## ADDED Requirements
+
 ### Requirement: API использует явные перечисления доменных значений
 Pydantic-контракты SHALL ограничивать текущий статус работы значениями `new`, `done`, `cancelled`, статус назначения значениями `new`, `planned`, `rollback`, `success`, `cancelled`, критичность значениями `low`, `medium`, `high`, а роль значениями `user`, `editor`, `admin`. Общие значения аудита MAY оставаться строковыми.
 
@@ -48,4 +47,3 @@ Pydantic-контракты SHALL ограничивать текущий ста
 #### Scenario: Неизвестное значение другого enum отклоняется
 - **WHEN** input-модель получает неизвестный статус работы, критичность или роль
 - **THEN** запрос отклоняется до выполнения соответствующей операции
-

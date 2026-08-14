@@ -1,5 +1,5 @@
 export type Criticality = 'high' | 'medium' | 'low';
-export type TaskStatus = 'new' | 'ready' | 'in_progress' | 'done' | 'cancelled';
+export type TaskStatus = 'new' | 'done' | 'cancelled';
 export type AssignmentStatus = 'new' | 'planned' | 'rollback' | 'success' | 'cancelled';
 export type UserRole = 'admin' | 'editor' | 'user';
 export type PsiStatus = 'not_required' | 'required' | 'passed';
@@ -90,8 +90,6 @@ export const ASSIGNMENT_STATUS_OPTIONS = [
 
 export const TASK_STATUS_OPTIONS = [
   {value: 'new', label: 'Новый'},
-  {value: 'ready', label: 'К планированию'},
-  {value: 'in_progress', label: 'В работе'},
   {value: 'done', label: 'Выполнено'},
   {value: 'cancelled', label: 'Отменено'},
 ] satisfies Array<{value: TaskStatus; label: string}>;
@@ -118,14 +116,14 @@ export const ROLE_OPTIONS = [
   {value: 'admin', label: 'Администратор'},
 ] satisfies Array<{value: UserRole; label: string}>;
 
-export const ASSIGNMENT_STATUS_LABELS: Record<string, string> = {
+export const ASSIGNMENT_STATUS_LABELS: Record<AssignmentStatus, string> = {
   new: 'Новый', planned: 'Запланировано', rollback: 'Откат', success: 'Успешно', cancelled: 'Отменено',
 };
 
-export const CRITICALITY_LABELS: Record<string, string> = {
+export const CRITICALITY_LABELS: Record<Criticality, string> = {
   high: 'Высокая', medium: 'Средняя', low: 'Низкая',
 };
 
-export const TASK_STATUS_LABELS: Record<string, string> = {
-  new: 'Новый', ready: 'К планированию', in_progress: 'В работе', done: 'Выполнено', cancelled: 'Отменено',
+export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
+  new: 'Новый', done: 'Выполнено', cancelled: 'Отменено',
 };

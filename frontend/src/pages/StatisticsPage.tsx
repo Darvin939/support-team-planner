@@ -14,6 +14,7 @@ import {DEFAULT_PAGE_SIZE} from '../lib/pagination';
 import {PagePagination} from '../components/PagePagination';
 import {readStoredJson, writeStoredJson} from '../lib/storage';
 import {usePaginationState} from '../hooks/usePaginationState';
+import {ASSIGNMENT_STATUS_LABELS, type AssignmentStatus} from '../domain/types';
 import {
   type ActiveAssignment,
   type ActiveAssignmentsResponse,
@@ -21,14 +22,6 @@ import {
 } from '../hooks/useStatisticsData';
 
 const STORAGE_STATS_TEAMS = 'statsSelectedTeams';
-
-const STATUS_LABEL: Record<string, string> = {
-  new: 'Новый',
-  planned: 'Запланировано',
-  rollback: 'Откат',
-  success: 'Успешно',
-  cancelled: 'Отменено'
-};
 
 function buildColumns(showDate: boolean): TableColumnsType<ActiveAssignment> {
   const cols: TableColumnsType<ActiveAssignment> = [
@@ -45,7 +38,8 @@ function buildColumns(showDate: boolean): TableColumnsType<ActiveAssignment> {
   if (showDate) cols.push({title: 'Дата', dataIndex: 'date', key: 'date'});
   cols.push(
     {title: 'Блок', dataIndex: 'block', key: 'block'},
-    {title: 'Статус', dataIndex: 'status', key: 'status', render: (v) => STATUS_LABEL[v] ?? v},
+    {title: 'Статус', dataIndex: 'status', key: 'status', render: (v: string) =>
+      ASSIGNMENT_STATUS_LABELS[v as AssignmentStatus] ?? v},
     {title: 'Исполнитель', dataIndex: 'user_name', key: 'user_name'},
     {title: 'Комментарий', dataIndex: 'comment', key: 'comment'},
   );

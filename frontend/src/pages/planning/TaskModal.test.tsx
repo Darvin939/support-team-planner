@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
       id: 2,
       name: 'Зависимость Альфа',
       criticality: 'high',
-      task_status: 'ready',
+      task_status: 'new',
     },
     {
       id: 3,
