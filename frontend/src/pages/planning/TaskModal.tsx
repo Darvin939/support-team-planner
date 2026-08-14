@@ -4,9 +4,17 @@ import {useActiveTasksList} from '../../hooks/usePlanningData';
 import {useMe} from '../../hooks/useMe';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import {useSegments} from '../../hooks/useSettingsData';
-import {CriticalityBadge, PsiStatusBadge, TaskStatusBadge, tintedStyle} from '../../components/planningBadges';
+import {CriticalityBadge, TaskStatusBadge, tintedStyle} from '../../components/planningBadges';
 import {linkify} from '../../lib/linkify';
-import {CRITICALITY_LABELS, CRITICALITY_OPTIONS, PSI_STATUS_LABELS, PSI_STATUS_OPTIONS, type Criticality, type PsiStatus, type Task} from '../../domain/types';
+import {
+  type Criticality,
+  CRITICALITY_LABELS,
+  CRITICALITY_OPTIONS,
+  PSI_STATUS_LABELS,
+  PSI_STATUS_OPTIONS,
+  type PsiStatus,
+  type Task
+} from '../../domain/types';
 import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';
 import {useIsMobile} from '../../hooks/useIsMobile';
 import {useDeleteTaskMutation, useSaveTaskMutation} from '../../hooks/useTaskMutations';
@@ -184,8 +192,7 @@ export function TaskModal({
                 <strong>Сегмент:</strong> {task?.segment_name}
               </div>
               <div>
-                <strong>ПСИ:</strong> {task &&
-                  <PsiStatusBadge value={task.psi_status}/>} {task ? PSI_STATUS_LABELS[task.psi_status] : ''}
+                <strong>ПСИ:</strong> {task ? PSI_STATUS_LABELS[task.psi_status] : ''}
               </div>
             </div>
           ) : (
