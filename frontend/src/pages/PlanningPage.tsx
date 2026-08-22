@@ -44,6 +44,7 @@ import {TOP_BAR_HEIGHT} from "../components/AppShell.tsx";
 import {PagePagination} from '../components/PagePagination';
 import {usePlanningLookups} from './planning/usePlanningLookups';
 import {usePlanningNavigation} from './planning/usePlanningNavigation';
+import {scrollToPlanningTaskRow, useTaskRowHighlight} from './planning/focusPlanningTask';
 import {usePlanningQueries} from './planning/usePlanningQueries';
 import {usePlanningSelection} from './planning/usePlanningSelection';
 import {usePlanningAssignmentActions} from './planning/usePlanningAssignmentActions';
@@ -51,6 +52,7 @@ import {PlanningFiltersCard} from './planning/PlanningFiltersCard';
 import {PlanningStats} from './planning/PlanningStats';
 import {PlanningToolbar} from './planning/PlanningToolbar';
 import {useTaskPriorityMutation, useTaskReorderMutation, useTaskStatusMutation} from '../hooks/useTaskMutations';
+import {NewTasksOverviewCard} from '../components/NewTaskNotifications';
 
 const DependencyGraphModal = lazy(() => import('./planning/DependencyGraphModal').then((m) => ({default: m.DependencyGraphModal})));
 
@@ -170,6 +172,7 @@ export function PlanningPage() {
   });
   const {assignmentByKey, assignmentById, assignmentsByTask, depsByTask} =
     usePlanningLookups(assignments, deps);
+  const {highlightedTaskId, highlightRevision, highlightTask} = useTaskRowHighlight();
 
   const {
     rescheduleMutation,
@@ -232,23 +235,23 @@ export function PlanningPage() {
     renderKey: planningRenderKey,
   });
 
+  const focusTask = useCallback((taskId: number) => {
+    if (scrollToPlanningTaskRow(taskId)) highlightTask(taskId);
+    else setDepJumpTaskId(taskId);
+  }, [highlightTask, setDepJumpTaskId]);
+
+  useEffect(() => {
+    if (!jump?.jumpTaskId || jump.jumpDate || !planningDataReady) return;
+    focusTask(jump.jumpTaskId);
+    clearJump();
+  }, [jump, planningDataReady, focusTask, clearJump]);
+
   function handleTeamSelect(value: number) {
     selectTeamRoute(value);
   }
 
   function handleDepNavigate(dep: DepBadgeEntry) {
-    const row = document.querySelector<HTMLElement>(`[data-planning-grid] .ant-table-tbody tr[data-task-row-id="${dep.id}"]`);
-    if (row) {
-      row.scrollIntoView({behavior: 'smooth', block: 'center'});
-      const cells = Array.from(row.querySelectorAll<HTMLElement>('td'));
-      cells.forEach((cell) => {
-        cell.style.setProperty('--highlight-pulse-color', token.colorPrimary);
-        cell.classList.add('task-row-highlight-pulse');
-      });
-      window.setTimeout(() => cells.forEach((cell) => cell.classList.remove('task-row-highlight-pulse')), 1600);
-      return;
-    }
-    setDepJumpTaskId(dep.id);
+    focusTask(dep.id);
   }
 
   const dates = useMemo(() => dateRange(range[0], range[1]), [range]);
@@ -286,6 +289,7 @@ export function PlanningPage() {
     return (
       <>
         <Typography.Title level={2}>Планирование</Typography.Title>
+        <NewTasksOverviewCard/>
         <Card>
           <Select style={{minWidth: 260}} placeholder="-- Выберите команду --" showSearch={{optionFilterProp: 'label'}}
                   onChange={handleTeamSelect} options={teams?.map((t) => ({value: t.id, label: t.name}))}/>
@@ -300,6 +304,7 @@ export function PlanningPage() {
   return (
     <>
       <Typography.Title level={2}>Планирование</Typography.Title>
+      <NewTasksOverviewCard/>
 
       <Card style={{marginBottom: 16}}>
         <Select style={{minWidth: 260}} value={teamId} showSearch={{optionFilterProp: 'label'}}
@@ -365,9 +370,12 @@ export function PlanningPage() {
               size="small"
               scroll={{x: 'max-content'}}
               sticky={{offsetHeader: isMobile ? TOP_BAR_HEIGHT : 0}}
+              rowClassName={(task) => task.id === highlightedTaskId
+                ? `task-row-highlight-pulse task-row-highlight-pulse-${highlightRevision % 2 ? 'a' : 'b'}` : ''}
               onRow={(task) => ({
                 'data-task-row-id': task.id,
-                'data-task-row-criticality': task.criticality
+                'data-task-row-criticality': task.criticality,
+                style: {'--highlight-pulse-color': token.colorPrimary},
               }) as HTMLAttributes<HTMLElement>}
             />
           </div>

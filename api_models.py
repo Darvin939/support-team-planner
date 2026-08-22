@@ -144,6 +144,32 @@ class ActiveAssignmentsPage(BaseModel):
     stats: ActiveAssignmentStats
 
 
+class NotificationCursor(BaseModel):
+    changed_at: str
+    history_id: int
+
+
+class NewTaskNotificationOut(BaseModel):
+    task_id: int
+    team_id: int
+    task_name: str
+    team_name: str
+    criticality: Criticality
+    task_status: TaskStatus
+    changed_at: str
+    author_name: Optional[str] = None
+
+
+class NewTaskNotificationsPage(BaseModel):
+    items: List[NewTaskNotificationOut]
+    total: int
+    watermark: NotificationCursor
+
+
+class MarkNewTasksSeenIn(BaseModel):
+    watermark: NotificationCursor
+
+
 class TaskIn(BaseModel):
     task_id: Optional[Union[int, str]] = None
     team_id: Optional[int] = None

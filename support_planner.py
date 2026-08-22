@@ -10,6 +10,7 @@ import db
 from routers.assignments import router as assignments_router
 from routers.freeze_days import router as freeze_days_router
 from routers.journal import router as journal_router
+from routers.notifications import router as notifications_router
 from routers.reference_data import router as reference_data_router
 from routers.shell import register_shell
 from routers.task_dependencies import router as task_dependencies_router
@@ -28,6 +29,7 @@ app.include_router(assignments_router)
 app.include_router(task_dependencies_router)
 app.include_router(tasks_router)
 app.include_router(journal_router)
+app.include_router(notifications_router)
 register_shell(app)
 
 

@@ -16,6 +16,7 @@ from db.errors import (
 )
 from db.freeze_days import *
 from db.history import *
+from db.new_task_notifications import *
 from db.reference_data import *
 from db.statistics import *
 from db.task_dependencies import *

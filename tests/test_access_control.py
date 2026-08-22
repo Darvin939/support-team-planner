@@ -56,6 +56,7 @@ class DeclarativeRoutePolicyTest(unittest.TestCase):
         '/api/tasks/{team_id}/dependency-graph', '/api/tasks/{team_id}/active-list',
         '/api/tasks/{team_id}', '/api/task/{task_id}', '/api/tasks/{team_id}/archive',
         '/api/task/{task_id}/history', '/api/journal/{team_id}',
+        '/api/notifications/new-tasks/preview', '/api/notifications/new-tasks',
     }
     USER_MUTATIONS = {
         ('POST', '/api/assignment'), ('POST', '/api/assignments/bulk'),
@@ -63,6 +64,7 @@ class DeclarativeRoutePolicyTest(unittest.TestCase):
         ('POST', '/api/assignments/bulk-delete'), ('POST', '/api/task-dependency'),
         ('DELETE', '/api/task-dependency'), ('POST', '/api/task'), ('DELETE', '/api/task/{task_id}'),
         ('PATCH', '/api/tasks/{team_id}/reorder'), ('PATCH', '/api/task/{task_id}/priority'),
+        ('POST', '/api/notifications/new-tasks/seen'),
     }
     EDITOR_MUTATIONS = {
         ('POST', '/api/blocks'), ('DELETE', '/api/blocks/{block_id}'),

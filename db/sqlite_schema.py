@@ -150,6 +150,8 @@ SCHEMA = '''
     );
 
     CREATE INDEX IF NOT EXISTS idx_task_history_task_id ON task_history (task_id);
+    CREATE INDEX IF NOT EXISTS idx_task_history_create_cursor
+        ON task_history (action, changed_at, id, task_id);
     CREATE INDEX IF NOT EXISTS idx_assignment_history_assignment_id ON assignment_history (assignment_id);
     CREATE INDEX IF NOT EXISTS idx_assignment_history_task_id ON assignment_history (task_id);
 
@@ -157,6 +159,13 @@ SCHEMA = '''
     CREATE index if NOT EXISTS idx_assignments_date ON assignments (date);
     CREATE index if NOT EXISTS idx_assignments_status ON assignments (status);
     CREATE index if NOT EXISTS idx_tasks_team_id ON tasks (team_id);
+
+    CREATE TABLE IF NOT EXISTS user_notification_state (
+        user_id INTEGER PRIMARY KEY,
+        new_tasks_seen_at TEXT NOT NULL,
+        new_tasks_seen_history_id INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    );
     CREATE UNIQUE INDEX if NOT EXISTS ux_assignments_task_date ON assignments (task_id, date) WHERE is_deleted = 0;
 '''
 # @formatter:on

@@ -25,6 +25,8 @@ export const queryKeys = {
     today: (teamId: number, date: string) => ['active-assignments', teamId, date, date] as const,
     overdue: (from: string, to: string, limit: number) =>
       ['active-assignments', 'overdue-preview', from, to, limit] as const,
+    overduePage: (from: string, to: string, offset: number, limit: number) =>
+      ['active-assignments', 'overdue-page', from, to, offset, limit] as const,
   },
   taskDeps: ['task-deps'] as const,
   taskDepsList: (teamId: number, taskIds: number[]) => ['task-deps', teamId, taskIds] as const,
@@ -37,6 +39,12 @@ export const queryKeys = {
     all: ['journal'] as const,
     list: (teamId: number | undefined, offset: number, pageSize: number, filters: object) =>
       ['journal', teamId, offset, pageSize, filters] as const,
+  },
+  newTaskNotifications: {
+    all: ['new-task-notifications'] as const,
+    preview: ['new-task-notifications', 'preview'] as const,
+    list: (offset: number, limit: number, changedAt: string, historyId: number) =>
+      ['new-task-notifications', 'list', offset, limit, changedAt, historyId] as const,
   },
   taskHistory: (taskId: number | null, offset: number) => ['task-history', taskId, offset] as const,
   entityHistory: (kind: string, entityId: number | null, offset: number) => ['entity-history', kind, entityId, offset] as const,

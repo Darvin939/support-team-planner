@@ -58,5 +58,6 @@ class SQLiteBackend(DBBackend):
             Migration(8, 'add-task-completion-template', steps.migrate_add_task_completion_template),
             Migration(9, 'add-task-psi-status', steps.migrate_add_task_psi_status),
             Migration(10, 'add-task-instruction-url', steps.migrate_add_task_instruction_url),
+            Migration(11, 'add-new-task-notifications', steps.migrate_add_new_task_notifications),
         )
         run_migrations(conn, migrations)

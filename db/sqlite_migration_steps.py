@@ -223,6 +223,29 @@ class SQLiteMigrationSteps:
         if 'instruction_url' not in columns:
             conn.execute('ALTER TABLE tasks ADD COLUMN instruction_url TEXT')
 
+    @staticmethod
+    def migrate_add_new_task_notifications(conn) -> None:
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS user_notification_state (
+                user_id INTEGER PRIMARY KEY,
+                new_tasks_seen_at TEXT NOT NULL,
+                new_tasks_seen_history_id INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            )
+        ''')
+        conn.execute('''CREATE INDEX IF NOT EXISTS idx_task_history_create_cursor
+                        ON task_history (action, changed_at, id, task_id)''')
+        cursor = conn.execute(
+            "SELECT changed_at, id FROM task_history ORDER BY changed_at DESC, id DESC LIMIT 1"
+        ).fetchone()
+        changed_at = cursor['changed_at'] if cursor else ''
+        history_id = cursor['id'] if cursor else 0
+        conn.execute('''
+            INSERT OR IGNORE INTO user_notification_state
+                (user_id, new_tasks_seen_at, new_tasks_seen_history_id)
+            SELECT id, ?, ? FROM users
+        ''', (changed_at, history_id))
+
     _DEFAULT_SEGMENT_NAME = 'По умолчанию'
 
     @staticmethod

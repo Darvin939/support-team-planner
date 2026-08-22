@@ -212,6 +212,16 @@ def create_user(conn, last_name, first_name, middle_name=None, password_hash=Non
                VALUES (?, ?, ?, ?, ?, ?, ?)''',
             (last_name, first_name, middle_name, password_hash, role, login, int(is_assignee)))
         user_id = _backend.last_insert_id(cursor)
+        cursor_row = conn.execute(
+            'SELECT changed_at, id FROM task_history ORDER BY changed_at DESC, id DESC LIMIT 1'
+        ).fetchone()
+        conn.execute('''INSERT INTO user_notification_state
+                        (user_id, new_tasks_seen_at, new_tasks_seen_history_id)
+                        VALUES (?, ?, ?)''', (
+            user_id,
+            cursor_row['changed_at'] if cursor_row else '',
+            cursor_row['id'] if cursor_row else 0,
+        ))
         _set_user_team_ids(conn, user_id, team_ids, role)
     except _backend.duplicate_error as exc:
         raise DuplicateEntityError('Пользователь с таким логином уже существует') from exc
