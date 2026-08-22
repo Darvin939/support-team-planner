@@ -28,6 +28,16 @@ function Shell() {
     localStorage.setItem('theme', isDark ? '' : 'light');
   }, [isDark]);
 
+  useEffect(() => {
+    ConfigProvider.config({
+      holderRender: (children) => (
+        <ConfigProvider theme={isDark ? darkTheme : lightTheme} locale={ruRU}>
+          {children}
+        </ConfigProvider>
+      ),
+    });
+  }, [isDark]);
+
   const toggleTheme = () => setIsDark((v) => !v);
 
   return (
