@@ -49,21 +49,36 @@ if [[ "$output_path" == "/" || "$output_path" == "$script_dir" ]]; then
     exit 2
 fi
 
-required_sources=(
+runtime_files=(
     "support_planner.py"
+    "access_control.py"
+    "api_models.py"
     "auth.py"
+    "query_parsing.py"
     "ssl_context.py"
+    "task_dependency_rules.py"
+    "task_rules.py"
     "utils.py"
     "requirements.txt"
     "run.sh"
     "check.sh"
-    "db"
-    "frontend/src/data/taskTransitions.json"
 )
 
-for relative_path in "${required_sources[@]}"; do
+runtime_patterns=(
+    "db/*.py"
+    "routers/*.py"
+)
+
+for relative_path in "${runtime_files[@]}"; do
     if [[ ! -e "$script_dir/$relative_path" ]]; then
         echo "Error: required source is missing: $relative_path" >&2
+        exit 1
+    fi
+done
+
+for pattern in "${runtime_patterns[@]}"; do
+    if ! compgen -G "$script_dir/$pattern" >/dev/null; then
+        echo "Error: required sources are missing: $pattern" >&2
         exit 1
     fi
 done
@@ -80,6 +95,10 @@ if [[ ! -f "$script_dir/frontend/dist/index.html" ]]; then
     echo "Error: frontend build did not create frontend/dist/index.html." >&2
     exit 1
 fi
+if [[ ! -f "$script_dir/frontend/dist/taskTransitions.json" ]]; then
+    echo "Error: frontend build did not create frontend/dist/taskTransitions.json." >&2
+    exit 1
+fi
 
 output_parent="$(dirname -- "$output_path")"
 output_name="$(basename -- "$output_path")"
@@ -93,31 +112,24 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for relative_path in \
-    support_planner.py auth.py ssl_context.py utils.py requirements.txt run.sh check.sh; do
-    cp -- "$script_dir/$relative_path" "$staging_dir/$relative_path"
+for relative_path in "${runtime_files[@]}"; do
+    destination="$staging_dir/$relative_path"
+    mkdir -p -- "$(dirname -- "$destination")"
+    cp -- "$script_dir/$relative_path" "$destination"
 done
 
-cp -R -- "$script_dir/db" "$staging_dir/db"
-mkdir -p -- "$staging_dir/frontend/src/data"
+for pattern in "${runtime_patterns[@]}"; do
+    for source_path in "$script_dir"/$pattern; do
+        relative_path="${source_path#"$script_dir/"}"
+        destination="$staging_dir/$relative_path"
+        mkdir -p -- "$(dirname -- "$destination")"
+        cp -- "$source_path" "$destination"
+    done
+done
+
+mkdir -p -- "$staging_dir/frontend"
 cp -R -- "$script_dir/frontend/dist" "$staging_dir/frontend/dist"
-cp -- "$script_dir/frontend/src/data/taskTransitions.json" \
-    "$staging_dir/frontend/src/data/taskTransitions.json"
 chmod +x "$staging_dir/run.sh" "$staging_dir/check.sh"
-
-required_outputs=(
-    "support_planner.py"
-    "requirements.txt"
-    "db/__init__.py"
-    "frontend/dist/index.html"
-    "frontend/src/data/taskTransitions.json"
-)
-for relative_path in "${required_outputs[@]}"; do
-    if [[ ! -e "$staging_dir/$relative_path" ]]; then
-        echo "Error: distribution is incomplete: $relative_path" >&2
-        exit 1
-    fi
-done
 
 if [[ -e "$output_path" ]]; then
     rm -rf -- "$output_path"

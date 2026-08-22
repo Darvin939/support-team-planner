@@ -1,9 +1,21 @@
 import {defineConfig} from 'vite'
 import react from '@vitejs/plugin-react'
+import {copyFileSync} from 'node:fs'
+import {resolve} from 'node:path'
+
+const copyTaskTransitions = () => ({
+  name: 'copy-task-transitions',
+  closeBundle() {
+    copyFileSync(
+      resolve(__dirname, 'src/data/taskTransitions.json'),
+      resolve(__dirname, 'dist/taskTransitions.json'),
+    )
+  },
+})
 
 // https://vite.dev/config/
 export default defineConfig(({command}) => ({
-  plugins: [react()],
+  plugins: [react(), copyTaskTransitions()],
   // Production build is served by FastAPI under /react-assets/*, but the Vite
   // dev server must serve from root so routes like /planning work directly.
   base: command === 'build' ? '/react-assets/' : '/',

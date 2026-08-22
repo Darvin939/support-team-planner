@@ -3,7 +3,6 @@ import os
 
 from api_models import TaskStatus
 
-
 TERMINAL_TASK_STATUSES: frozenset[TaskStatus] = frozenset({'done', 'cancelled'})
 
 
@@ -19,10 +18,12 @@ def terminal_task_status_sql(column: str, *, negated: bool = False) -> tuple[str
     return f'{column} {operator} ({placeholders})', values
 
 
-with open(
-    os.path.join(os.path.dirname(__file__), 'frontend', 'src', 'data', 'taskTransitions.json'),
-    encoding='utf-8',
-) as transitions_file:
+_frontend_dir = os.path.join(os.path.dirname(__file__), 'frontend')
+_transitions_path = os.path.join(_frontend_dir, 'dist', 'taskTransitions.json')
+if not os.path.isfile(_transitions_path):
+    _transitions_path = os.path.join(_frontend_dir, 'src', 'data', 'taskTransitions.json')
+
+with open(_transitions_path, encoding='utf-8') as transitions_file:
     VALID_TASK_TRANSITIONS = {
         status: set(transitions)
         for status, transitions in json.load(transitions_file).items()
