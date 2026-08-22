@@ -1,6 +1,7 @@
 import {type CSSProperties, useMemo} from 'react';
 import {
   Alert,
+  App as AntApp,
   Button,
   DatePicker,
   Form,
@@ -43,19 +44,6 @@ export interface AssignmentFormValues {
   status: AssignmentStatus;
   user_id: number | null;
   comment: string;
-}
-
-function confirmOverwrite(dates: string[]): Promise<boolean> {
-  return new Promise((resolve) => {
-    Modal.confirm({
-      title: 'Даты уже заняты',
-      content: `На дату(ы) ${dates.join(', ')} уже есть назначение(я). Перезаписать их?`,
-      okText: 'Перезаписать',
-      cancelText: 'Отмена',
-      onOk: () => resolve(true),
-      onCancel: () => resolve(false),
-    });
-  });
 }
 
 function AutoScheduleGrid({
@@ -234,6 +222,7 @@ export function AssignmentModal({
   onClose: () => void;
 }) {
   const [form] = Form.useForm<AssignmentFormValues>();
+  const {modal} = AntApp.useApp();
   const isMobile = useIsMobile();
   const {token} = theme.useToken();
   const {data: teamBlocks} = useTeamBlocks(teamId, task?.segment_id);
@@ -302,7 +291,16 @@ export function AssignmentModal({
         (item) => item.date === itemDate && item.id !== assignment?.id,
       ),
     );
-    if (conflictDates.length > 0 && !await confirmOverwrite(conflictDates)) return;
+    if (conflictDates.length > 0 && !await new Promise<boolean>((resolve) => {
+      modal.confirm({
+        title: 'Даты уже заняты',
+        content: `На дату(ы) ${conflictDates.join(', ')} уже есть назначение(я). Перезаписать их?`,
+        okText: 'Перезаписать',
+        cancelText: 'Отмена',
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false),
+      });
+    })) return;
 
     const timeSpent = values.time_spent?.format(TIME_FORMAT);
     const assignments: AssignmentPayload[] = dates.map((itemDate) => {

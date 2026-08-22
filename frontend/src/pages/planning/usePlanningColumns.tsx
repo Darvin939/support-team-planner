@@ -10,7 +10,7 @@ import {
 } from 'react';
 import type {Dayjs} from 'dayjs';
 import type {MenuProps, TableColumnsType} from 'antd';
-import {Button, Dropdown, Modal, theme} from 'antd';
+import {App as AntApp, Button, Dropdown, theme} from 'antd';
 import {
   ApartmentOutlined,
   CalendarOutlined,
@@ -109,6 +109,7 @@ export function usePlanningColumns({
                                      setAssignmentModal,
                                      onDepNavigate,
                                    }: UsePlanningColumnsOptions): TableColumnsType<Task> {
+  const {modal} = AntApp.useApp();
   const [openContextMenu, setOpenContextMenu] = useState<string | null>(null);
   const suppressNextActivationRef = useRef(false);
 
@@ -235,7 +236,7 @@ export function usePlanningColumns({
           }
           if (key === 'psi-passed' || key === 'psi-required') {
             const psiStatus = key === 'psi-passed' ? 'passed' : 'required';
-            Modal.confirm({
+            modal.confirm({
               title: psiStatus === 'passed'
                 ? 'Отметить ПСИ пройденным?'
                 : 'Вернуть статус «Требуется ПСИ»?',
@@ -249,7 +250,7 @@ export function usePlanningColumns({
             return;
           }
           if (key === 'done' || key === 'cancelled') {
-            Modal.confirm({
+            modal.confirm({
               title: `Перевести работу в статус «${TASK_STATUS_LABELS[key]}»?`,
               okText: 'Перевести',
               cancelText: 'Отмена',

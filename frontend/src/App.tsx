@@ -1,5 +1,5 @@
 import {lazy, Suspense, useEffect, useState} from 'react';
-import {ConfigProvider, Spin} from 'antd';
+import {App as AntApp, ConfigProvider, Spin} from 'antd';
 import ruRU from 'antd/locale/ru_RU';
 import {QueryClientProvider} from '@tanstack/react-query';
 import {BrowserRouter, Navigate, Route, Routes} from 'react-router-dom';
@@ -32,6 +32,7 @@ function Shell() {
 
   return (
     <ConfigProvider theme={isDark ? darkTheme : lightTheme} locale={ruRU}>
+      <AntApp>
       <BrowserRouter>
         <Suspense fallback={<PageFallback/>}>
           <Routes>
@@ -48,6 +49,7 @@ function Shell() {
           </Routes>
         </Suspense>
       </BrowserRouter>
+      </AntApp>
     </ConfigProvider>
   );
 }

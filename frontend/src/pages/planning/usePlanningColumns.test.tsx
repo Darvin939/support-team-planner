@@ -3,7 +3,7 @@
 import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {afterEach, beforeAll, describe, expect, it, vi} from 'vitest';
 import type {ReactNode} from 'react';
-import {Modal} from 'antd';
+import {App as AntApp} from 'antd';
 import type {Task} from '../../domain/types';
 import {TaskNameWithCriticality} from './TaskNameWithCriticality';
 import {usePlanningColumns} from './usePlanningColumns';
@@ -97,36 +97,39 @@ function PlanningTaskCell({
 describe('usePlanningColumns PSI context action', () => {
   it('confirms required to passed and does nothing when confirmation is cancelled', async () => {
     const mutate = vi.fn();
-    const confirm = vi.spyOn(Modal, 'confirm').mockReturnValue({destroy: vi.fn(), update: vi.fn()});
-    render(<PlanningTaskCell task={planningTask} psiMutate={mutate}/>);
+    render(<AntApp><PlanningTaskCell task={planningTask} psiMutate={mutate}/></AntApp>);
 
     fireEvent.contextMenu(screen.getByText(planningTask.name));
-    fireEvent.click(await screen.findByText('Отметить ПСИ пройденным'));
-    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({title: 'Отметить ПСИ пройденным?'}));
+    fireEvent.click(await screen.findByText('ПСИ пройдено'));
+    expect(await screen.findByRole('dialog', {name: 'Отметить ПСИ пройденным?'})).toBeTruthy();
+    expect(mutate).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', {name: 'Отмена'}));
     expect(mutate).not.toHaveBeenCalled();
 
-    const config = confirm.mock.calls[0][0];
-    await config.onOk?.();
+    cleanup();
+    render(<AntApp><PlanningTaskCell task={planningTask} psiMutate={mutate}/></AntApp>);
+    fireEvent.contextMenu(screen.getByText(planningTask.name));
+    fireEvent.click(await screen.findByText('ПСИ пройдено'));
+    fireEvent.click(await screen.findByRole('button', {name: 'Подтвердить'}));
     await waitFor(() => expect(mutate).toHaveBeenCalledWith({taskId: 12, psiStatus: 'passed'}));
   });
 
   it('confirms passed to required and omits PSI action for not_required', async () => {
     const mutate = vi.fn();
-    const confirm = vi.spyOn(Modal, 'confirm').mockReturnValue({destroy: vi.fn(), update: vi.fn()});
     const view = render(
-      <PlanningTaskCell task={{...planningTask, psi_status: 'passed'}} psiMutate={mutate}/>,
+      <AntApp><PlanningTaskCell task={{...planningTask, psi_status: 'passed'}} psiMutate={mutate}/></AntApp>,
     );
 
     fireEvent.contextMenu(screen.getByText(planningTask.name));
     fireEvent.click(await screen.findByText('Вернуть статус «Требуется ПСИ»'));
-    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({title: 'Вернуть статус «Требуется ПСИ»?'}));
-    await confirm.mock.calls[0][0].onOk?.();
+    expect(await screen.findByRole('dialog', {name: 'Вернуть статус «Требуется ПСИ»?'})).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', {name: 'Подтвердить'}));
     await waitFor(() => expect(mutate).toHaveBeenCalledWith({taskId: 12, psiStatus: 'required'}));
 
     view.unmount();
-    render(<PlanningTaskCell task={{...planningTask, psi_status: 'not_required'}} psiMutate={vi.fn()}/>);
+    render(<AntApp><PlanningTaskCell task={{...planningTask, psi_status: 'not_required'}} psiMutate={vi.fn()}/></AntApp>);
     fireEvent.contextMenu(screen.getByText(planningTask.name));
-    expect(screen.queryByText('Отметить ПСИ пройденным')).toBeNull();
+    expect(screen.queryByText('ПСИ пройдено')).toBeNull();
     expect(screen.queryByText('Вернуть статус «Требуется ПСИ»')).toBeNull();
   });
 });
