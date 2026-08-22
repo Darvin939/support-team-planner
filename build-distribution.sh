@@ -6,7 +6,8 @@ usage() {
     cat <<'EOF'
 Usage: ./build-distribution.sh [--output PATH]
 
-Build the production frontend and create a Linux application distribution.
+Build the production frontend and create a Linux application distribution
+directory and ZIP archive.
 
 Options:
   --output PATH  Distribution directory (default: build/support-team-planner)
@@ -87,6 +88,10 @@ command -v npm >/dev/null 2>&1 || {
     echo "Error: npm is required to build the frontend." >&2
     exit 1
 }
+command -v zip >/dev/null 2>&1 || {
+    echo "Error: zip is required to create the distribution archive." >&2
+    exit 1
+}
 
 echo "Building production frontend..."
 (cd "$script_dir/frontend" && npm run build)
@@ -102,12 +107,21 @@ fi
 
 output_parent="$(dirname -- "$output_path")"
 output_name="$(basename -- "$output_path")"
+archive_path="${output_path}.zip"
+if [[ -d "$archive_path" ]]; then
+    echo "Error: archive path is a directory: $archive_path" >&2
+    exit 2
+fi
 mkdir -p -- "$output_parent"
 staging_dir="$(mktemp -d -- "$output_parent/.${output_name}.staging.XXXXXX")"
+archive_staging_dir=""
 
 cleanup() {
     if [[ -n "${staging_dir:-}" && -d "$staging_dir" ]]; then
         rm -rf -- "$staging_dir"
+    fi
+    if [[ -n "${archive_staging_dir:-}" && -d "$archive_staging_dir" ]]; then
+        rm -rf -- "$archive_staging_dir"
     fi
 }
 trap cleanup EXIT
@@ -137,4 +151,11 @@ fi
 mv -- "$staging_dir" "$output_path"
 staging_dir=""
 
+archive_staging_dir="$(mktemp -d -- "$output_parent/.${output_name}.archive.XXXXXX")"
+(cd "$output_path" && zip -qr "$archive_staging_dir/$output_name.zip" .)
+mv -f -- "$archive_staging_dir/$output_name.zip" "$archive_path"
+rm -rf -- "$archive_staging_dir"
+archive_staging_dir=""
+
 echo "Distribution created: $output_path"
+echo "Distribution archive created: $archive_path"
