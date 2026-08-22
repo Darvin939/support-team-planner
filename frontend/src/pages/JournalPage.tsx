@@ -15,8 +15,7 @@ import {useStoredTeamRoute} from '../hooks/useStoredTeamRoute';
 import {usePaginationState} from '../hooks/usePaginationState';
 import {JOURNAL_PAGE_SIZE, type JournalFilters, type JournalItem, useJournal} from '../hooks/useJournalData';
 import {HISTORY_PAGE_SIZE, useEntityHistory} from './planning/historyShared';
-import {OffsetPagination} from '../components/OffsetPagination';
-import {PagePagination} from '../components/PagePagination';
+import {AppPagination} from '../components/AppPagination';
 import {TOP_BAR_HEIGHT} from '../components/AppShell';
 
 export function buildJournalColumns(getUserName: (id: string) => string): TableColumnsType<JournalItem> {
@@ -110,9 +109,8 @@ function TaskHistoryModal({taskId, taskName, onClose}: {
         locale={{emptyText: 'Изменений пока нет'}}
         scroll={{x: 870}}
       />
-      {data && <OffsetPagination style={{marginTop: 12, textAlign: 'center'}} offset={pagination.offset}
-                                 pageSize={HISTORY_PAGE_SIZE} total={data.total}
-                                 onOffsetChange={pagination.setOffset}/>}
+      {data && <AppPagination compact current={pagination.page} pageSize={pagination.pageSize}
+                              total={data.total} onChange={pagination.onChange}/>}
     </Modal>
   );
 }
@@ -241,8 +239,8 @@ export function JournalPage() {
             })}
             style={{marginBottom: 16}}
           />
-          {data && <PagePagination current={pagination.page} pageSize={pagination.pageSize} total={data.total}
-                                   onChange={pagination.onChange}/>}
+          {data && <AppPagination current={pagination.page} pageSize={pagination.pageSize} total={data.total}
+                                  allowPageSizeChange onChange={pagination.onChange}/>}
         </>
       )}
 

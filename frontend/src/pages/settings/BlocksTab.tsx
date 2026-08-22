@@ -9,7 +9,6 @@ import {
   InputNumber,
   message,
   Modal,
-  Pagination,
   Popconfirm,
   Row,
   Select,
@@ -31,6 +30,8 @@ import {
 } from '../../hooks/useSettingsData';
 import {useCrudMutations} from '../../hooks/useCrudMutations';
 import {apiMutate} from '../../lib/apiMutate';
+import {usePaginationState} from '../../hooks/usePaginationState';
+import {AppPagination} from '../../components/AppPagination';
 
 
 const DIRECTORY_PAGE_SIZE = 5;
@@ -56,37 +57,23 @@ interface BlockFormValues {
 
 function useClientDirectory<T>(items: T[] | undefined, getSearchText: (item: T) => string) {
   const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
+  const pagination = usePaginationState(DIRECTORY_PAGE_SIZE);
   const filteredItems = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase('ru-RU');
     if (!needle) return items ?? [];
     return (items ?? []).filter((item) => getSearchText(item).toLocaleLowerCase('ru-RU').includes(needle));
   }, [items, search, getSearchText]);
-  const pageCount = Math.max(1, Math.ceil(filteredItems.length / DIRECTORY_PAGE_SIZE));
-  const currentPage = Math.min(page, pageCount);
   const pageItems = filteredItems.slice(
-    (currentPage - 1) * DIRECTORY_PAGE_SIZE,
-    currentPage * DIRECTORY_PAGE_SIZE,
+    pagination.offset,
+    pagination.offset + pagination.pageSize,
   );
 
   function updateSearch(value: string) {
     setSearch(value);
-    setPage(1);
+    pagination.reset();
   }
 
-  return {search, updateSearch, currentPage, setPage, filteredItems, pageItems};
-}
-
-function DirectoryPagination({total, page, onChange}: {
-  total: number;
-  page: number;
-  onChange: (page: number) => void
-}) {
-  if (total <= DIRECTORY_PAGE_SIZE) return null;
-  return (
-    <Pagination size="small" current={page} pageSize={DIRECTORY_PAGE_SIZE} total={total}
-                showSizeChanger={false} style={{marginTop: 12, textAlign: 'right'}} onChange={onChange}/>
-  );
+  return {search, updateSearch, pagination, filteredItems, pageItems};
 }
 
 function DirectoryToolbar({buttonText, searchPlaceholder, search, onSearchChange, onAdd}: {
@@ -146,8 +133,8 @@ function SegmentsPanel() {
                         onAdd={() => openModal('new')}/>
       <Table<Segment> rowKey="id" size="small" columns={columns} dataSource={directory.pageItems}
                       loading={isLoading} pagination={false} scroll={{x: 360}}/>
-      <DirectoryPagination total={directory.filteredItems.length} page={directory.currentPage}
-                           onChange={directory.setPage}/>
+      <AppPagination compact total={directory.filteredItems.length} current={directory.pagination.page}
+                     pageSize={directory.pagination.pageSize} onChange={directory.pagination.onChange}/>
       <Modal title={modalSegment === 'new' ? 'Добавить сегмент' : 'Редактирование сегмента'}
              open={modalSegment !== null} onCancel={() => setModalSegment(null)} onOk={() => form.submit()}
              okText={modalSegment === 'new' ? 'Создать' : 'Обновить'} confirmLoading={saveMutation.isPending}>
@@ -205,8 +192,8 @@ function BlocksPanel() {
                         }}/>
       <Table<Block> rowKey="id" size="small" columns={columns} dataSource={directory.pageItems}
                     loading={isLoading} pagination={false} scroll={{x: 320}}/>
-      <DirectoryPagination total={directory.filteredItems.length} page={directory.currentPage}
-                           onChange={directory.setPage}/>
+      <AppPagination compact total={directory.filteredItems.length} current={directory.pagination.page}
+                     pageSize={directory.pagination.pageSize} onChange={directory.pagination.onChange}/>
       <Modal title="Добавить блок" open={blockModalOpen} onCancel={() => setBlockModalOpen(false)}
              onOk={() => form.submit()} okText="Создать" confirmLoading={createMutation.isPending}>
         <Form form={form} layout="vertical"
@@ -301,8 +288,8 @@ function TemplatesPanel() {
                         onAdd={() => openModal('new')}/>
       <Table<BlockTemplate> rowKey="id" size="small" columns={columns} dataSource={directory.pageItems}
                             loading={isLoading} pagination={false} scroll={{x: 720}}/>
-      <DirectoryPagination total={directory.filteredItems.length} page={directory.currentPage}
-                           onChange={directory.setPage}/>
+      <AppPagination compact total={directory.filteredItems.length} current={directory.pagination.page}
+                     pageSize={directory.pagination.pageSize} onChange={directory.pagination.onChange}/>
       <Modal title={modalTemplate === 'new' ? 'Добавить шаблон' : 'Редактирование шаблона'}
              open={modalTemplate !== null} onCancel={() => setModalTemplate(null)} onOk={() => form.submit()}
              okText={modalTemplate === 'new' ? 'Создать' : 'Обновить'} confirmLoading={saveMutation.isPending}>

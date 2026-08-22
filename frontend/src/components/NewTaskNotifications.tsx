@@ -3,7 +3,8 @@ import {useNavigate} from 'react-router-dom';
 import {Alert, Button, Card, Drawer, Empty, List, Space, Spin, Typography} from 'antd';
 import dayjs from 'dayjs';
 import {CriticalityBadge} from './planningBadges';
-import {PagePagination} from './PagePagination';
+import {AppPagination} from './AppPagination';
+import {usePaginationState} from '../hooks/usePaginationState';
 import {
   type NewTaskNotification,
   type NotificationCursor,
@@ -46,17 +47,18 @@ export function NewTasksDrawer({open, watermark, onClose, onOpenTask, afterOpenC
   open: boolean; watermark?: NotificationCursor; onClose: () => void;
   onOpenTask: (item: NewTaskNotification) => void; afterOpenChange?: (open: boolean) => void;
 }) {
-  const [page, setPage] = useState(1);
-  useEffect(() => { if (open) setPage(1); }, [open, watermark]);
-  const {data, isLoading, isError} = useNewTaskNotificationsPage((page - 1) * PAGE_SIZE, PAGE_SIZE, watermark);
+  const pagination = usePaginationState(PAGE_SIZE);
+  useEffect(() => { if (open) pagination.reset(); }, [open, watermark, pagination.reset]);
+  const {data, isLoading, isError} = useNewTaskNotificationsPage(pagination.offset, pagination.pageSize, watermark);
   return <Drawer title={`Все новые работы${data ? ` (${data.total})` : ''}`} open={open} onClose={onClose}
     afterOpenChange={afterOpenChange} size={520}>
     {isLoading ? <div style={{textAlign: 'center'}}><Spin/></div> : isError ?
-      <Alert type="error" showIcon title="Не удалось загрузить новые работы"/> : !data?.items.length ?
-        <Empty description="Новых работ нет"/> : <>
-          <GroupedNewTasks items={data.items} onOpen={onOpenTask}/>
-          <PagePagination current={page} pageSize={PAGE_SIZE} total={data.total} onChange={setPage}/>
-        </>}
+      <Alert type="error" showIcon title="Не удалось загрузить новые работы"/> : <>
+        {!data?.items.length ? <Empty description="Новых работ нет"/> :
+          <GroupedNewTasks items={data.items} onOpen={onOpenTask}/>}
+        <AppPagination compact current={pagination.page} pageSize={pagination.pageSize}
+                       total={data?.total} onChange={pagination.onChange}/>
+      </>}
   </Drawer>;
 }
 

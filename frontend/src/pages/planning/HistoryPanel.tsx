@@ -3,7 +3,7 @@ import {Button, theme} from 'antd';
 import {useIsMobile} from '../../hooks/useIsMobile';
 import {HISTORY_PAGE_SIZE, HistoryEntries, useEntityHistory} from './historyShared';
 import {usePaginationState} from '../../hooks/usePaginationState';
-import {OffsetPagination} from '../../components/OffsetPagination';
+import {AppPagination} from '../../components/AppPagination';
 
 
 /** Resets (and optionally auto-opens) the panel every time the owning modal transitions to open — mirrors the original's resetHistoryPanel-on-every-openModal-call behavior. */
@@ -63,9 +63,8 @@ export function HistoryPanel({kind, entityId, open}: {
       <div style={{fontWeight: 600, marginBottom: 8}}>История изменений</div>
       <HistoryEntries entries={data?.history} loading={isLoading} showAssignmentContext={kind === 'task'} compact
                       emptySimple/>
-      {data && <OffsetPagination style={{marginTop: 12, textAlign: 'center'}} offset={pagination.offset}
-                                 pageSize={HISTORY_PAGE_SIZE} total={data.total}
-                                 onOffsetChange={pagination.setOffset}/>}
+      {data && <AppPagination compact current={pagination.page} pageSize={pagination.pageSize}
+                              total={data.total} onChange={pagination.onChange}/>}
     </div>
   );
 }

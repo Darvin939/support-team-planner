@@ -1,11 +1,12 @@
 import {useEffect, useState} from 'react';
 import type {TableColumnsType} from 'antd';
-import {Button, Checkbox, Form, Input, Modal, Pagination, Popconfirm, Space, Table, Tag} from 'antd';
+import {Button, Checkbox, Form, Input, Modal, Popconfirm, Space, Table, Tag} from 'antd';
 import {DeleteOutlined, EditOutlined} from '@ant-design/icons';
 import {type Team, usePaginatedTeams} from '../../hooks/useTeams';
 import {useBlockTemplates} from '../../hooks/useSettingsData';
 import {useCrudMutations} from '../../hooks/useCrudMutations';
-import {DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS} from '../../lib/pagination';
+import {DEFAULT_PAGE_SIZE} from '../../lib/pagination';
+import {AppPagination} from '../../components/AppPagination';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import {usePaginationState} from '../../hooks/usePaginationState';
 import {useIsMobile} from "../../hooks/useIsMobile";
@@ -93,10 +94,8 @@ export function TeamsTab() {
 
       <Table<Team> rowKey="id" columns={columns} dataSource={data?.teams ?? []} loading={isLoading}
                    pagination={false} scroll={{x: 720}} sticky={{offsetHeader: isMobile ? TOP_BAR_HEIGHT : 0}}/>
-      {(data?.total ?? 0) > pageSize && <Pagination current={page} pageSize={pageSize} total={data?.total ?? 0}
-                                                    showSizeChanger pageSizeOptions={PAGE_SIZE_OPTIONS}
-                                                    style={{marginTop: 16, textAlign: 'right'}}
-                                                    onChange={pagination.onChange}/>}
+      <AppPagination current={page} pageSize={pageSize} total={data?.total}
+                     allowPageSizeChange onChange={pagination.onChange}/>
 
       <Modal
         title={modalTeam === 'new' ? 'Добавить команду' : 'Редактирование команды'}

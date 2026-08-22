@@ -6,7 +6,8 @@ import {type OverdueAssignment, useOverdueAssignments, useOverdueAssignmentsPage
 import {MAX_PERIOD_DAYS} from '../hooks/useDateRangeFilter';
 import {DISPLAY_DATE_FORMAT} from '../lib/dateFormats';
 import {CriticalityBadge} from './planningBadges';
-import {PagePagination} from './PagePagination';
+import {AppPagination} from './AppPagination';
+import {usePaginationState} from '../hooks/usePaginationState';
 import {NotificationTabPanel, useDeferredDrawerNavigation, useNotificationCenter} from './NotificationCenter';
 
 const OVERDUE_PAGE_SIZE = 20;
@@ -28,19 +29,20 @@ export function OverdueDrawer({open, onClose, onOpen, afterOpenChange}: {
   open: boolean; onClose: () => void; onOpen: (item: OverdueAssignment) => void;
   afterOpenChange?: (open: boolean) => void;
 }) {
-  const [page, setPage] = useState(1);
-  useEffect(() => { if (open) setPage(1); }, [open]);
+  const pagination = usePaginationState(OVERDUE_PAGE_SIZE);
+  useEffect(() => { if (open) pagination.reset(); }, [open, pagination.reset]);
   const {data, isLoading, isError} = useOverdueAssignmentsPage(
-    (page - 1) * OVERDUE_PAGE_SIZE, OVERDUE_PAGE_SIZE, open,
+    pagination.offset, pagination.pageSize, open,
   );
   return <Drawer title={`Все просроченные назначения${data ? ` (${data.total})` : ''}`}
     open={open} onClose={onClose} afterOpenChange={afterOpenChange} size={520}>
     {isLoading ? <div style={{textAlign: 'center'}}><Spin/></div> : isError ?
-      <Alert type="error" showIcon title="Не удалось загрузить просроченные назначения"/> : !data?.items.length ?
-        <Empty description="Просроченных назначений нет"/> : <>
-          <OverdueList items={data.items} onOpen={onOpen}/>
-          <PagePagination current={page} pageSize={OVERDUE_PAGE_SIZE} total={data.total} onChange={setPage}/>
-        </>}
+      <Alert type="error" showIcon title="Не удалось загрузить просроченные назначения"/> : <>
+        {!data?.items.length ? <Empty description="Просроченных назначений нет"/> :
+          <OverdueList items={data.items} onOpen={onOpen}/>}
+        <AppPagination compact current={pagination.page} pageSize={pagination.pageSize}
+                       total={data?.total} onChange={pagination.onChange}/>
+      </>}
   </Drawer>;
 }
 

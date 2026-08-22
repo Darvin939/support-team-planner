@@ -11,7 +11,7 @@ import {FilterField, FilterGrid} from '../components/FilterGrid';
 import {CriticalityBadge} from '../components/planningBadges';
 import {NAME_COLUMN_WIDTH} from '../lib/layout';
 import {DEFAULT_PAGE_SIZE} from '../lib/pagination';
-import {PagePagination} from '../components/PagePagination';
+import {AppPagination} from '../components/AppPagination';
 import {readStoredJson, writeStoredJson} from '../lib/storage';
 import {usePaginationState} from '../hooks/usePaginationState';
 import {ASSIGNMENT_STATUS_LABELS, type AssignmentStatus} from '../domain/types';
@@ -50,17 +50,17 @@ function StatsSection({
                         title,
                         response,
                         showDate,
-                        offset,
+                        page,
                         pageSize,
-                        onPageChange,
+                        onChange,
                         onPageSizeChange,
                       }: {
   title: string;
   response: ActiveAssignmentsResponse | undefined;
   showDate: boolean;
-  offset: number;
+  page: number;
   pageSize: number;
-  onPageChange: (offset: number) => void;
+  onChange: (page: number, pageSize: number) => void;
   onPageSizeChange: (size: number) => void;
 }) {
   const items = response?.items ?? [];
@@ -83,19 +83,13 @@ function StatsSection({
         <StatTile label="Средняя" value={critCounts.medium} accent="#d89614"/>
         <StatTile label="Низкая" value={critCounts.low} accent="#49aa19"/>
       </Space>
-      {total > 0 ? (
-        <>
-          <Table rowKey="id" columns={buildColumns(showDate)} dataSource={items} pagination={false} size="small"
-                 scroll={{x: 'max-content'}}/>
-          <PagePagination current={offset / pageSize + 1} pageSize={pageSize} total={total}
-                          onChange={(page, size) => {
-                            if (size !== pageSize) onPageSizeChange(size);
-                            else onPageChange((page - 1) * pageSize);
-                          }}/>
-        </>
-      ) : (
-        <Empty description="Нет активных работ"/>
-      )}
+      {total > 0 ?
+        <Table rowKey="id" columns={buildColumns(showDate)} dataSource={items} pagination={false} size="small"
+               scroll={{x: 'max-content'}}/> :
+        <Empty description="Нет активных работ"/>}
+      <AppPagination current={page} pageSize={pageSize} total={response?.total} allowPageSizeChange
+                     onChange={(nextPage, size) => size !== pageSize
+                       ? onPageSizeChange(size) : onChange(nextPage, size)}/>
     </Card>
   );
 }
@@ -169,9 +163,9 @@ export function StatisticsPage() {
         title="Активные работы на сегодня"
         response={todayData}
         showDate={false}
-        offset={todayPagination.offset}
+        page={todayPagination.page}
         pageSize={pageSize}
-        onPageChange={todayPagination.setOffset}
+        onChange={todayPagination.onChange}
         onPageSizeChange={handlePageSizeChange}
       />
 
@@ -194,9 +188,9 @@ export function StatisticsPage() {
         title="Активные работы за период"
         response={periodData}
         showDate
-        offset={periodPagination.offset}
+        page={periodPagination.page}
         pageSize={pageSize}
-        onPageChange={periodPagination.setOffset}
+        onChange={periodPagination.onChange}
         onPageSizeChange={handlePageSizeChange}
       />
     </>

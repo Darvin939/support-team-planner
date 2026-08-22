@@ -1,11 +1,12 @@
 import {useEffect, useState} from 'react';
 import type {TableColumnsType} from 'antd';
-import {Button, Form, Input, Modal, Pagination, Popconfirm, Select, Space, Switch, Table, Tag, Tooltip} from 'antd';
+import {Button, Form, Input, Modal, Popconfirm, Select, Space, Switch, Table, Tag, Tooltip} from 'antd';
 import {DeleteOutlined, EditOutlined, LockOutlined} from '@ant-design/icons';
 import {usePaginatedUsers, type User} from '../../hooks/useSettingsData';
 import {useMe} from '../../hooks/useMe';
 import {useCrudMutations} from '../../hooks/useCrudMutations';
-import {DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS} from '../../lib/pagination';
+import {DEFAULT_PAGE_SIZE} from '../../lib/pagination';
+import {AppPagination} from '../../components/AppPagination';
 import {useTeams} from '../../hooks/useTeams';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import {usePaginationState} from '../../hooks/usePaginationState';
@@ -155,10 +156,8 @@ export function UsersTab() {
       </Space>
       <Table<User> rowKey="id" columns={columns} dataSource={data?.users ?? []} loading={isLoading}
                    pagination={false} scroll={{x: 1080}} sticky={{offsetHeader: isMobile ? TOP_BAR_HEIGHT : 0}}/>
-      {(data?.total ?? 0) > pageSize && <Pagination current={page} pageSize={pageSize} total={data?.total ?? 0}
-                                                    showSizeChanger pageSizeOptions={PAGE_SIZE_OPTIONS}
-                                                    style={{marginTop: 16, textAlign: 'right'}}
-                                                    onChange={pagination.onChange}/>}
+      <AppPagination current={page} pageSize={pageSize} total={data?.total}
+                     allowPageSizeChange onChange={pagination.onChange}/>
 
       <Modal
         title={modalUser === 'new' ? 'Добавить пользователя' : 'Редактирование пользователя'}

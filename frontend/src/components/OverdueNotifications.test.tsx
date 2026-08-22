@@ -41,6 +41,8 @@ describe('центр просроченных уведомлений', () => {
     fireEvent.click(screen.getByRole('button', {name: 'Показать все'}));
     expect(await screen.findByText('Все просроченные назначения (32)')).toBeTruthy();
     expect(screen.getByText('Просроченная 20')).toBeTruthy();
+    expect(document.querySelector('[data-app-pagination][data-compact="true"]')).not.toBeNull();
+    expect(document.querySelector('.ant-drawer .ant-pagination-options')).toBeNull();
     expect(mocks.pageHook).toHaveBeenCalledWith(0, 20, true);
 
     const pageTwo = screen.getByTitle('2');

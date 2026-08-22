@@ -41,7 +41,7 @@ import {usePaginationState} from '../hooks/usePaginationState';
 import {usePlanningFilters} from './planning/usePlanningFilters';
 import {createPlanningGridViewKey, usePlanningGridTodayCenter} from './planning/usePlanningGridTodayCenter';
 import {TOP_BAR_HEIGHT} from "../components/AppShell.tsx";
-import {PagePagination} from '../components/PagePagination';
+import {AppPagination} from '../components/AppPagination';
 import {usePlanningLookups} from './planning/usePlanningLookups';
 import {usePlanningNavigation} from './planning/usePlanningNavigation';
 import {scrollToPlanningTaskRow, useTaskRowHighlight} from './planning/focusPlanningTask';
@@ -388,8 +388,8 @@ export function PlanningPage() {
           </div>
         )}
 
-        {taskData && <PagePagination current={page} pageSize={pageSize} total={taskData.total}
-                                     onChange={pagination.onChange}/>}
+        {taskData && <AppPagination current={page} pageSize={pageSize} total={taskData.total}
+                                    allowPageSizeChange onChange={pagination.onChange}/>}
       </Card>
 
       <TaskModal

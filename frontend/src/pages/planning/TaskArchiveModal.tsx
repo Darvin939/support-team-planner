@@ -1,7 +1,7 @@
 import {useEffect, useState} from 'react';
 import {Button, DatePicker, Input, Modal, Popconfirm, Space, Table, theme, Typography} from 'antd';
 import dayjs, {type Dayjs} from 'dayjs';
-import {OffsetPagination} from '../../components/OffsetPagination';
+import {AppPagination} from '../../components/AppPagination';
 import {TASK_STATUS_LABELS, type TaskStatus} from '../../domain/types';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import {type Task, useTaskArchive} from '../../hooks/usePlanningData';
@@ -25,7 +25,7 @@ export function TaskArchiveModal({open, teamId, canRestore, onClose}: {
   const pagination = usePaginationState(PAGE_SIZE);
   const from = range[0]?.format(API_DATE_FORMAT) ?? '';
   const to = range[1]?.format(API_DATE_FORMAT) ?? '';
-  const archive = useTaskArchive(teamId, pagination.offset, PAGE_SIZE, debouncedSearch, from, to, open);
+  const archive = useTaskArchive(teamId, pagination.offset, pagination.pageSize, debouncedSearch, from, to, open);
   const restoreMutation = useRestoreTaskMutation();
 
   useEffect(() => pagination.reset(), [teamId, debouncedSearch, from, to, pagination.reset]);
@@ -74,8 +74,8 @@ export function TaskArchiveModal({open, teamId, canRestore, onClose}: {
           }] : []),
         ]}
       />
-      <OffsetPagination offset={pagination.offset} pageSize={PAGE_SIZE} total={archive.data?.total ?? 0}
-                        onOffsetChange={pagination.setOffset} style={{marginTop: 16, textAlign: 'center'}}/>
+      <AppPagination current={pagination.page} pageSize={pagination.pageSize} total={archive.data?.total}
+                     onChange={pagination.onChange}/>
     </Modal>
   );
 }
