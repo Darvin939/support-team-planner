@@ -3,19 +3,19 @@
 ## Purpose
 TBD - created by archiving change remove-stale-plugin-test-cache. Update Purpose after archive.
 ## Requirements
-### Requirement: No orphaned bytecode directories in the working tree
-The working tree SHALL NOT contain a directory whose only contents are `__pycache__`/compiled bytecode with no
-corresponding tracked `.py` source file anywhere in that directory tree.
+### Requirement: No orphaned generated artifacts in the working tree
+The working tree SHALL NOT track orphaned `__pycache__` directories, compiled bytecode or stale plugin caches;
+source and test directories that contain current tracked `.py` files SHALL remain intact.
 
-#### Scenario: plugins/ and tests/ are removed
-- **WHEN** the working tree is inspected after this change
-- **THEN** neither `plugins/` nor `tests/` exists on disk
+#### Scenario: Test sources are preserved
+- **WHEN** the working tree is inspected
+- **THEN** the tracked `tests/` directory remains available while generated `__pycache__` contents stay ignored
 
-#### Scenario: No tracked history is affected
-- **WHEN** `git status`/`git log` is checked before and after this change
-- **THEN** there is no difference — neither directory was tracked, so nothing to commit or lose
+#### Scenario: Orphaned caches are absent
+- **WHEN** an obsolete source or plugin directory has been removed
+- **THEN** no standalone bytecode/cache-only directory for that removed source remains tracked
 
 #### Scenario: Application behavior is unaffected
 - **WHEN** the app is started (`python support_planner.py`) after this change
-- **THEN** it starts identically to before — no code path imports from `plugins/` or `tests/`
+- **THEN** it starts without importing removed plugin/cache artifacts
 

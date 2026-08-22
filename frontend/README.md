@@ -1,44 +1,134 @@
-# Frontend
+# Frontend планировщика команды поддержки
 
-React 19 + TypeScript SPA (Vite, Ant Design v6, TanStack Query, React Router, React Flow) для Support Team Planner.
-Общее
-описание проекта, API и запуск бэкенда — см. [корневой README](../README.md).
+Одностраничный интерфейс приложения на React и TypeScript. Он предоставляет страницы планирования, журнала, статистики и настроек, использует сессионную авторизацию FastAPI и в production раздаётся backend-сервером.
+
+## Стек
+
+- React 19 и React DOM;
+- TypeScript;
+- Vite;
+- Ant Design и `@ant-design/icons`;
+- TanStack Query для серверного состояния;
+- React Router для маршрутизации;
+- React Flow и Dagre для графа зависимостей;
+- Day.js для работы с датами;
+- Vitest, jsdom и React Testing Library для тестов;
+- Oxlint для статического анализа.
+
+## Требования
+
+- Node.js с поддержкой зависимостей из `package-lock.json`;
+- npm;
+- запущенный backend на `http://localhost:5093` для входа и работы с API.
+
+## Установка
+
+Из каталога `frontend` выполните:
+
+```bash
+npm ci
+```
+
+`npm ci` устанавливает точные версии из `package-lock.json` и подходит для чистого окружения и CI. Для обычного обновления уже установленного локального окружения можно использовать `npm install`.
+
+## Разработка
+
+Сначала из корня репозитория запустите backend:
+
+```bash
+python support_planner.py
+```
+
+Затем в отдельном терминале запустите Vite:
+
+```bash
+cd frontend
+npm run dev
+```
+
+Откройте адрес, который выведет Vite. Dev-сервер проксирует `/api`, `/login` и `/logout` на `http://localhost:5093`. Это сохраняет same-origin-сценарий и позволяет использовать настоящую cookie сессии без отдельной настройки CORS.
+
+Учётная запись локального администратора по умолчанию: `admin` / `q12345678`.
 
 ## Команды
 
+| Команда | Назначение |
+| --- | --- |
+| `npm run dev` | запустить Vite в режиме разработки |
+| `npm run build` | проверить TypeScript и собрать production-файлы в `dist` |
+| `npm test` | однократно запустить тесты Vitest |
+| `npm run lint` | проверить исходники с Oxlint |
+| `npm run preview` | локально просмотреть сборку средствами Vite |
+
+Для проверки перед отправкой изменений обычно достаточно:
+
 ```bash
-npm install       # установка зависимостей (один раз)
-npm run dev       # Vite dev-сервер с HMR — проксирует /api, /login, /logout на бэкенд (:5093),
-                  # поэтому параллельно должен быть запущен `python support_planner.py`
-npm run build     # продакшен-сборка -> dist/, раздаётся бэкендом по /react-assets/*
-npm run preview   # локальный просмотр собранного dist/
-npm run lint      # oxlint
+npm test
+npm run lint
+npm run build
 ```
 
-Без актуальной сборки в `dist/` бэкенд не сможет отдать ни одну страницу (`_serve_react_index()` в
-`support_planner.py` читает `dist/index.html`) — пересобирайте после каждого изменения фронтенда, если не
-используете `npm run dev`.
+## Production
+
+Соберите frontend:
+
+```bash
+npm run build
+```
+
+Vite создаст каталог `frontend/dist`. Production-сборка использует базовый URL `/react-assets/`, а FastAPI монтирует этот каталог по тому же пути и отдаёт `index.html` для маршрутов приложения.
+
+Для проверки полной production-интеграции запускайте backend из корня репозитория и открывайте <http://127.0.0.1:5093>. Команда `npm run preview` проверяет только Vite-сборку и не заменяет интеграционную проверку с настоящим backend и авторизацией.
+
+## Маршруты
+
+| URL | Раздел |
+| --- | --- |
+| `/login` | вход |
+| `/planning` и `/planning/:teamId` | планирование |
+| `/journal` и `/journal/:teamId` | журнал |
+| `/statistics` | статистика |
+| `/settings` | настройки для пользователей с необходимыми правами |
+
+Неизвестные клиентские маршруты перенаправляются на `/login`. Защиту данных обеспечивает backend; скрытие элементов в интерфейсе не считается проверкой прав доступа.
 
 ## Структура
 
-- `public/fonts/` — самостоятельно хостящиеся шрифты (Inter, JetBrains Mono); ссылки на них в `src/index.css`
-  Vite сам переписывает под `/react-assets/` при продакшен-сборке и копирует файлы в `dist/fonts/`.
-- `src/pages/` — по одному компоненту на маршрут: `LoginPage` (форма логин/пароль, без выбора сотрудника из
-  списка), `PlanningPage`, `StatisticsPage`, `JournalPage`, `SettingsPage`.
-    - `pages/planning/` — вынесенные части планирования: `TaskModal`/`AssignmentModal` (CRUD-модалки),
-      `DependencyGraphModal` (визуализация графа зависимостей задач команды), `HistoryPanel`, `useAssignmentDrag`/
-      `useTaskRowDrag` (перетаскивание) и вспомогательные `useAutoScheduleDragScroll`, `useTableDragScroll`,
-      `cellTint`, `scrollUtils`.
-    - `pages/settings/` — по одному компоненту-вкладке на раздел настроек: `TeamsTab`, `BlocksTab`, `SegmentsTab`,
-      `FreezeDaysTab`, `UsersTab`; `SettingsPage.tsx` — просто antd `Tabs`, сохраняющий активную вкладку в
-      localStorage.
-- `src/components/` — общие UI-компоненты: `AppShell`/`AuthenticatedLayout` (сайдбар, ролевая навигация через
-  `GET /api/me`), `MyAccountModal` (смена собственных логина/пароля через `PUT /api/me`), `planningBadges`,
-  `FilterGrid` (общая раскладка фильтров на страницах Планирования/Статистики/Журнала), `OverdueNotifications`,
-  `StatTile`.
-- `src/hooks/` — тонкие обёртки над TanStack Query по доменам данных, плюс `useDateRangeFilter` (период +
-  синхронизация с localStorage) и `useIsMobile`.
-- `src/lib/` — чистые хелперы: `apiMutate` (обёртка над `fetch` для POST/PUT/PATCH/DELETE), `autoSchedule`
-  (авторасписание с учётом дней фриза), `historyFormat` (форматирование истории изменений), `dateFormats`,
-  `linkify` (подсветка URL в описаниях задач/назначений как ссылок).
-- `src/theme.ts` — токены темы `ConfigProvider` (тёмная/светлая), на основе официальной палитры `@ant-design/colors`.
+```text
+frontend/
+├── public/                 # статические файлы и локальные шрифты
+├── src/
+│   ├── components/         # общие компоненты интерфейса
+│   ├── data/               # статические данные приложения
+│   ├── domain/             # типы предметной области
+│   ├── hooks/              # общие React hooks и запросы
+│   ├── lib/                # утилиты, ключи запросов и форматирование
+│   ├── pages/              # страницы и их специализированные компоненты
+│   ├── App.tsx             # маршрутизация и провайдеры приложения
+│   ├── main.tsx            # точка входа React
+│   ├── queryClient.ts      # настройка TanStack Query
+│   ├── theme.ts            # светлая и тёмная темы
+│   └── index.css           # глобальные стили
+├── index.html              # HTML-шаблон Vite
+├── vite.config.ts          # proxy, base URL и разбиение production-бандла
+├── tsconfig*.json          # конфигурация TypeScript
+└── package.json            # зависимости и npm-команды
+```
+
+## Состояние и запросы
+
+Серверные данные загружаются и кэшируются через TanStack Query. Общие ключи запросов находятся в `src/lib/queryKeys.ts`, а правила инвалидации — в `src/lib/queryInvalidation.ts`. При добавлении мутаций переиспользуйте эти механизмы, чтобы разные страницы не показывали устаревшие данные.
+
+Пользовательские настройки, которые должны переживать перезагрузку страницы, сохраняются через утилиты из `src/lib/storage.ts`. Тема хранится в `localStorage`.
+
+## Тестирование
+
+Логику компонентов и взаимодействия проверяйте Vitest и React Testing Library. Hooks и чистые функции тестируйте без браузера, если DOM им не нужен. Snapshot не должен быть единственной проверкой поведения.
+
+Тестовые файлы расположены рядом с исходниками и имеют суффиксы `.test.ts` или `.test.tsx`. Запуск всех тестов:
+
+```bash
+npm test
+```
+
+Визуальные, responsive- и сквозные сценарии проверяются через production-сборку и настоящий FastAPI-backend, а не через Vite dev-сервер. Перед такой проверкой всегда выполняйте свежую команду `npm run build`.
