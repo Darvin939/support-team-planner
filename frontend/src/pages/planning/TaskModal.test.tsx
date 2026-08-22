@@ -84,11 +84,12 @@ const task: Task = {
   segment_name: 'Основной сегмент',
   completed_at: null,
   has_active_assignments: false,
+  has_assignments: false,
 };
 
-function renderModal(existingDepIds = [2]) {
+function renderModal(existingDepIds = [2], modalTask: Task = task) {
   return render(
-    <TaskModal open teamId={7} task={task} existingDepIds={existingDepIds} onClose={vi.fn()}/>,
+    <TaskModal open teamId={7} task={modalTask} existingDepIds={existingDepIds} onClose={vi.fn()}/>,
   );
 }
 
@@ -154,6 +155,44 @@ describe('TaskModal', () => {
     expect(await screen.findByText('Укажите полную HTTP(S)-ссылку')).not.toBeNull();
     expect(mocks.save).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ['not_required', false, 'not_required'],
+    ['not_required', true, 'required'],
+    ['required', true, 'required'],
+    ['passed', true, 'passed'],
+    ['passed', false, 'not_required'],
+  ] as const)(
+    'maps initial PSI status %s with checkbox %s to %s',
+    async (initialStatus, checked, expectedStatus) => {
+      renderModal([], {...task, psi_status: initialStatus});
+
+      const checkbox = screen.getByRole('checkbox', {name: 'ПСИ требуется'}) as HTMLInputElement;
+      if (checkbox.checked !== checked) fireEvent.click(checkbox);
+      fireEvent.click(screen.getByRole('button', {name: 'Обновить'}));
+
+      await waitFor(() => {
+        expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({psi_status: expectedStatus}));
+      });
+    },
+  );
+
+  it.each(['not_required', 'required', 'passed'] as const)(
+    'locks the PSI checkbox and preserves %s when the task has assignments',
+    async (initialStatus) => {
+      renderModal([], {...task, psi_status: initialStatus, has_assignments: true});
+
+      const checkbox = screen.getByRole('checkbox', {name: 'ПСИ требуется'}) as HTMLInputElement;
+      expect(checkbox.disabled).toBe(true);
+      expect(checkbox.checked).toBe(initialStatus !== 'not_required');
+      fireEvent.click(checkbox);
+      fireEvent.click(screen.getByRole('button', {name: 'Обновить'}));
+
+      await waitFor(() => {
+        expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({psi_status: initialStatus}));
+      });
+    },
+  );
 
   it('shows separate safe links for the instruction and a URL inside the description', () => {
     render(

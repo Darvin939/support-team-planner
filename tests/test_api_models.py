@@ -91,7 +91,7 @@ class ApiModelsContractTest(unittest.TestCase):
         self.assertEqual(
             {
                 'id', 'name', 'description', 'instruction_url', 'criticality', 'task_status', 'psi_status', 'segment_id',
-                'segment_name', 'completed_at', 'has_active_assignments',
+                'segment_name', 'completed_at', 'has_active_assignments', 'has_assignments',
             },
             set(self.schemas['TaskOut']['properties']),
         )
@@ -218,6 +218,7 @@ class ApiModelsContractTest(unittest.TestCase):
             '/api/tasks/{team_id}/archive': {'get'},
             '/api/task': {'post'},
             '/api/tasks/{task_id}/status': {'patch'},
+            '/api/tasks/{task_id}/psi-status': {'patch'},
             '/api/tasks/{team_id}/reorder': {'patch'},
             '/api/task/{task_id}/priority': {'patch'},
             '/api/task/{task_id}/history': {'get'},

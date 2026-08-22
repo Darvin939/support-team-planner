@@ -7,6 +7,7 @@ AssignmentStatus = Literal['new', 'planned', 'rollback', 'success', 'cancelled']
 Criticality = Literal['low', 'medium', 'high']
 UserRole = Literal['user', 'editor', 'admin']
 PsiStatus = Literal['not_required', 'required', 'passed']
+PsiResultStatus = Literal['required', 'passed']
 PriorityPosition = Literal['start', 'end']
 
 
@@ -61,6 +62,7 @@ class TaskOut(BaseModel):
     segment_name: str
     completed_at: Optional[str] = None
     has_active_assignments: bool
+    has_assignments: bool
 
 
 class TasksPage(BaseModel):
@@ -235,6 +237,10 @@ class FreezeDayMonthIn(BaseModel):
 
 class TaskStatusIn(BaseModel):
     status: TaskStatus
+
+
+class TaskPsiStatusIn(BaseModel):
+    psi_status: PsiResultStatus
 
 
 class TaskReorderIn(BaseModel):

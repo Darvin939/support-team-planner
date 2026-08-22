@@ -64,6 +64,7 @@ class DeclarativeRoutePolicyTest(unittest.TestCase):
         ('POST', '/api/assignments/bulk-delete'), ('POST', '/api/task-dependency'),
         ('DELETE', '/api/task-dependency'), ('POST', '/api/task'), ('DELETE', '/api/task/{task_id}'),
         ('PATCH', '/api/tasks/{team_id}/reorder'), ('PATCH', '/api/task/{task_id}/priority'),
+        ('PATCH', '/api/tasks/{task_id}/psi-status'),
         ('POST', '/api/notifications/new-tasks/seen'),
     }
     EDITOR_MUTATIONS = {

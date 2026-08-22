@@ -11,8 +11,6 @@ import {
   CRITICALITY_LABELS,
   CRITICALITY_OPTIONS,
   PSI_STATUS_LABELS,
-  PSI_STATUS_OPTIONS,
-  type PsiStatus,
   type Task
 } from '../../domain/types';
 import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';
@@ -25,7 +23,7 @@ interface TaskFormValues {
   instruction_url: string;
   criticality: Criticality;
   segment_id: number;
-  psi_status: PsiStatus;
+  psi_required: boolean;
 }
 
 const TERMINAL_STATUS_LABEL: Record<string, string> = {done: 'Выполнена', cancelled: 'Отменена'};
@@ -69,7 +67,7 @@ export function TaskModal({
       instruction_url: task?.instruction_url ?? '',
       criticality: task?.criticality ?? 'medium',
       segment_id: task?.segment_id ?? segments?.[0]?.id,
-      psi_status: task?.psi_status ?? 'not_required',
+      psi_required: task?.psi_status === 'required' || task?.psi_status === 'passed',
     });
     setDepIds(new Set(existingDepIds));
     setDepSearch('');
@@ -80,6 +78,13 @@ export function TaskModal({
   const deleteMutation = useDeleteTaskMutation(task?.id, onClose);
 
   function saveTask(values: TaskFormValues) {
+    const psiStatus = task?.has_assignments
+      ? task.psi_status
+      : values.psi_required
+        ? task?.psi_status === 'required' || task?.psi_status === 'passed'
+          ? task.psi_status
+          : 'required'
+        : 'not_required';
     saveMutation.mutate({
       task_id: task?.id,
       team_id: teamId,
@@ -87,7 +92,7 @@ export function TaskModal({
       description: values.description || null,
       instruction_url: values.instruction_url?.trim() || null,
       criticality: values.criticality,
-      psi_status: values.psi_status,
+      psi_status: psiStatus,
       segment_id: values.segment_id,
       dependency_ids: [...depIds],
     });
@@ -248,8 +253,8 @@ export function TaskModal({
                           <Select placeholder="Выберите сегмент"
                                   options={segments?.map((s) => ({value: s.id, label: s.name}))}/>
                         </Form.Item>
-                        <Form.Item name="psi_status" label="ПСИ" rules={[{required: true}]}>
-                          <Select options={PSI_STATUS_OPTIONS}/>
+                        <Form.Item name="psi_required" valuePropName="checked">
+                          <Checkbox disabled={task?.has_assignments}>Требуется ПСИ</Checkbox>
                         </Form.Item>
                       </div>
                     </>

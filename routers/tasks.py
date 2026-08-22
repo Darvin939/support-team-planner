@@ -7,13 +7,34 @@ from fastapi.responses import JSONResponse
 
 import db
 from access_control import CurrentUser, require_editor, require_task_access, require_team_access, require_user
-from api_models import HistoryPage, TaskIn, TaskOut, TaskPriorityIn, TaskReorderIn, TasksPage, TaskStatusIn
+from api_models import (
+    HistoryPage, TaskIn, TaskOut, TaskPriorityIn, TaskPsiStatusIn, TaskReorderIn, TasksPage, TaskStatusIn,
+)
 from db.pagination import page_result
 from task_dependency_rules import TaskDependencyCycleError
 from task_rules import VALID_TASK_TRANSITIONS, task_is_locked
 
 
 router = APIRouter()
+
+
+def _validate_psi_status_change(task_id: int, task, psi_status: str):
+    if task and task_is_locked(task):
+        return JSONResponse(
+            {'error': 'Нельзя изменять ПСИ завершённой или отменённой работы'},
+            status_code=400,
+        )
+    current_psi_status = task['psi_status']
+    blocked_with_assignments = (
+        (psi_status == 'required' and current_psi_status != 'required')
+        or (psi_status == 'not_required' and current_psi_status != 'not_required')
+    )
+    if blocked_with_assignments and db.task_has_any_assignments(task_id):
+        return JSONResponse(
+            {'error': 'Перед изменением требования ПСИ удалите назначения работы'},
+            status_code=400,
+        )
+    return None
 
 
 def _task_json(task):
@@ -29,6 +50,7 @@ def _task_json(task):
         'segment_name': task['segment_name'],
         'completed_at': task['completed_at'],
         'has_active_assignments': bool(task['has_active_assignments']),
+        'has_assignments': bool(task['has_assignments']),
     }
 
 
@@ -138,11 +160,9 @@ def save_task_api(request: Request, data: TaskIn, current_user: CurrentUser = De
             )
         if data.psi_status is None:
             psi_status = task['psi_status']
-        if psi_status == 'required' and task['psi_status'] != 'required' and db.task_has_any_assignments(data.task_id):
-            return JSONResponse(
-                {'error': 'Перед включением требования ПСИ удалите активные назначения работы'},
-                status_code=400,
-            )
+        psi_error = _validate_psi_status_change(int(data.task_id), task, psi_status)
+        if psi_error:
+            return psi_error
     try:
         with db.composite_transaction():
             task_id = int(
@@ -203,6 +223,26 @@ def update_task_status_api(
             status_code=400,
         )
     db.update_task_status(task_id, data.status, changed_by=current_user.id)
+    return {'success': True}
+
+
+@router.patch('/api/tasks/{task_id}/psi-status')
+def update_task_psi_status_api(
+    request: Request, task_id: int, data: TaskPsiStatusIn, current_user: CurrentUser = Depends(require_user),
+):
+    require_task_access(request, task_id)
+    task = db.get_task_status(task_id)
+    if not task or task['is_deleted']:
+        return JSONResponse({'error': 'Работа не найдена'}, status_code=404)
+    if task['psi_status'] not in ('required', 'passed'):
+        return JSONResponse(
+            {'error': 'Результат ПСИ можно изменить только для работы, которой требуется ПСИ'},
+            status_code=400,
+        )
+    psi_error = _validate_psi_status_change(task_id, task, data.psi_status)
+    if psi_error:
+        return psi_error
+    db.update_task_psi_status(task_id, data.psi_status, changed_by=current_user.id)
     return {'success': True}
 
 

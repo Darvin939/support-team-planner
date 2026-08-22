@@ -638,6 +638,60 @@ class CompositeTransactionApiTest(unittest.TestCase):
         conn.commit()
         conn.close()
 
+    def test_task_psi_result_endpoint_transitions_audits_and_validates(self):
+        conn = sqlite3.connect(self.path)
+        conn.execute("UPDATE tasks SET task_status = 'new', psi_status = 'required' WHERE id = 10")
+        conn.execute("DELETE FROM assignments WHERE task_id = 10")
+        conn.execute("DELETE FROM task_history WHERE task_id = 10 AND field_name = 'psi_status'")
+        conn.commit()
+        conn.close()
+
+        with self.login('transaction-user', 'password123') as client:
+            response = client.patch('/api/tasks/10/psi-status', json={'psi_status': 'passed'})
+            self.assertEqual(200, response.status_code)
+
+        conn = sqlite3.connect(self.path)
+        self.assertEqual('passed', conn.execute('SELECT psi_status FROM tasks WHERE id = 10').fetchone()[0])
+        self.assertEqual(
+            ('required', 'passed', 3),
+            conn.execute(
+                "SELECT old_value, new_value, changed_by_user_id FROM task_history "
+                "WHERE task_id = 10 AND field_name = 'psi_status' ORDER BY id DESC LIMIT 1"
+            ).fetchone(),
+        )
+        conn.close()
+
+        with self.login('transaction-user', 'password123') as client:
+            response = client.patch('/api/tasks/10/psi-status', json={'psi_status': 'required'})
+            self.assertEqual(200, response.status_code)
+
+        conn = sqlite3.connect(self.path)
+        conn.execute("INSERT INTO assignments (id, task_id, date, status) VALUES (221, 10, '2026-09-21', 'new')")
+        conn.execute("UPDATE tasks SET psi_status = 'passed' WHERE id = 10")
+        conn.commit()
+        conn.close()
+
+        with self.login('transaction-user', 'password123') as client:
+            response = client.patch('/api/tasks/10/psi-status', json={'psi_status': 'required'})
+            self.assertEqual(400, response.status_code)
+            self.assertIn('удалите назначения', response.json()['error'])
+
+        conn = sqlite3.connect(self.path)
+        conn.execute("DELETE FROM assignments WHERE id = 221")
+        conn.execute("UPDATE tasks SET task_status = 'done', psi_status = 'required' WHERE id = 10")
+        conn.commit()
+        conn.close()
+
+        with self.login('transaction-user', 'password123') as client:
+            response = client.patch('/api/tasks/10/psi-status', json={'psi_status': 'passed'})
+            self.assertEqual(400, response.status_code)
+
+        conn = sqlite3.connect(self.path)
+        conn.execute("UPDATE tasks SET task_status = 'new', psi_status = 'not_required' WHERE id = 10")
+        conn.execute("DELETE FROM task_history WHERE task_id = 10 AND field_name = 'psi_status'")
+        conn.commit()
+        conn.close()
+
     def test_required_psi_blocks_planning_and_bulk_is_atomic(self):
         conn = sqlite3.connect(self.path)
         conn.execute("UPDATE tasks SET psi_status = 'required' WHERE id = 10")
@@ -683,7 +737,7 @@ class CompositeTransactionApiTest(unittest.TestCase):
         conn.commit()
         conn.close()
 
-    def test_required_psi_cannot_be_enabled_with_existing_assignment(self):
+    def test_psi_requirement_cannot_be_changed_with_existing_assignment(self):
         conn = sqlite3.connect(self.path)
         conn.execute("INSERT INTO assignments (id, task_id, date, status) VALUES (220, 10, '2026-09-20', 'new')")
         conn.commit()
@@ -696,8 +750,22 @@ class CompositeTransactionApiTest(unittest.TestCase):
         with self.login() as client:
             response = client.post('/api/task', json=payload)
             self.assertEqual(400, response.status_code)
+            task = client.get('/api/task/10').json()
+            self.assertTrue(task['has_assignments'])
+            self.assertFalse(task['has_active_assignments'])
+
+        conn = sqlite3.connect(self.path)
+        conn.execute("UPDATE tasks SET psi_status = 'passed' WHERE id = 10")
+        conn.commit()
+        conn.close()
+        payload['psi_status'] = 'not_required'
+        with self.login() as client:
+            response = client.post('/api/task', json=payload)
+            self.assertEqual(400, response.status_code)
+
         conn = sqlite3.connect(self.path)
         conn.execute('DELETE FROM assignments WHERE id = 220')
+        conn.execute("UPDATE tasks SET psi_status = 'not_required' WHERE id = 10")
         conn.commit()
         conn.close()
 

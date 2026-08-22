@@ -74,6 +74,19 @@ export function useTaskStatusMutation(getTaskName: (taskId: number) => string | 
   });
 }
 
+export function useTaskPsiStatusMutation() {
+  const invalidate = useTaskMutationInvalidation({activeAssignments: true});
+  return useMutation({
+    mutationFn: ({taskId, psiStatus}: {taskId: number; psiStatus: 'required' | 'passed'}) =>
+      apiMutate(`/api/tasks/${taskId}/psi-status`, 'PATCH', {psi_status: psiStatus}),
+    onSuccess: async () => {
+      await invalidate();
+      message.success('Статус ПСИ изменён');
+    },
+    onError: (error: Error) => message.error(error.message),
+  });
+}
+
 export function useTaskReorderMutation(teamId: number | undefined) {
   const invalidate = useTaskMutationInvalidation();
   return useMutation({

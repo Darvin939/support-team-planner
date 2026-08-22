@@ -51,7 +51,12 @@ import {usePlanningAssignmentActions} from './planning/usePlanningAssignmentActi
 import {PlanningFiltersCard} from './planning/PlanningFiltersCard';
 import {PlanningStats} from './planning/PlanningStats';
 import {PlanningToolbar} from './planning/PlanningToolbar';
-import {useTaskPriorityMutation, useTaskReorderMutation, useTaskStatusMutation} from '../hooks/useTaskMutations';
+import {
+  useTaskPriorityMutation,
+  useTaskPsiStatusMutation,
+  useTaskReorderMutation,
+  useTaskStatusMutation,
+} from '../hooks/useTaskMutations';
 import {NewTasksOverviewCard} from '../components/NewTaskNotifications';
 
 const DependencyGraphModal = lazy(() => import('./planning/DependencyGraphModal').then((m) => ({default: m.DependencyGraphModal})));
@@ -117,6 +122,7 @@ export function PlanningPage() {
   );
   const reorderMutation = useTaskReorderMutation(teamId);
   const priorityMutation = useTaskPriorityMutation();
+  const psiStatusMutation = useTaskPsiStatusMutation();
 
   useTaskRowDrag({
     onDrop: (newOrder) => reorderMutation.mutate(newOrder),
@@ -278,6 +284,7 @@ export function PlanningPage() {
     onClearSelection: () => setSelectedAssignmentIds(new Set()),
     priorityMutation,
     statusMutation,
+    psiStatusMutation,
     assignmentStatusMutation,
     setGraphModal,
     setTaskModal,

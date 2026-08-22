@@ -48,6 +48,8 @@ def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, include_re
         f'''SELECT tasks.id, tasks.name, tasks.description, tasks.instruction_url,
                    tasks.criticality, tasks.task_status, tasks.psi_status,
                    tasks.segment_id, segments.name AS segment_name, tasks.completed_at,
+                   EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0)
+                       AS has_assignments,
                    EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0
                           AND a.status != 'new') AS has_active_assignments
             FROM tasks
@@ -89,6 +91,8 @@ def get_task_by_id(conn, task_id):
         '''SELECT tasks.id, tasks.team_id, tasks.name, tasks.description, tasks.instruction_url, tasks.criticality,
                   tasks.task_status, tasks.psi_status, tasks.segment_id, segments.name AS segment_name,
                   tasks.completed_at,
+                  EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0)
+                      AS has_assignments,
                   EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0
                          AND a.status != 'new') AS has_active_assignments
              FROM tasks JOIN segments ON tasks.segment_id = segments.id
@@ -122,6 +126,8 @@ def get_archived_tasks_by_team(conn, team_id, offset=0, limit=20, search=None,
         f'''SELECT tasks.id, tasks.name, tasks.description, tasks.instruction_url,
                    tasks.criticality, tasks.task_status, tasks.psi_status,
                    tasks.segment_id, segments.name AS segment_name, tasks.completed_at,
+                   EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0)
+                       AS has_assignments,
                    EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0
                           AND a.status != 'new') AS has_active_assignments
               FROM tasks JOIN segments ON tasks.segment_id = segments.id
@@ -392,6 +398,24 @@ def update_task_status(conn, task_id, new_status, changed_by=None):
         conn.execute("UPDATE tasks SET task_status = ?, completed_at = NULL WHERE id = ?", (new_status, task_id))
     else:
         conn.execute("UPDATE tasks SET task_status = ? WHERE id = ?", (new_status, task_id))
+    return True
+
+
+@with_db_connection()
+def update_task_psi_status(conn, task_id, new_status, changed_by=None):
+    """Обновить результат ПСИ работы с записью изменения в историю."""
+    current = conn.execute('SELECT psi_status FROM tasks WHERE id = ?', (task_id,)).fetchone()
+    if current and current['psi_status'] != new_status:
+        _record_task_history(
+            conn,
+            task_id,
+            'update',
+            field_name='psi_status',
+            old_value=current['psi_status'],
+            new_value=new_status,
+            changed_by=changed_by,
+        )
+        conn.execute('UPDATE tasks SET psi_status = ? WHERE id = ?', (new_status, task_id))
     return True
 
 

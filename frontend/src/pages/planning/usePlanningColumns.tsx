@@ -26,7 +26,7 @@ import {
   VerticalAlignBottomOutlined,
   VerticalAlignTopOutlined,
 } from '@ant-design/icons';
-import type {AssignmentStatus, Assignment, Task, TaskDep, TaskStatus} from '../../domain/types';
+import type {AssignmentStatus, Assignment, PsiStatus, Task, TaskDep, TaskStatus} from '../../domain/types';
 import {ASSIGNMENT_STATUS_LABELS, ASSIGNMENT_STATUS_OPTIONS, TASK_STATUS_LABELS} from '../../domain/types';
 import {DepBadge, type DepBadgeEntry, PsiStatusBadge, ScheduleChip} from '../../components/planningBadges';
 import {linkify} from '../../lib/linkify';
@@ -72,6 +72,7 @@ interface UsePlanningColumnsOptions {
   onClearSelection: () => void;
   priorityMutation: MutateFn<{ taskId: number; position: 'start' | 'end' }>;
   statusMutation: MutateFn<{ taskId: number; status: TaskStatus }>;
+  psiStatusMutation: MutateFn<{ taskId: number; psiStatus: Extract<PsiStatus, 'required' | 'passed'> }>;
   assignmentStatusMutation: MutateFn<{ assignmentId: number; status: AssignmentStatus }>;
   setGraphModal: Dispatch<SetStateAction<{ open: boolean; taskId?: number }>>;
   setTaskModal: Dispatch<SetStateAction<{ open: boolean; task: Task | null }>>;
@@ -101,6 +102,7 @@ export function usePlanningColumns({
                                      onClearSelection,
                                      priorityMutation,
                                      statusMutation,
+                                     psiStatusMutation,
                                      assignmentStatusMutation,
                                      setGraphModal,
                                      setTaskModal,
@@ -192,6 +194,18 @@ export function usePlanningColumns({
           ...(isTerminal
             ? []
             : [
+              ...(task.psi_status === 'required' || task.psi_status === 'passed'
+                ? [{
+                  key: 'psi-group',
+                  type: 'group' as const,
+                  label: 'ПСИ',
+                  children: [{
+                    key: task.psi_status === 'required' ? 'psi-passed' : 'psi-required',
+                    label: task.psi_status === 'required' ? 'ПСИ пройдено' : 'Вернуть статус «Требуется ПСИ»',
+                    icon: task.psi_status === 'required' ? <CheckCircleOutlined/> : <UndoOutlined/>,
+                  }],
+                }]
+                : []),
               {
                 key: 'priority-group',
                 type: 'group' as const,
@@ -217,6 +231,21 @@ export function usePlanningColumns({
           }
           if (key === 'graph') {
             setGraphModal({open: true, taskId: task.id});
+            return;
+          }
+          if (key === 'psi-passed' || key === 'psi-required') {
+            const psiStatus = key === 'psi-passed' ? 'passed' : 'required';
+            Modal.confirm({
+              title: psiStatus === 'passed'
+                ? 'Отметить ПСИ пройденным?'
+                : 'Вернуть статус «Требуется ПСИ»?',
+              content: psiStatus === 'required'
+                ? 'Планирование новых назначений будет заблокировано.'
+                : undefined,
+              okText: 'Подтвердить',
+              cancelText: 'Отмена',
+              onOk: () => psiStatusMutation.mutate({taskId: task.id, psiStatus}),
+            });
             return;
           }
           if (key === 'done' || key === 'cancelled') {

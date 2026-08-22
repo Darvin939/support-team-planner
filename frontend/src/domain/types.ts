@@ -16,6 +16,7 @@ export interface Task {
   segment_name: string;
   completed_at: string | null;
   has_active_assignments: boolean;
+  has_assignments: boolean;
 }
 
 export interface Assignment {
