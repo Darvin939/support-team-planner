@@ -1,12 +1,13 @@
 import json
 import os
+from typing import Optional
 
 from api_models import TaskStatus
 
 TERMINAL_TASK_STATUSES: frozenset[TaskStatus] = frozenset({'done', 'cancelled'})
 
 
-def is_terminal_task_status(status: str | None) -> bool:
+def is_terminal_task_status(status: Optional[str]) -> bool:
     return status in TERMINAL_TASK_STATUSES
 
 
