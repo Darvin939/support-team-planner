@@ -68,6 +68,7 @@ function PlanningTaskCell({
   psiMutate: (vars: {taskId: number; psiStatus: 'required' | 'passed'}) => void;
 }) {
   const columns = usePlanningColumns({
+    teamId: 1,
     dates: [],
     assignmentByKey: new Map(),
     depsByTask: new Map(),
@@ -131,5 +132,92 @@ describe('usePlanningColumns PSI context action', () => {
     fireEvent.contextMenu(screen.getByText(planningTask.name));
     expect(screen.queryByText('ПСИ пройдено')).toBeNull();
     expect(screen.queryByText('Вернуть статус «Требуется ПСИ»')).toBeNull();
+  });
+});
+
+describe('usePlanningColumns copy assignments action', () => {
+  function setClipboard(writeText = vi.fn().mockResolvedValue(undefined)) {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {writeText},
+    });
+    return writeText;
+  }
+
+  function mockHistory(body: unknown, ok = true) {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok,
+      status: ok ? 200 : 500,
+      json: vi.fn().mockResolvedValue(body),
+    }));
+  }
+
+  it('is available for a terminal task and copies formatted successful history', async () => {
+    const writeText = setClipboard();
+    mockHistory([
+      {
+        id: 1,
+        task_id: planningTask.id,
+        date: '2026-09-05',
+        block: 'GF, GA',
+        status: 'success',
+        user_id: null,
+        user_name: null,
+        comment: null,
+        time_spent: null,
+      },
+    ]);
+    const terminalTask = {...planningTask, task_status: 'done' as const};
+    render(<AntApp><PlanningTaskCell task={terminalTask} psiMutate={vi.fn()}/></AntApp>);
+
+    fireEvent.contextMenu(screen.getByText(terminalTask.name));
+    fireEvent.click(await screen.findByText('Копировать назначения'));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(
+      `${terminalTask.name}\nGF, GA - 05.09.2026`,
+    ));
+    expect(await screen.findByText('Назначения скопированы')).toBeTruthy();
+  });
+
+  it('does not touch the clipboard when successful assignments are empty', async () => {
+    const writeText = setClipboard();
+    mockHistory([]);
+    render(<AntApp><PlanningTaskCell task={planningTask} psiMutate={vi.fn()}/></AntApp>);
+
+    fireEvent.contextMenu(screen.getByText(planningTask.name));
+    fireEvent.click(await screen.findByText('Копировать назначения'));
+
+    expect(await screen.findByText('Нет успешных назначений')).toBeTruthy();
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it('shows an error when loading or clipboard writing fails', async () => {
+    const writeText = setClipboard();
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network error')));
+    const view = render(<AntApp><PlanningTaskCell task={planningTask} psiMutate={vi.fn()}/></AntApp>);
+
+    fireEvent.contextMenu(screen.getByText(planningTask.name));
+    fireEvent.click(await screen.findByText('Копировать назначения'));
+    expect(await screen.findByText('Не удалось скопировать назначения')).toBeTruthy();
+    expect(writeText).not.toHaveBeenCalled();
+
+    view.unmount();
+    writeText.mockRejectedValueOnce(new Error('clipboard denied'));
+    mockHistory([{
+      id: 1,
+      task_id: planningTask.id,
+      date: '2026-09-05',
+      block: 'GF',
+      status: 'success',
+      user_id: null,
+      user_name: null,
+      comment: null,
+      time_spent: null,
+    }]);
+    render(<AntApp><PlanningTaskCell task={planningTask} psiMutate={vi.fn()}/></AntApp>);
+    fireEvent.contextMenu(screen.getByText(planningTask.name));
+    fireEvent.click(await screen.findByText('Копировать назначения'));
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    expect(await screen.findByText('Не удалось скопировать назначения')).toBeTruthy();
   });
 });

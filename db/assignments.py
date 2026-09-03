@@ -74,6 +74,31 @@ def get_assignments_by_team_in_period(conn, team_id, start_date, end_date, task_
     return conn.execute(query, tuple(params)).fetchall()
 
 
+@with_db_connection(commit_on_success=False)
+def get_successful_assignments_by_task(conn, task_id):
+    """Получить всю неудалённую историю успешных назначений работы."""
+    return conn.execute(
+        '''SELECT a.id,
+                  a.task_id,
+                  a.date,
+                  a.block,
+                  a.status,
+                  a.user_id,
+                  a.comment,
+                  a.time_spent,
+                  u.last_name   as user_last_name,
+                  u.first_name  as user_first_name,
+                  u.middle_name as user_middle_name
+           FROM assignments a
+                    LEFT JOIN users u ON a.user_id = u.id
+           WHERE a.task_id = ?
+             AND a.status = 'success'
+             AND a.is_deleted = 0
+           ORDER BY a.date, a.id''',
+        (task_id,),
+    ).fetchall()
+
+
 @with_db_connection()
 def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, status, user_id, comment,
                                  time_spent=None, changed_by=None):

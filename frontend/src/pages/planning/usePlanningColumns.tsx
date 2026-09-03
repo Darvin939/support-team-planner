@@ -18,6 +18,7 @@ import {
   CheckOutlined,
   CloseCircleOutlined,
   CloseOutlined,
+  CopyOutlined,
   EditOutlined,
   HolderOutlined,
   InfoCircleOutlined,
@@ -37,6 +38,7 @@ import {TaskInstructionLink} from './TaskInstructionLink';
 import taskTransitionsJson from '../../data/taskTransitions.json';
 import {canChangeAssignmentStatus} from './assignmentStatusRolePolicy';
 import {TaskNameWithCriticality} from './TaskNameWithCriticality';
+import {buildSuccessfulAssignmentsText, getSuccessfulAssignmentHistory} from './successfulAssignmentCopy';
 
 // Единственный источник истины — frontend/src/data/taskTransitions.json, тот же файл читает и
 // support_planner.py (см. openspec/changes/shared-task-transitions-source).
@@ -57,6 +59,7 @@ interface MutateFn<TVars> {
 }
 
 interface UsePlanningColumnsOptions {
+  teamId: number | undefined;
   dates: Dayjs[];
   assignmentByKey: Map<string, Assignment>;
   depsByTask: Map<number, TaskDep[] | undefined>;
@@ -87,6 +90,7 @@ interface UsePlanningColumnsOptions {
  * drag-and-drop, контекстное меню статуса назначения). Вынесено из PlanningPage.tsx как есть,
  * без изменения логики — см. openspec/changes/split-planning-page-columns. */
 export function usePlanningColumns({
+                                     teamId,
                                      dates,
                                      assignmentByKey,
                                      depsByTask,
@@ -109,9 +113,10 @@ export function usePlanningColumns({
                                      setAssignmentModal,
                                      onDepNavigate,
                                    }: UsePlanningColumnsOptions): TableColumnsType<Task> {
-  const {modal} = AntApp.useApp();
+  const {message, modal} = AntApp.useApp();
   const [openContextMenu, setOpenContextMenu] = useState<string | null>(null);
   const suppressNextActivationRef = useRef(false);
+  const copyingTaskIdsRef = useRef(new Set<number>());
 
   useEffect(() => {
     function suppressActivation(event: MouseEvent) {
@@ -218,12 +223,37 @@ export function usePlanningColumns({
               },
             ]),
           {
+            key: 'copy-group',
+            type: 'group' as const,
+            label: 'Буфер обмена',
+            children: [{key: 'copy-assignments', label: 'Копировать успешные назначения', icon: <CopyOutlined/>}],
+          },
+          {
             key: 'graph-group',
             type: 'group' as const,
             label: 'Граф',
             children: [{key: 'graph', label: 'Граф зависимостей по этой работе', icon: <ApartmentOutlined/>}],
           },
         ];
+
+        async function copyAssignments() {
+          if (teamId === undefined || copyingTaskIdsRef.current.has(task.id)) return;
+          copyingTaskIdsRef.current.add(task.id);
+          try {
+            const assignments = await getSuccessfulAssignmentHistory(teamId, task.id);
+            const text = buildSuccessfulAssignmentsText(task.name, assignments);
+            if (!text) {
+              message.info('Нет успешных назначений');
+              return;
+            }
+            await navigator.clipboard.writeText(text);
+            message.success('Назначения скопированы');
+          } catch {
+            message.error('Не удалось скопировать назначения');
+          } finally {
+            copyingTaskIdsRef.current.delete(task.id);
+          }
+        }
 
         function handleMenuClick(key: string) {
           if (key === 'start' || key === 'end') {
@@ -232,6 +262,10 @@ export function usePlanningColumns({
           }
           if (key === 'graph') {
             setGraphModal({open: true, taskId: task.id});
+            return;
+          }
+          if (key === 'copy-assignments') {
+            void copyAssignments();
             return;
           }
           if (key === 'psi-passed' || key === 'psi-required') {
@@ -437,5 +471,5 @@ export function usePlanningColumns({
     });
 
     return [infoColumn, ...dateColumns];
-  }, [dates, assignmentByKey, depsByTask, today, token, freezeDays, isUser, selectedAssignmentIds, openContextMenu]);
+  }, [teamId, dates, assignmentByKey, depsByTask, today, token, freezeDays, isUser, selectedAssignmentIds, openContextMenu, message, modal]);
 }

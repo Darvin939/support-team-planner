@@ -87,6 +87,36 @@ def get_assignments_api(
     ]
 
 
+@router.get(
+    '/api/assignments/{team_id}/task/{task_id}/successful-history',
+    dependencies=[Depends(require_user)],
+    response_model=list[AssignmentOut],
+)
+def get_successful_assignment_history_api(request: Request, team_id: int, task_id: int):
+    require_team_access(request, team_id)
+    task_team_id = require_task_access(request, task_id)
+    if task_team_id != team_id:
+        raise HTTPException(status_code=404, detail='Работа не найдена в указанной команде')
+
+    assignments = db.get_successful_assignments_by_task(task_id)
+    return [
+        {
+            'id': assignment['id'],
+            'task_id': assignment['task_id'],
+            'date': assignment['date'],
+            'block': assignment['block'],
+            'status': assignment['status'],
+            'user_id': assignment['user_id'],
+            'user_name': utils.format_user_name(
+                assignment['user_last_name'], assignment['user_first_name'], assignment['user_middle_name'],
+            ),
+            'comment': assignment['comment'],
+            'time_spent': assignment['time_spent'],
+        }
+        for assignment in assignments
+    ]
+
+
 def _save_assignment(request: Request, current_user: CurrentUser, data: AssignmentIn):
     block = (data.block or '').strip() or None
     comment = (data.comment or '').strip() or None

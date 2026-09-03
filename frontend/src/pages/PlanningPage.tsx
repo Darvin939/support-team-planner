@@ -263,6 +263,7 @@ export function PlanningPage() {
   const dates = useMemo(() => dateRange(range[0], range[1]), [range]);
 
   const columns = usePlanningColumns({
+    teamId,
     dates,
     assignmentByKey,
     depsByTask,
