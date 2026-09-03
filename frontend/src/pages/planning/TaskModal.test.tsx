@@ -167,7 +167,7 @@ describe('TaskModal', () => {
     async (initialStatus, checked, expectedStatus) => {
       renderModal([], {...task, psi_status: initialStatus});
 
-      const checkbox = screen.getByRole('checkbox', {name: 'ПСИ требуется'}) as HTMLInputElement;
+      const checkbox = screen.getByRole('checkbox', {name: 'Требуется ПСИ'}) as HTMLInputElement;
       if (checkbox.checked !== checked) fireEvent.click(checkbox);
       fireEvent.click(screen.getByRole('button', {name: 'Обновить'}));
 
@@ -180,9 +180,9 @@ describe('TaskModal', () => {
   it.each(['not_required', 'required', 'passed'] as const)(
     'locks the PSI checkbox and preserves %s when the task has assignments',
     async (initialStatus) => {
-      renderModal([], {...task, psi_status: initialStatus, has_assignments: true});
+      renderModal([], {...task, psi_status: initialStatus, has_assignments: true, has_active_assignments: true});
 
-      const checkbox = screen.getByRole('checkbox', {name: 'ПСИ требуется'}) as HTMLInputElement;
+      const checkbox = screen.getByRole('checkbox', {name: 'Требуется ПСИ'}) as HTMLInputElement;
       expect(checkbox.disabled).toBe(true);
       expect(checkbox.checked).toBe(initialStatus !== 'not_required');
       fireEvent.click(checkbox);
@@ -193,6 +193,19 @@ describe('TaskModal', () => {
       });
     },
   );
+
+  it('allows changing the PSI requirement when all assignments are new', async () => {
+    renderModal([], {...task, has_assignments: true, has_active_assignments: false});
+
+    const checkbox = screen.getByRole('checkbox', {name: 'Требуется ПСИ'}) as HTMLInputElement;
+    expect(checkbox.disabled).toBe(false);
+    fireEvent.click(checkbox);
+    fireEvent.click(screen.getByRole('button', {name: 'Обновить'}));
+
+    await waitFor(() => {
+      expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({psi_status: 'required'}));
+    });
+  });
 
   it('shows separate safe links for the instruction and a URL inside the description', () => {
     render(

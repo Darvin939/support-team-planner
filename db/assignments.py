@@ -220,8 +220,10 @@ def bulk_reschedule_assignments(conn, moves, role, changed_by=None):
         if is_terminal_task_status(row['task_status']):
             raise BulkAssignmentRescheduleError(
                 'Нельзя изменять назначения завершённой или отменённой задачи')
-        if row['psi_status'] == 'required':
-            raise BulkAssignmentRescheduleError('Нельзя планировать назначения: требуется пройти ПСИ')
+        if row['psi_status'] == 'required' and row['status'] != 'new':
+            raise BulkAssignmentRescheduleError(
+                'До прохождения ПСИ доступны только назначения в статусе «Новый»'
+            )
         if role == 'user' and row['status'] != 'new':
             raise BulkAssignmentRescheduleError(
                 'Недостаточно прав: нельзя изменять назначение в статусе, отличном от «Новый»',

@@ -171,7 +171,7 @@ describe('usePlanningColumns copy assignments action', () => {
     render(<AntApp><PlanningTaskCell task={terminalTask} psiMutate={vi.fn()}/></AntApp>);
 
     fireEvent.contextMenu(screen.getByText(terminalTask.name));
-    fireEvent.click(await screen.findByText('Копировать назначения'));
+    fireEvent.click(await screen.findByText('Копировать успешные назначения'));
 
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(
       `${terminalTask.name}\nGF, GA - 05.09.2026`,
@@ -185,7 +185,7 @@ describe('usePlanningColumns copy assignments action', () => {
     render(<AntApp><PlanningTaskCell task={planningTask} psiMutate={vi.fn()}/></AntApp>);
 
     fireEvent.contextMenu(screen.getByText(planningTask.name));
-    fireEvent.click(await screen.findByText('Копировать назначения'));
+    fireEvent.click(await screen.findByText('Копировать успешные назначения'));
 
     expect(await screen.findByText('Нет успешных назначений')).toBeTruthy();
     expect(writeText).not.toHaveBeenCalled();
@@ -197,7 +197,7 @@ describe('usePlanningColumns copy assignments action', () => {
     const view = render(<AntApp><PlanningTaskCell task={planningTask} psiMutate={vi.fn()}/></AntApp>);
 
     fireEvent.contextMenu(screen.getByText(planningTask.name));
-    fireEvent.click(await screen.findByText('Копировать назначения'));
+    fireEvent.click(await screen.findByText('Копировать успешные назначения'));
     expect(await screen.findByText('Не удалось скопировать назначения')).toBeTruthy();
     expect(writeText).not.toHaveBeenCalled();
 
@@ -216,7 +216,7 @@ describe('usePlanningColumns copy assignments action', () => {
     }]);
     render(<AntApp><PlanningTaskCell task={planningTask} psiMutate={vi.fn()}/></AntApp>);
     fireEvent.contextMenu(screen.getByText(planningTask.name));
-    fireEvent.click(await screen.findByText('Копировать назначения'));
+    fireEvent.click(await screen.findByText('Копировать успешные назначения'));
     await waitFor(() => expect(writeText).toHaveBeenCalled());
     expect(await screen.findByText('Не удалось скопировать назначения')).toBeTruthy();
   });

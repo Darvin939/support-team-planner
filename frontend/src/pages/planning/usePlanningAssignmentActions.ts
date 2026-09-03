@@ -8,6 +8,7 @@ import {
   useSaveAssignmentMutation,
 } from '../../hooks/useAssignmentMutations';
 import type {ApiResult} from '../../lib/apiMutate';
+import {isAssignmentDragLocked} from './psiAssignmentPolicy';
 
 export function usePlanningAssignmentActions(options: {
   assignments: Assignment[] | undefined;
@@ -55,7 +56,11 @@ export function usePlanningAssignmentActions(options: {
     bulkRescheduleMutation,
     isTaskLocked: (taskId: number) => {
       const task = options.tasks?.find((item) => item.id === taskId);
-      return !task || task.task_status === 'done' || task.task_status === 'cancelled' || task.psi_status === 'required';
+      return !task || task.task_status === 'done' || task.task_status === 'cancelled';
+    },
+    isAssignmentLocked: (assignment: Assignment) => {
+      const task = options.tasks?.find((item) => item.id === assignment.task_id);
+      return isAssignmentDragLocked(task, assignment);
     },
   };
 }

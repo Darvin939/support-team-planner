@@ -54,7 +54,7 @@ interface DragState {
  * см. useAssignmentSelection.ts для того, как формируется мультивыборка.
  */
 export function useAssignmentDrag(options: {
-  isTaskLocked: (taskId: number) => boolean;
+  isAssignmentLocked: (assignment: Assignment) => boolean;
   getOccupant: (taskId: number, date: string) => Assignment | undefined;
   onDrop: (assignmentId: number, taskId: number, newDate: string) => void;
   onDropMany: (moves: { assignmentId: number; taskId: number; newDate: string }[]) => void;
@@ -104,20 +104,21 @@ export function useAssignmentDrag(options: {
       const cell = chip.closest('[data-schedule-cell]') as HTMLElement | null;
       if (!cell) return;
 
+      const assignmentId = Number(chip.dataset.assignmentId);
+      const {selectedAssignmentIds, getAssignment, isAssignmentLocked} = optionsRef.current;
+      const sourceAssignment = getAssignment(assignmentId);
+      if (!sourceAssignment || isAssignmentLocked(sourceAssignment)) return;
+
       const taskId = Number(cell.dataset.taskId);
       const sourceDate = cell.dataset.date!;
-      if (optionsRef.current.isTaskLocked(taskId)) return;
-
       e.preventDefault();
 
-      const assignmentId = Number(chip.dataset.assignmentId);
-      const {selectedAssignmentIds, getAssignment, isTaskLocked} = optionsRef.current;
       let bulkSnapshot: BulkItem[] | null = null;
       if (selectedAssignmentIds.has(assignmentId) && selectedAssignmentIds.size > 1) {
         bulkSnapshot = [];
         selectedAssignmentIds.forEach((id) => {
           const a = getAssignment(id);
-          if (a && !isTaskLocked(a.task_id)) {
+          if (a && !isAssignmentLocked(a)) {
             bulkSnapshot!.push({assignmentId: a.id, taskId: a.task_id, date: a.date});
           }
         });

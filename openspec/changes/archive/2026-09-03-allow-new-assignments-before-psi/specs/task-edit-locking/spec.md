@@ -1,8 +1,5 @@
-# task-edit-locking Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change dedupe-task-lock-check. Update Purpose after archive.
-## Requirements
 ### Requirement: Terminal or deleted tasks block edits
 A task whose `task_status` is `done` or `cancelled`, or whose `is_deleted` flag is set, SHALL block creation/edit of its assignments and edit/delete of the task itself, via a single shared check used by every affected endpoint. An active task whose `psi_status` is `required` SHALL permit assignment planning operations only when the assignment's resulting status is `new`; an existing assignment of another status SHALL permit updates only to non-planning fields while remaining subject to role authorization.
 
@@ -33,4 +30,3 @@ A task whose `task_status` is `done` or `cancelled`, or whose `is_deleted` flag 
 #### Scenario: Required PSI blocks activation
 - **WHEN** an assignment operation would leave an assignment of an active task with `psi_status = 'required'` in a status other than `new`
 - **THEN** the operation is rejected without treating the task as terminal
-

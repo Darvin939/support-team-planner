@@ -35,6 +35,7 @@ import {useAutoScheduleDragScroll} from './useAutoScheduleDragScroll';
 import {getCellTint, getHeaderTint} from './cellTint';
 import {useAssignmentModalState} from './useAssignmentModalState';
 import {AssignmentStatusField} from './AssignmentStatusField';
+import {isPsiPlanningBlocked} from './psiAssignmentPolicy';
 import {assignmentStatusForSave} from './assignmentStatusRolePolicy';
 
 export interface AssignmentFormValues {
@@ -329,7 +330,10 @@ export function AssignmentModal({
   const psiBlocked = task?.psi_status === 'required';
   const {data: me} = useMe();
   const isUser = me?.role === 'user';
-  const readOnly = isTerminal || (isUser && !!assignment && assignment.status !== 'new') || (!!psiBlocked && !assignment);
+  const readOnly = isTerminal || (isUser && !!assignment && assignment.status !== 'new');
+  const psiPlanningBlocked = task
+    ? isPsiPlanningBlocked(task.psi_status, assignment?.status ?? null)
+    : false;
   const [historyOpen, setHistoryOpen] = useHistoryToggle(open, false);
   const isSaving = saveMutation.isPending || autoSaveMutation.isPending;
   const selectedTemplateBlocks = templates?.find((t) => t.id === selectedTemplateId)?.blocks ?? [];
@@ -371,15 +375,18 @@ export function AssignmentModal({
         </Space>
       }
     >
-      <div style={{display: 'flex', flexDirection: isMobile ? 'column' : 'row'}}>
-        {psiBlocked && <Alert type="warning" showIcon title="Требуется пройти ПСИ до планирования назначений" style={{marginBottom: 16}}/>}
-        <Form form={form} layout="vertical" disabled={readOnly}
+      <div>
+        {psiBlocked && <Alert type="warning" showIcon
+                              title="До прохождения ПСИ доступны только назначения в статусе «Новый»"
+                              style={{marginBottom: 16}}/>}
+        <div style={{display: 'flex', flexDirection: isMobile ? 'column' : 'row'}}>
+          <Form form={form} layout="vertical" disabled={readOnly}
               onFinish={(values) => (autoAssignEnabled ? saveAutoAssignments(values) : saveAssignment(values))}
               style={{flex: 1, minWidth: 0}}>
           <Space.Compact block>
             <Form.Item name="date" label="Дата" style={{flex: 1}} rules={[{required: true}]}>
               <DatePicker style={{width: '100%'}} format={DISPLAY_DATE_FORMAT} minDate={dayjs('2000-01-01')}
-                          maxDate={dayjs('2099-12-31')} allowClear={false} disabled={psiBlocked}/>
+                          maxDate={dayjs('2099-12-31')} allowClear={false} disabled={psiPlanningBlocked}/>
             </Form.Item>
             <Form.Item name="time_spent" label="Затраченное время" style={{flex: 1}}>
               <TimePicker style={{width: '100%'}} format={TIME_FORMAT} allowClear/>
@@ -394,14 +401,14 @@ export function AssignmentModal({
           <div style={{display: 'flex', gap: 24, marginBottom: 16}}>
             <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
               <span>Автоназначение</span>
-              <Switch checked={autoAssignEnabled} onChange={handleAutoAssignToggle} disabled={psiBlocked}/>
+              <Switch checked={autoAssignEnabled} onChange={handleAutoAssignToggle} disabled={psiPlanningBlocked}/>
             </div>
           </div>
 
           {!autoAssignEnabled && (
             <Form.Item name="block_ids" label="Блок">
               <Select mode="multiple" showSearch={{optionFilterProp: "label"}} placeholder="Поиск блока..."
-                      disabled={psiBlocked}
+                      disabled={psiPlanningBlocked}
                       options={teamBlocks?.map((b) => ({value: b.id, label: b.name}))}/>
             </Form.Item>
           )}
@@ -453,7 +460,7 @@ export function AssignmentModal({
             </div>
           )}
 
-          <AssignmentStatusField disabled={autoAssignEnabled || isUser}/>
+          <AssignmentStatusField disabled={autoAssignEnabled || isUser || !!psiBlocked}/>
 
           {!autoAssignEnabled && (
             <>
@@ -463,7 +470,7 @@ export function AssignmentModal({
                   showSearch={{optionFilterProp: 'label'}}
                   placeholder="Не выбран"
                   options={assigneeOptions}
-                  disabled={psiBlocked}
+                  disabled={psiPlanningBlocked}
                 />
               </Form.Item>
               <Form.Item name="comment" label="Комментарий">
@@ -471,8 +478,9 @@ export function AssignmentModal({
               </Form.Item>
             </>
           )}
-        </Form>
-        <HistoryPanel kind="assignment" entityId={assignment?.id ?? null} open={historyOpen}/>
+          </Form>
+          <HistoryPanel kind="assignment" entityId={assignment?.id ?? null} open={historyOpen}/>
+        </div>
       </div>
     </Modal>
   );

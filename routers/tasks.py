@@ -29,9 +29,9 @@ def _validate_psi_status_change(task_id: int, task, psi_status: str):
         (psi_status == 'required' and current_psi_status != 'required')
         or (psi_status == 'not_required' and current_psi_status != 'not_required')
     )
-    if blocked_with_assignments and db.task_has_any_assignments(task_id):
+    if blocked_with_assignments and db.task_has_active_assignments(task_id):
         return JSONResponse(
-            {'error': 'Перед изменением требования ПСИ удалите назначения работы'},
+            {'error': 'Перед изменением требования ПСИ удалите или верните в статус «Новый» активные назначения'},
             status_code=400,
         )
     return None

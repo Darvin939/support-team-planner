@@ -78,7 +78,7 @@ export function TaskModal({
   const deleteMutation = useDeleteTaskMutation(task?.id, onClose);
 
   function saveTask(values: TaskFormValues) {
-    const psiStatus = task?.has_assignments
+    const psiStatus = task?.has_active_assignments
       ? task.psi_status
       : values.psi_required
         ? task?.psi_status === 'required' || task?.psi_status === 'passed'
@@ -254,7 +254,7 @@ export function TaskModal({
                                   options={segments?.map((s) => ({value: s.id, label: s.name}))}/>
                         </Form.Item>
                         <Form.Item name="psi_required" valuePropName="checked">
-                          <Checkbox disabled={task?.has_assignments}>Требуется ПСИ</Checkbox>
+                          <Checkbox disabled={task?.has_active_assignments}>Требуется ПСИ</Checkbox>
                         </Form.Item>
                       </div>
                     </>

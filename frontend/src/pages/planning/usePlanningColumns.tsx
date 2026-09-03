@@ -39,6 +39,7 @@ import taskTransitionsJson from '../../data/taskTransitions.json';
 import {canChangeAssignmentStatus} from './assignmentStatusRolePolicy';
 import {TaskNameWithCriticality} from './TaskNameWithCriticality';
 import {buildSuccessfulAssignmentsText, getSuccessfulAssignmentHistory} from './successfulAssignmentCopy';
+import {isPsiPlanningBlocked} from './psiAssignmentPolicy';
 
 // Единственный источник истины — frontend/src/data/taskTransitions.json, тот же файл читает и
 // support_planner.py (см. openspec/changes/shared-task-transitions-source).
@@ -397,23 +398,24 @@ export function usePlanningColumns({
         }),
         onCell: (task) => {
           const assignment = assignmentByKey.get(`${task.id}-${dateStr}`);
+          const psiPlanningBlocked = isPsiPlanningBlocked(task.psi_status, assignment?.status ?? null);
           const isSelected = !!assignment && selectedAssignmentIds.has(assignment.id);
           return {
             'data-schedule-cell': true,
             'data-task-id': task.id,
             'data-date': dateStr,
-            title: task.psi_status === 'required' ? 'Требуется пройти ПСИ до планирования назначений' : undefined,
+            title: psiPlanningBlocked ? 'До прохождения ПСИ доступны только назначения в статусе «Новый»' : undefined,
             style: {
               ...cellTint,
               padding: 3,
               borderLeft: `1px solid ${token.colorBorder}`,
-              cursor: task.task_status === 'done' || task.task_status === 'cancelled' || task.psi_status === 'required' ? 'not-allowed' : 'pointer',
+              cursor: task.task_status === 'done' || task.task_status === 'cancelled' || psiPlanningBlocked ? 'not-allowed' : 'pointer',
               ...(isSelected ? {boxShadow: `inset 0 0 0 2px ${token.colorPrimary}`} : {}),
             },
             onClick: (e: ReactMouseEvent<HTMLElement>) => {
               if (chipDragSuppressRef.current || panSuppressRef.current || selectSuppressRef.current) return;
               if (task.task_status === 'done' || task.task_status === 'cancelled') return;
-              if (task.psi_status === 'required' && !assignment) return;
+              if (psiPlanningBlocked) return;
               const clickedAssignment = assignmentByKey.get(`${task.id}-${dateStr}`) ?? null;
               if (e.ctrlKey || e.metaKey) {
                 if (clickedAssignment) onToggleAssignment(clickedAssignment.id);
@@ -433,8 +435,8 @@ export function usePlanningColumns({
           const psiBlocked = task.psi_status === 'required';
           if (!assignment) return null;
           if (isTerminal) return <ScheduleChip assignment={assignment} draggable={false}/>;
-          if (!canChangeAssignmentStatus(isUser)) {
-            return <ScheduleChip assignment={assignment} draggable={!psiBlocked && assignment.status === 'new'}/>;
+          if (!canChangeAssignmentStatus(isUser) || psiBlocked) {
+            return <ScheduleChip assignment={assignment} draggable={assignment.status === 'new'}/>;
           }
           const statusItems: MenuProps['items'] = [
             {

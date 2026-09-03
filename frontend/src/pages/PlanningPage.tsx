@@ -186,6 +186,7 @@ export function PlanningPage() {
     bulkDeleteMutation,
     bulkRescheduleMutation,
     isTaskLocked,
+    isAssignmentLocked,
   } = usePlanningAssignmentActions({
     assignments,
     tasks: taskData?.tasks,
@@ -194,7 +195,7 @@ export function PlanningPage() {
   });
 
   const chipDragSuppressRef = useAssignmentDrag({
-    isTaskLocked,
+    isAssignmentLocked,
     getOccupant: (taskId, date) => assignmentByKey.get(`${taskId}-${date}`),
     onDrop: (assignmentId, _taskId, newDate) => rescheduleMutation.mutate({assignmentId, newDate}),
     onDropMany: (moves) => bulkRescheduleMutation.mutate(moves),

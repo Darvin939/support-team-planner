@@ -146,8 +146,17 @@ def _save_assignment(request: Request, current_user: CurrentUser, data: Assignme
             existing_assignment['block'] != block,
             existing_assignment['user_id'] != data.user_id,
         ))
-        if planning_changed:
-            raise HTTPException(status_code=400, detail='Нельзя планировать назначения: требуется пройти ПСИ')
+        if not existing_assignment:
+            psi_blocked = data.status != 'new'
+        elif existing_assignment['status'] == 'new':
+            psi_blocked = data.status != 'new'
+        else:
+            psi_blocked = planning_changed or data.status != existing_assignment['status']
+        if psi_blocked:
+            raise HTTPException(
+                status_code=400,
+                detail='До прохождения ПСИ доступны только назначения в статусе «Новый»',
+            )
     _validate_user_assignment_status(current_user, data)
     db.create_or_update_assignment(
         data.assignment_id, data.task_id, data.date, block, data.status, data.user_id,
