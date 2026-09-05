@@ -43,6 +43,7 @@ class DeclarativeRoutePolicyTest(unittest.TestCase):
         ('GET', '/planning'): ('role', 'user'),
         ('GET', '/planning/{team_id}'): ('role', 'user'),
         ('GET', '/settings'): ('role', 'editor'),
+        ('GET', '/debug'): ('role', 'admin'),
         ('GET', '/statistics'): ('role', 'user'),
         ('GET', '/journal'): ('role', 'user'),
         ('GET', '/journal/{team_id}'): ('role', 'user'),
@@ -91,6 +92,8 @@ class DeclarativeRoutePolicyTest(unittest.TestCase):
     for route_key in EDITOR_MUTATIONS:
         EXPECTED_POLICY[route_key] = ('role', 'editor')
     for route_key in ADMIN_MUTATIONS:
+        EXPECTED_POLICY[route_key] = ('role', 'admin')
+    for route_key in {('GET', '/api/debug/logs')}:
         EXPECTED_POLICY[route_key] = ('role', 'admin')
 
     def test_all_application_routes_have_exactly_one_explicit_policy(self):

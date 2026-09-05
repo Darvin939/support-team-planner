@@ -39,6 +39,7 @@ export function AuthenticatedLayout({isDark, onToggleTheme}: { isDark: boolean; 
         activePath={basePath}
         isDark={isDark}
         role={me.role}
+        login={me.login ?? null}
         userName={formatDisplayName(me)}
         onToggleTheme={onToggleTheme}
         onNavigate={navigate}

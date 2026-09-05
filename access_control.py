@@ -13,6 +13,7 @@ _ROLE_RANK = {'user': 0, 'editor': 1, 'admin': 2}
 class CurrentUser:
     id: int
     role: str
+    login: str | None = None
 
 
 def _access_policy(kind: str, minimum_role: Optional[str] = None):
@@ -35,7 +36,7 @@ def get_current_user(request: Request) -> CurrentUser:
     if not user_id or not user:
         request.session.clear()
         raise HTTPException(status_code=401, detail='Не авторизован')
-    current_user = CurrentUser(id=user_id, role=user['role'])
+    current_user = CurrentUser(id=user_id, role=user['role'], login=user['login'])
     request.state.current_user = current_user
     return current_user
 
@@ -57,6 +58,14 @@ def _minimum_role_dependency(minimum_role: str):
 require_user = _minimum_role_dependency('user')
 require_editor = _minimum_role_dependency('editor')
 require_admin = _minimum_role_dependency('admin')
+
+
+@_access_policy('role', 'admin')
+def require_bootstrap_admin(request: Request) -> CurrentUser:
+    current_user = get_current_user(request)
+    if current_user.role != 'admin' or current_user.login != 'admin':
+        raise HTTPException(status_code=403, detail='Недостаточно прав')
+    return current_user
 
 
 def access_user(request: Request):

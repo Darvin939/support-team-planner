@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 import auth
 import db
 from api_models import MyPasswordIn
-from access_control import CurrentUser, allow_public, require_editor, require_user
+from access_control import CurrentUser, allow_public, require_bootstrap_admin, require_editor, require_user
 
 
 router = APIRouter()
@@ -64,6 +64,7 @@ def get_me(current_user: CurrentUser = Depends(require_user)):
     user = db.get_user(current_user.id)
     return {
         'user_id': user['id'],
+        'login': user['login'],
         'role': user['role'],
         'last_name': user['last_name'],
         'first_name': user['first_name'],
@@ -92,6 +93,11 @@ def planning(team_id: int):
 
 @router.get('/settings', response_class=HTMLResponse, dependencies=[Depends(require_editor)])
 def settings_page():
+    return _serve_react_index()
+
+
+@router.get('/debug', response_class=HTMLResponse, dependencies=[Depends(require_bootstrap_admin)])
+def debug_page():
     return _serve_react_index()
 
 

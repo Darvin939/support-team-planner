@@ -1,4 +1,7 @@
 import os
+import logging
+import re
+from logging.handlers import RotatingFileHandler
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
@@ -9,6 +12,7 @@ from starlette.middleware.sessions import SessionMiddleware
 import db
 from routers.assignments import router as assignments_router
 from routers.freeze_days import router as freeze_days_router
+from routers.debug import LOG_PATH, router as debug_router
 from routers.journal import router as journal_router
 from routers.notifications import router as notifications_router
 from routers.reference_data import router as reference_data_router
@@ -18,6 +22,14 @@ from routers.tasks import router as tasks_router
 from routers.teams import router as teams_router
 from routers.users import router as users_router
 from ssl_context import get_cert
+
+
+_SECRET_LOG_PATTERN = re.compile(r'(?i)(password|token|cookie|secret)(\s*[=:]\s*)[^\s,;]+')
+_DEBUG_LOG_POLL_PATTERN = re.compile(r'\bGET\s+/api/debug/logs(?:\?|\s)')
+
+
+def _is_debug_log_poll_access(record, rendered: str) -> bool:
+    return record.name == 'uvicorn.access' and bool(_DEBUG_LOG_POLL_PATTERN.search(rendered))
 
 
 app = FastAPI()
@@ -30,7 +42,36 @@ app.include_router(task_dependencies_router)
 app.include_router(tasks_router)
 app.include_router(journal_router)
 app.include_router(notifications_router)
+app.include_router(debug_router)
 register_shell(app)
+
+
+def _configure_application_logging():
+    class RedactingFilter(logging.Filter):
+        def filter(self, record):
+            rendered = record.getMessage()
+            if _is_debug_log_poll_access(record, rendered):
+                return False
+            record.msg = _SECRET_LOG_PATTERN.sub(r'\1\2[REDACTED]', rendered)
+            record.args = ()
+            return True
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    existing = next((item for item in root_logger.handlers if isinstance(item, RotatingFileHandler) and item.baseFilename.endswith(LOG_PATH)), None)
+    if existing is None:
+        existing = RotatingFileHandler(LOG_PATH, maxBytes=2_000_000, backupCount=3, encoding='utf-8')
+        existing.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s'))
+        existing.addFilter(RedactingFilter())
+        root_logger.addHandler(existing)
+    for logger_name in ('uvicorn', 'uvicorn.error', 'uvicorn.access', 'support_planner'):
+        named_logger = logging.getLogger(logger_name)
+        if existing not in named_logger.handlers:
+            named_logger.addHandler(existing)
+        named_logger.propagate = False
+
+
+_configure_application_logging()
 
 
 def _api_error(message: str, status_code: int, headers=None) -> JSONResponse:
@@ -92,6 +133,6 @@ if __name__ == '__main__':
 
     cert, key = get_cert()
     if cert and key:
-        uvicorn.run(app, port=5093, host='0.0.0.0', ssl_keyfile=key, ssl_certfile=cert)
+        uvicorn.run(app, port=5093, host='0.0.0.0', ssl_keyfile=key, ssl_certfile=cert, log_config=None)
     else:
-        uvicorn.run(app, port=5093, host='0.0.0.0')
+        uvicorn.run(app, port=5093, host='0.0.0.0', log_config=None)

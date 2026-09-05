@@ -9,7 +9,7 @@ from db.pagination import page_result
 def user_exists(conn, user_id):
     """Проверить существование пользователя и получить его роль (используется зависимостью
     get_current_user: сессия может пережить удаление пользователя или пересоздание БД)."""
-    return conn.execute('SELECT role FROM users WHERE id = ?', (user_id,)).fetchone()
+    return conn.execute('SELECT role, login FROM users WHERE id = ?', (user_id,)).fetchone()
 
 
 # Логин учётной записи-бутстрапа, создаваемой init_schema() при первом запуске (см. CLAUDE.md) —
@@ -196,7 +196,7 @@ def get_users_page(conn, offset=0, limit=20, search=None):
 def get_user(conn, user_id):
     """Получить одного пользователя по id (используется, например, GET /api/me)"""
     row = conn.execute(
-        'SELECT id, last_name, first_name, middle_name, role FROM users WHERE id = ?', (user_id,)).fetchone()
+        'SELECT id, last_name, first_name, middle_name, role, login FROM users WHERE id = ?', (user_id,)).fetchone()
     return dict(row) if row else None
 
 

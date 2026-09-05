@@ -4,6 +4,7 @@ import {queryKeys} from '../lib/queryKeys';
 
 export interface Me {
   user_id: number;
+  login?: string | null;
   role: string;
   last_name: string | null;
   first_name: string;

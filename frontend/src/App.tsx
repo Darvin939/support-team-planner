@@ -12,6 +12,7 @@ const StatisticsPage = lazy(() => import('./pages/StatisticsPage').then((m) => (
 const JournalPage = lazy(() => import('./pages/JournalPage').then((m) => ({default: m.JournalPage})));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({default: m.SettingsPage})));
 const PlanningPage = lazy(() => import('./pages/PlanningPage').then((m) => ({default: m.PlanningPage})));
+const DebugPage = lazy(() => import('./pages/DebugPage').then((m) => ({default: m.DebugPage})));
 
 function PageFallback() {
   return (
@@ -52,6 +53,7 @@ function Shell() {
               <Route path="/journal" element={<JournalPage/>}/>
               <Route path="/journal/:teamId" element={<JournalPage/>}/>
               <Route path="/settings" element={<SettingsPage/>}/>
+              <Route path="/debug" element={<DebugPage/>}/>
               <Route path="/planning" element={<PlanningPage/>}/>
               <Route path="/planning/:teamId" element={<PlanningPage/>}/>
             </Route>

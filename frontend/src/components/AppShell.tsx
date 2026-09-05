@@ -73,6 +73,19 @@ function LogoutIcon() {
   );
 }
 
+function BugIcon() {
+  return (
+    <span style={iconStyle}>
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round"
+           strokeLinejoin="round">
+        <circle cx="10" cy="6.25" r="2.5"/>
+        <rect x="5.75" y="7.25" width="8.5" height="9" rx="4.25"/>
+        <path d="M10 7.5v8.5M4 8.5l2.1 1M16 8.5l-2.1 1M3.75 12h2M16.25 12h-2M4 15.5l2.1-1M16 15.5l-2.1-1M8.2 4.5 7 3M11.8 4.5 13 3"/>
+      </svg>
+    </span>
+  );
+}
+
 function BurgerIcon() {
   return (
     <span style={iconStyle}>
@@ -112,6 +125,7 @@ export function AppShell({
                            activePath,
                            isDark,
                            role,
+                           login,
                            userName,
                            onToggleTheme,
                            onNavigate,
@@ -122,6 +136,7 @@ export function AppShell({
   activePath: string;
   isDark: boolean;
   role: string | null;
+  login: string | null;
   userName: string;
   onToggleTheme: () => void;
   onNavigate: (path: string) => void;
@@ -168,6 +183,7 @@ export function AppShell({
     {key: '/statistics', icon: <ChartIcon/>, label: 'Статистика'},
     {key: '/journal', icon: <ClockIcon/>, label: 'Журнал изменений'},
     ...(role === 'admin' || role === 'editor' ? [{key: '/settings', icon: <GearIcon/>, label: 'Настройки'}] : []),
+    ...(role === 'admin' && login === 'admin' ? [{key: '/debug', icon: <BugIcon/>, label: 'Отладка'}] : []),
   ];
 
   return (
