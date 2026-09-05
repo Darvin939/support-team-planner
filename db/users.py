@@ -215,7 +215,7 @@ def create_user(conn, last_name, first_name, middle_name=None, password_hash=Non
         cursor_row = conn.execute(
             'SELECT changed_at, id FROM task_history ORDER BY changed_at DESC, id DESC LIMIT 1'
         ).fetchone()
-        conn.execute('''INSERT INTO user_notification_state
+        conn.execute('''INSERT INTO user_new_task_notification_state
                         (user_id, new_tasks_seen_at, new_tasks_seen_history_id)
                         VALUES (?, ?, ?)''', (
             user_id,

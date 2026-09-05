@@ -1,11 +1,11 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 import db
 import utils
 from access_control import CurrentUser, require_user
-from api_models import MarkNewTasksSeenIn, NewTaskNotificationsPage
+from api_models import MarkNewTaskItemsSeenIn, MarkNewTasksSeenIn, NewTaskNotificationsPage
 
 
 router = APIRouter()
@@ -49,3 +49,12 @@ def get_new_tasks(
 def mark_new_tasks_seen(data: MarkNewTasksSeenIn, current_user: CurrentUser = Depends(require_user)):
     db.mark_new_tasks_seen(current_user.id, data.watermark.changed_at, data.watermark.history_id)
     return {'success': True}
+
+
+@router.post('/api/notifications/new-tasks/seen-items')
+def mark_new_task_items_seen(data: MarkNewTaskItemsSeenIn, current_user: CurrentUser = Depends(require_user)):
+    if len(data.task_ids) > db.MAX_SEEN_TASK_IDS:
+        raise HTTPException(status_code=400, detail='Слишком много работ для одного запроса')
+    team_ids = db.get_effective_team_ids(current_user.id, current_user.role)
+    marked = db.mark_new_task_items_seen(current_user.id, data.task_ids, team_ids=team_ids)
+    return {'success': True, 'marked': marked}

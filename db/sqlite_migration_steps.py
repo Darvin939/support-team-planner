@@ -226,7 +226,7 @@ class SQLiteMigrationSteps:
     @staticmethod
     def migrate_add_new_task_notifications(conn) -> None:
         conn.execute('''
-            CREATE TABLE IF NOT EXISTS user_notification_state (
+            CREATE TABLE IF NOT EXISTS user_new_task_notification_state (
                 user_id INTEGER PRIMARY KEY,
                 new_tasks_seen_at TEXT NOT NULL,
                 new_tasks_seen_history_id INTEGER NOT NULL DEFAULT 0,
@@ -241,10 +241,27 @@ class SQLiteMigrationSteps:
         changed_at = cursor['changed_at'] if cursor else ''
         history_id = cursor['id'] if cursor else 0
         conn.execute('''
-            INSERT OR IGNORE INTO user_notification_state
+            INSERT OR IGNORE INTO user_new_task_notification_state
                 (user_id, new_tasks_seen_at, new_tasks_seen_history_id)
             SELECT id, ?, ? FROM users
         ''', (changed_at, history_id))
+
+    @staticmethod
+    def migrate_add_seen_new_task_events(conn) -> None:
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS user_new_task_notification_seen_events (
+                user_id INTEGER NOT NULL,
+                task_history_id INTEGER NOT NULL,
+                seen_at TEXT NOT NULL,
+                PRIMARY KEY (user_id, task_history_id),
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                FOREIGN KEY (task_history_id) REFERENCES task_history (id) ON DELETE CASCADE
+            )
+        ''')
+        conn.execute('''CREATE INDEX IF NOT EXISTS idx_user_new_task_notification_seen_events_history
+                        ON user_new_task_notification_seen_events (task_history_id)''')
+        conn.execute('''CREATE INDEX IF NOT EXISTS idx_user_new_task_notification_seen_events_seen_at
+                        ON user_new_task_notification_seen_events (seen_at)''')
 
     _DEFAULT_SEGMENT_NAME = 'По умолчанию'
 

@@ -21,6 +21,7 @@ vi.mock('../hooks/useNewTaskNotifications', () => ({
   useNewTaskNotificationsPreview: () => ({data: {items: [], total: 0, watermark: {changed_at: '', history_id: 0}}}),
   useNewTaskNotificationsPage: () => ({data: {items: [], total: 0}, isLoading: false, isError: false}),
   useMarkNewTasksSeen: () => ({mutate: vi.fn(), isPending: false}),
+  useNewTaskViewQueue: () => ({enqueue: vi.fn(), isPending: false}),
 }));
 
 describe('центр просроченных уведомлений', () => {

@@ -6,6 +6,7 @@ import {MemoryRouter, useLocation} from 'react-router-dom';
 import {NewTasksOverviewCard, NewTasksPanel} from './NewTaskNotifications';
 
 const mutate = vi.fn();
+const enqueue = vi.fn();
 const preview = {
   items: [
     {task_id: 10, team_id: 1, task_name: 'Первая работа', team_name: 'Команда А', criticality: 'high',
@@ -21,6 +22,7 @@ vi.mock('../hooks/useNewTaskNotifications', () => ({
   useNewTaskNotificationsPreview: vi.fn(() => ({data: preview, isLoading: false, isError: false})),
   useNewTaskNotificationsPage: vi.fn(() => ({data: preview, isLoading: false, isError: false})),
   useMarkNewTasksSeen: vi.fn(() => ({mutate, isPending: false})),
+  useNewTaskViewQueue: vi.fn(() => ({enqueue, isPending: false})),
 }));
 
 describe('уведомления о новых работах', () => {
@@ -33,6 +35,7 @@ describe('уведомления о новых работах', () => {
       clear: () => storage.clear(),
     });
     mutate.mockClear();
+    enqueue.mockClear();
     vi.stubGlobal('matchMedia', vi.fn(() => ({
       matches: false, addListener: vi.fn(), removeListener: vi.fn(),
       addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(),
@@ -71,5 +74,11 @@ describe('уведомления о новых работах', () => {
     expect(screen.getByTestId('location').textContent).toBe('/planning');
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/planning/1'));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('отмечает работу просмотренной перед переходом из popover', () => {
+    render(<MemoryRouter><NewTasksPanel/></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', {name: 'Открыть работу Первая работа'}));
+    expect(enqueue).toHaveBeenCalledWith([10]);
   });
 });

@@ -15,7 +15,7 @@ import db
 
 
 RANDOM_SEED = 42
-TEAM_COUNT = 5
+TEAM_COUNT = 1
 USER_COUNT = 10
 TODAY = date.today()
 
@@ -204,7 +204,7 @@ def create_tasks_and_assignments(team_ids, segment_ids, template_ids, users, ass
     for team_name, team_id in team_ids.items():
         team_tasks = []
         # Независимое случайное число работ для каждой команды: 1..50.
-        team_task_count = random.randint(5, 50)
+        team_task_count = random.randint(5, 100)
         for local_index in range(team_task_count):
             global_task_number += 1
             segment_name = random.choice(segment_names)
@@ -290,7 +290,7 @@ def create_freeze_days():
 
 
 def main():
-    random.seed(RANDOM_SEED)
+    # random.seed(RANDOM_SEED)
     print(f'Сегодня: {TODAY.isoformat()}; seed: {RANDOM_SEED}')
     # create_user намеренно не коммитит самостоятельно (HTTP-запрос коммитится
     # middleware). Скрипту также нужно общее соединение на весь запуск.

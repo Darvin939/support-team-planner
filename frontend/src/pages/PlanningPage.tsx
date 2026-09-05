@@ -58,6 +58,8 @@ import {
   useTaskStatusMutation,
 } from '../hooks/useTaskMutations';
 import {NewTasksOverviewCard} from '../components/NewTaskNotifications';
+import {useNewTaskViewQueue} from '../hooks/useNewTaskNotifications';
+import {useAutoMarkVisibleTasks} from '../hooks/useAutoMarkVisibleTasks';
 
 const DependencyGraphModal = lazy(() => import('./planning/DependencyGraphModal').then((m) => ({default: m.DependencyGraphModal})));
 
@@ -262,6 +264,8 @@ export function PlanningPage() {
   }
 
   const dates = useMemo(() => dateRange(range[0], range[1]), [range]);
+  const taskViewQueue = useNewTaskViewQueue();
+  useAutoMarkVisibleTasks(filteredTasks.map((task) => task.id), taskViewQueue.enqueue, planningDataReady);
 
   const columns = usePlanningColumns({
     teamId,

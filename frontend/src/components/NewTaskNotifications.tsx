@@ -9,6 +9,7 @@ import {
   type NewTaskNotification,
   type NotificationCursor,
   useMarkNewTasksSeen,
+  useNewTaskViewQueue,
   useNewTaskNotificationsPage,
   useNewTaskNotificationsPreview,
 } from '../hooks/useNewTaskNotifications';
@@ -64,13 +65,17 @@ export function NewTasksDrawer({open, watermark, onClose, onOpenTask, afterOpenC
 
 export function NewTasksOverviewCard() {
   const navigate = useNavigate();
+  const viewQueue = useNewTaskViewQueue();
   const {data, isLoading} = useNewTaskNotificationsPreview();
   const [visible, setVisible] = useState(() => sessionStorage.getItem(SESSION_KEY) !== '1');
   const [drawerOpen, setDrawerOpen] = useState(false);
   useEffect(() => {
     if (!isLoading && visible) sessionStorage.setItem(SESSION_KEY, '1');
   }, [isLoading, visible]);
-  const openTask = (item: NewTaskNotification) => navigate(`/planning/${item.team_id}`, {state: {jumpTaskId: item.task_id}});
+  const openTask = (item: NewTaskNotification) => {
+    viewQueue.enqueue([item.task_id]);
+    navigate(`/planning/${item.team_id}`, {state: {jumpTaskId: item.task_id}});
+  };
   const deferredNavigation = useDeferredDrawerNavigation(() => setDrawerOpen(false), openTask);
   if (!visible || !data?.total) return null;
   return <>
@@ -87,10 +92,12 @@ export function NewTasksOverviewCard() {
 export function NewTasksPanel() {
   const navigate = useNavigate();
   const {closeCenter} = useNotificationCenter();
+  const viewQueue = useNewTaskViewQueue();
   const {data, isLoading, isError} = useNewTaskNotificationsPreview();
   const markSeen = useMarkNewTasksSeen();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const openTask = (item: NewTaskNotification) => {
+    viewQueue.enqueue([item.task_id]);
     closeCenter();
     navigate(`/planning/${item.team_id}`, {state: {jumpTaskId: item.task_id}});
   };

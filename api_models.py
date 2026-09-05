@@ -168,6 +168,10 @@ class NewTaskNotificationsPage(BaseModel):
     watermark: NotificationCursor
 
 
+class MarkNewTaskItemsSeenIn(BaseModel):
+    task_ids: List[int]
+
+
 class MarkNewTasksSeenIn(BaseModel):
     watermark: NotificationCursor
 
