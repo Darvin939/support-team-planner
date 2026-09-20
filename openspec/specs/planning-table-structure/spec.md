@@ -3,6 +3,43 @@
 ## Purpose
 TBD - created by archiving change split-planning-page-columns. Update Purpose after archive.
 ## Requirements
+### Requirement: Assignment timelines use a shared bounded date-grid layout
+The terminal task card and expandable archive rows SHALL expose a read-only assignment timeline using the shared `PlanningDateGrid` layout primitive. The primitive SHALL provide bounded horizontal scrolling, click-and-drag panning without text selection or browser context menus, sticky opaque first-column layering, and safe rendering inside modal/expanded-row width constraints. The auto-scheduling grid SHALL reuse this layout and drag-scroll mechanism while retaining its own interactive draggable block behavior.
+
+#### Scenario: Timeline remains inside an archive modal
+- **WHEN** an expanded archive task has assignments spanning more dates than fit in the modal
+- **THEN** the expanded row remains constrained to the modal width and the timeline scrolls horizontally inside it
+
+#### Scenario: Timeline groups blocks and status by date
+- **WHEN** a date has one or more non-deleted assignments
+- **THEN** one group is rendered for that date, block names are comma-separated on the first line, and one localized status is rendered on the second line
+
+#### Scenario: Timeline labels and sticky column
+- **WHEN** the timeline is rendered and horizontally scrolled
+- **THEN** the first-column labels are `Дата` and `Блок`, and the first column remains readable above date cells
+
+#### Scenario: Grid drag does not select content
+- **WHEN** the user pans either date grid with a mouse drag
+- **THEN** text selection and the browser context menu are suppressed for the drag gesture
+
+### Requirement: Task assignment timeline data is minimal and access-controlled
+The system SHALL provide `GET /api/task/{task_id}/assignment-timeline`, returning only `date`, `block`, and `status` for non-deleted assignments ordered by date and assignment id, after checking access to the task. Archive timeline data SHALL be loaded lazily per expanded row and cached by task id; closed rows SHALL not issue requests. The existing `successful-history` clipboard behavior SHALL remain unchanged.
+
+#### Scenario: Authorized timeline request
+- **WHEN** an authorized user requests the timeline for an accessible task
+- **THEN** the endpoint returns the sorted minimal DTO rows and excludes deleted assignments
+
+#### Scenario: Unauthorized timeline request
+- **WHEN** a user requests a task outside their access scope
+- **THEN** the endpoint rejects the request without exposing assignments
+
+### Requirement: Terminal task history remains collapsed by default
+Adding the assignment timeline SHALL NOT open the existing change-history panel automatically when a terminal task card is opened.
+
+#### Scenario: Terminal card opens
+- **WHEN** a user opens a completed or cancelled task card
+- **THEN** the assignment timeline is shown separately and the existing change-history panel remains collapsed
+
 ### Requirement: Planning table columns behave identically after extraction
 The Planning page's table (task-name column with context menu/dependency badges/status dropdown, plus per-date
 schedule-chip columns) SHALL render and behave identically whether its column definitions live inline in
@@ -183,3 +220,87 @@ Frontend SHALL определять актуальные options и labels дл�
 #### Scenario: Ручной диапазон и очистка
 - **WHEN** пользователь задаёт произвольный диапазон или очищает поле периода
 - **THEN** планировщик обрабатывает действие существующим callback и сохраняет прежнее поведение
+
+### Requirement: РћР±С‰РёР№ layout РґР»СЏ РґР°С‚РѕРІС‹С… С‚Р°Р±Р»РёС†
+The auto-scheduling grid and assignment timeline SHALL share a `PlanningDateGrid` layout primitive for bounded horizontal scrolling, click-and-drag panning, sticky first-column layering, and date-column structure.
+
+#### Scenario: Timeline scrolls inside its owner
+- **WHEN** the date range is wider than the card or archive modal
+- **THEN** the grid remains inside the owner and exposes horizontal scrolling, including click-and-drag panning
+
+#### Scenario: Sticky first column remains readable
+- **WHEN** the grid is horizontally scrolled
+- **THEN** the first column remains fixed above date cells with an opaque background and correct z-index
+
+#### Scenario: Timeline groups blocks by date
+- **WHEN** one date has one or more assignments
+- **THEN** the date cell renders one status group, with block names joined by commas and a single localized status; blocks are not rendered as separate draggable items
+
+#### Scenario: Grid labels match the planning grid
+- **WHEN** the timeline is rendered
+- **THEN** its first-column labels are `Дата` in the header and `Блок` in the body row
+
+#### Scenario: Expanded archive content stays inside the modal
+- **WHEN** an archive row is expanded and its date range is wider than the modal
+- **THEN** the timeline remains constrained by the expanded-row width and scrolls horizontally inside it
+
+#### Scenario: Status is visually separated from blocks
+- **WHEN** a date has an assignment group
+- **THEN** block names are shown on the first line and the localized status on the second line
+
+#### Scenario: Dragging does not select page content
+- **WHEN** the user pans a date grid by dragging the mouse
+- **THEN** text selection and the browser context menu are suppressed for that drag gesture
+
+### Requirement: Завершённая работа показывает временную раскладку назначений
+Карточка завершённой или отменённой работы SHALL показывать отдельную секцию назначений, раскрытую по умолчанию, с непрерывным диапазоном от самой ранней до самой поздней даты неудалённых назначений.
+
+#### Scenario: Карточка содержит назначения
+- **WHEN** пользователь открывает карточку терминальной работы с назначениями
+- **THEN** он видит таблицу дат от первого до последнего назначения
+
+#### Scenario: В ячейке отображаются только блоки и статусы
+- **WHEN** дата содержит одно или несколько назначений
+- **THEN** в ячейке отображаются имена блоков отдельными бейджами и локализованный статус каждого назначения, без комментария, исполнителя и времени
+
+#### Scenario: Пустые даты сохраняются в диапазоне
+- **WHEN** между первым и последним назначением есть даты без назначений
+- **THEN** эти даты остаются видимыми с пустыми ячейками
+
+#### Scenario: Работа без назначений
+- **WHEN** у терминальной работы нет неудалённых назначений
+- **THEN** секция показывает состояние «Назначений нет»
+
+### Requirement: Архив показывает назначения при раскрытии строки
+Архив работ SHALL поддерживать раскрытие строки по клику и отображать в раскрытой области ту же таблицу назначений.
+
+#### Scenario: Строка архива раскрывается
+- **WHEN** пользователь раскрывает строку архивной работы
+- **THEN** система лениво загружает и показывает временную раскладку назначений этой работы
+
+#### Scenario: Раскрытие не выполняет лишние запросы
+- **WHEN** строка архива закрыта или пользователь меняет страницу, поиск либо период
+- **THEN** назначения для закрытых строк не запрашиваются, а раскрытые ключи сбрасываются при изменении набора строк
+
+### Requirement: Timeline endpoint возвращает минимальные защищённые данные
+Система SHALL предоставлять endpoint чтения временной раскладки одной работы, который проверяет доступ к работе и возвращает только `date`, `block` и `status` для `is_deleted = 0`, отсортированные по дате и идентификатору назначения.
+
+#### Scenario: Доступ к назначениям разрешён
+- **WHEN** авторизованный пользователь с доступом к работе запрашивает её timeline
+- **THEN** endpoint возвращает все неудалённые назначения с минимальным DTO
+
+#### Scenario: Доступ к чужой работе запрещён
+- **WHEN** пользователь запрашивает timeline работы вне доступной команды
+- **THEN** endpoint возвращает отказ доступа и не раскрывает назначения
+
+#### Scenario: Буфер обмена не изменяется
+- **WHEN** frontend использует `successful-history` для копирования
+- **THEN** endpoint и поведение этого сценария остаются без изменений
+
+### Requirement: История изменений терминальной работы закрыта по умолчанию
+Добавление timeline SHALL NOT менять существующее состояние истории изменений: при открытии карточки история остаётся скрытой.
+
+#### Scenario: Открытие терминальной работы
+- **WHEN** пользователь открывает карточку завершённой или отменённой работы
+- **THEN** секция истории изменений закрыта, а секция назначений отображается отдельно
+

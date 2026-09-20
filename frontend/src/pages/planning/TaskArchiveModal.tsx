@@ -4,13 +4,21 @@ import dayjs, {type Dayjs} from 'dayjs';
 import {AppPagination} from '../../components/AppPagination';
 import {TASK_STATUS_LABELS, type TaskStatus} from '../../domain/types';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
-import {type Task, useTaskArchive} from '../../hooks/usePlanningData';
+import {type Task, useTaskArchive, useTaskAssignmentTimeline} from '../../hooks/usePlanningData';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT} from '../../lib/dateFormats';
 import {tintedStyle} from '../../components/planningBadges';
 import {usePaginationState} from '../../hooks/usePaginationState';
 import {useRestoreTaskMutation} from '../../hooks/useTaskMutations';
+import {AssignmentTimeline} from './assignmentTimeline';
 
 const PAGE_SIZE = 20;
+
+function ArchiveAssignmentTimeline({taskId}: {taskId: number}) {
+  const timeline = useTaskAssignmentTimeline(taskId, true);
+  return <div style={{display: 'block', width: 0, minWidth: '100%', maxWidth: '100%', overflow: 'hidden'}}>
+    <AssignmentTimeline assignments={timeline.data} loading={timeline.isLoading} error={timeline.isError}/>
+  </div>;
+}
 
 export function TaskArchiveModal({open, teamId, canRestore, onClose}: {
   open: boolean;
@@ -23,12 +31,17 @@ export function TaskArchiveModal({open, teamId, canRestore, onClose}: {
   const debouncedSearch = useDebouncedValue(search, 400);
   const [range, setRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);
   const pagination = usePaginationState(PAGE_SIZE);
+  const [expandedRowKeys, setExpandedRowKeys] = useState<number[]>([]);
   const from = range[0]?.format(API_DATE_FORMAT) ?? '';
   const to = range[1]?.format(API_DATE_FORMAT) ?? '';
   const archive = useTaskArchive(teamId, pagination.offset, pagination.pageSize, debouncedSearch, from, to, open);
   const restoreMutation = useRestoreTaskMutation();
 
-  useEffect(() => pagination.reset(), [teamId, debouncedSearch, from, to, pagination.reset]);
+  useEffect(() => {
+    pagination.reset();
+    setExpandedRowKeys([]);
+  }, [teamId, debouncedSearch, from, to, pagination.reset]);
+  useEffect(() => setExpandedRowKeys([]), [pagination.offset]);
 
   return (
     <Modal open={open} onCancel={onClose} footer={null} width={1000} title="Архив работ" destroyOnHidden>
@@ -45,6 +58,11 @@ export function TaskArchiveModal({open, teamId, canRestore, onClose}: {
         dataSource={archive.data?.tasks ?? []}
         pagination={false}
         locale={{emptyText: 'В архиве нет подходящих работ'}}
+        expandable={{
+          expandedRowKeys,
+          onExpandedRowsChange: (keys) => setExpandedRowKeys(keys.map((key) => Number(key))),
+          expandedRowRender: (task) => <ArchiveAssignmentTimeline taskId={task.id}/>,
+        }}
         columns={[
           {title: 'Работа', dataIndex: 'name', key: 'name'},
           {title: 'Сегмент', dataIndex: 'segment_name', key: 'segment'},

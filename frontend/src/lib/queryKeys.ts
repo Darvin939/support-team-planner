@@ -15,6 +15,7 @@ export const queryKeys = {
     byId: (taskId: number | null) => ['tasks', 'byId', taskId] as const,
     archive: (teamId: number, offset: number, limit: number, search: string, from: string, to: string) =>
       ['tasks', teamId, 'archive', offset, limit, search, from, to] as const,
+    assignmentTimeline: (taskId: number | null) => ['tasks', 'assignment-timeline', taskId] as const,
   },
   assignments: {
     all: ['assignments'] as const,

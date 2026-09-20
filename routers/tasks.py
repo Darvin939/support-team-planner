@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 import db
 from access_control import CurrentUser, require_editor, require_task_access, require_team_access, require_user
 from api_models import (
-    HistoryPage, TaskIn, TaskOut, TaskPriorityIn, TaskPsiStatusIn, TaskReorderIn, TasksPage, TaskStatusIn,
+    AssignmentTimelineOut, HistoryPage, TaskIn, TaskOut, TaskPriorityIn, TaskPsiStatusIn, TaskReorderIn, TasksPage, TaskStatusIn,
 )
 from db.pagination import page_result
 from task_dependency_rules import TaskDependencyCycleError
@@ -87,6 +87,19 @@ def get_task_api(request: Request, task_id: int):
         raise HTTPException(status_code=404, detail='Работа не найдена')
     require_team_access(request, task['team_id'])
     return _task_json(task)
+
+
+@router.get(
+    '/api/task/{task_id}/assignment-timeline',
+    dependencies=[Depends(require_user)],
+    response_model=list[AssignmentTimelineOut],
+)
+def get_task_assignment_timeline_api(request: Request, task_id: int):
+    require_task_access(request, task_id)
+    return [
+        {'date': row['date'], 'block': row['block'], 'status': row['status']}
+        for row in db.get_assignment_timeline_by_task(task_id)
+    ]
 
 
 @router.post('/api/task/{task_id}/restore')

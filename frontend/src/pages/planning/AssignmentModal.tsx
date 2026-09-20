@@ -31,7 +31,8 @@ import {getAutoScheduleDateRange} from '../../lib/autoSchedule';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT, TIME_FORMAT} from '../../lib/dateFormats';
 import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';
 import {useIsMobile} from '../../hooks/useIsMobile';
-import {useAutoScheduleDragScroll} from './useAutoScheduleDragScroll';
+import {usePlanningGridDragScroll} from './usePlanningGridDragScroll';
+import {PlanningDateGridFrame} from './PlanningDateGrid';
 import {getCellTint, getHeaderTint} from './cellTint';
 import {useAssignmentModalState} from './useAssignmentModalState';
 import {AssignmentStatusField} from './AssignmentStatusField';
@@ -72,7 +73,7 @@ function AutoScheduleGrid({
   const {token} = theme.useToken();
   const dates = getAutoScheduleDateRange(baseDate, autoAssignDates);
   const today = dayjs().format(API_DATE_FORMAT);
-  const dragRef = useAutoScheduleDragScroll<HTMLDivElement>();
+  const dragRef = usePlanningGridDragScroll<HTMLDivElement>();
 
   const headerCellBase: CSSProperties = {
     position: 'relative',
@@ -104,8 +105,7 @@ function AutoScheduleGrid({
   const opaqueHeaderBg = `linear-gradient(${token.colorFillAlter}, ${token.colorFillAlter}), linear-gradient(${token.colorBgContainer}, ${token.colorBgContainer})`;
 
   return (
-    <div ref={dragRef}
-         style={{overflowX: 'auto', border: `1px solid ${token.colorBorder}`, borderRadius: token.borderRadiusSM}}>
+    <PlanningDateGridFrame scrollRef={dragRef} dataAttribute="data-auto-schedule-grid">
       <table style={{borderCollapse: 'collapse', width: 'max-content', fontSize: token.fontSize}}>
         <thead>
         <tr>
@@ -200,7 +200,7 @@ function AutoScheduleGrid({
         </tr>
         </tbody>
       </table>
-    </div>
+    </PlanningDateGridFrame>
   );
 }
 

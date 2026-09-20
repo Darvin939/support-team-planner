@@ -82,6 +82,12 @@ class AssignmentOut(BaseModel):
     time_spent: Optional[str] = None
 
 
+class AssignmentTimelineOut(BaseModel):
+    date: str
+    block: Optional[str] = None
+    status: AssignmentStatus
+
+
 class HistoryEntryOut(BaseModel):
     id: int
     entity: Optional[str] = None

@@ -3,8 +3,14 @@ import dayjs from 'dayjs';
 import {apiGet, apiMutate, buildApiUrl} from '../lib/apiMutate';
 import {queryKeys} from '../lib/queryKeys';
 import {invalidateTaskDependencies} from '../lib/queryInvalidation';
-import type {Assignment, BlockTemplateEntry, BlockTemplate, Task, TaskDep} from '../domain/types';
+import type {Assignment, AssignmentStatus, BlockTemplateEntry, BlockTemplate, Task, TaskDep} from '../domain/types';
 export type {Assignment, BlockTemplateEntry, Task, TaskDep} from '../domain/types';
+
+export interface AssignmentTimelineItem {
+  date: string;
+  block: string | null;
+  status: AssignmentStatus;
+}
 import {API_DATE_FORMAT} from '../lib/dateFormats';
 import {MAX_PERIOD_DAYS} from './useDateRangeFilter';
 
@@ -107,6 +113,14 @@ export function useTaskById(teamId: number, taskId: number | null) {
     queryKey: queryKeys.tasks.byId(taskId),
     queryFn: () => apiGet<Task>(`/api/task/${taskId}`),
     enabled: !!teamId && !!taskId,
+  });
+}
+
+export function useTaskAssignmentTimeline(taskId: number | null, enabled: boolean) {
+  return useQuery<AssignmentTimelineItem[]>({
+    queryKey: queryKeys.tasks.assignmentTimeline(taskId),
+    queryFn: () => apiGet(`/api/task/${taskId}/assignment-timeline`),
+    enabled: enabled && !!taskId,
   });
 }
 

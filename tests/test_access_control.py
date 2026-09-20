@@ -56,7 +56,7 @@ class DeclarativeRoutePolicyTest(unittest.TestCase):
         '/api/active-assignments/{team_id}', '/api/tasks/{team_id}/deps',
         '/api/tasks/{team_id}/dependency-graph', '/api/tasks/{team_id}/active-list',
         '/api/tasks/{team_id}', '/api/task/{task_id}', '/api/tasks/{team_id}/archive',
-        '/api/task/{task_id}/history', '/api/journal/{team_id}',
+        '/api/task/{task_id}/history', '/api/task/{task_id}/assignment-timeline', '/api/journal/{team_id}',
         '/api/notifications/new-tasks/preview', '/api/notifications/new-tasks',
         '/api/assignments/{team_id}/task/{task_id}/successful-history',
     }

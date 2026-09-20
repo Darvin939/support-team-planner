@@ -99,6 +99,17 @@ def get_successful_assignments_by_task(conn, task_id):
     ).fetchall()
 
 
+@with_db_connection(commit_on_success=False)
+def get_assignment_timeline_by_task(conn, task_id):
+    return conn.execute(
+        '''SELECT date, block, status
+             FROM assignments
+            WHERE task_id = ? AND is_deleted = 0
+            ORDER BY date, id''',
+        (task_id,),
+    ).fetchall()
+
+
 @with_db_connection()
 def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, status, user_id, comment,
                                  time_spent=None, changed_by=None):

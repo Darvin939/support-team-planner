@@ -30,6 +30,11 @@ vi.mock('../../hooks/usePlanningData', () => ({
     data: mocks.activeTasks,
     isLoading: false,
   }),
+  useTaskAssignmentTimeline: () => ({
+    data: [],
+    isLoading: false,
+    isError: false,
+  }),
 }));
 
 vi.mock('../../hooks/useMe', () => ({useMe: () => ({data: {role: 'admin'}})}));

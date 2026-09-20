@@ -71,7 +71,11 @@ class TaskArchiveApiTest(unittest.TestCase):
                 (17, 1, 1, 'Restore deleted', 'done', datetime('now', '-2 days')),
                 (20, 2, 1, 'Denied task', 'done', datetime('now', '-1 day'));
             UPDATE tasks SET is_deleted = 1 WHERE id = 17;
-            INSERT INTO assignments (id, task_id, date, status) VALUES (150, 15, '2026-07-01', 'new');
+            INSERT INTO assignments (id, task_id, date, block, status) VALUES
+                (150, 15, '2026-07-03', 'Проверка, Отчёт', 'new'),
+                (151, 15, '2026-07-01', 'Анализ', 'success'),
+                (152, 15, '2026-07-02', 'Скрытый', 'cancelled');
+            UPDATE assignments SET is_deleted = 1 WHERE id = 152;
             INSERT INTO task_dependencies (task_id, depends_on_task_id) VALUES (15, 10);
         ''')
         conn.commit()
@@ -129,6 +133,16 @@ class TaskArchiveApiTest(unittest.TestCase):
             self.assertEqual(403, client.get('/api/task/20').status_code)
             self.assertEqual(404, client.get('/api/task/999').status_code)
 
+    def test_assignment_timeline_returns_minimal_sorted_non_deleted_rows(self):
+        with self.login('limited-archive', 'password123') as client:
+            response = client.get('/api/task/15/assignment-timeline')
+            self.assertEqual(200, response.status_code)
+            self.assertEqual([
+                {'date': '2026-07-01', 'block': 'Анализ', 'status': 'success'},
+                {'date': '2026-07-03', 'block': 'Проверка, Отчёт', 'status': 'new'},
+            ], response.json())
+            self.assertEqual(403, client.get('/api/task/20/assignment-timeline').status_code)
+
     def test_archive_has_stable_pagination_search_period_and_legacy_rows(self):
         with self.login() as client:
             full = client.get('/api/tasks/1/archive', params={'limit': 2, 'offset': 0}).json()
@@ -174,7 +188,7 @@ class TaskArchiveApiTest(unittest.TestCase):
         status, completed_at = conn.execute(
             'SELECT task_status, completed_at FROM tasks WHERE id = 15').fetchone()
         self.assertEqual(('new', None), (status, completed_at))
-        self.assertEqual(1, conn.execute('SELECT COUNT(*) FROM assignments WHERE task_id = 15').fetchone()[0])
+        self.assertEqual(3, conn.execute('SELECT COUNT(*) FROM assignments WHERE task_id = 15').fetchone()[0])
         self.assertEqual(1, conn.execute('SELECT COUNT(*) FROM task_dependencies WHERE task_id = 15').fetchone()[0])
         history = conn.execute(
             "SELECT old_value, new_value FROM task_history WHERE task_id = 15 AND field_name = 'task_status' "

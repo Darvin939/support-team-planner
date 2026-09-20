@@ -1,6 +1,6 @@
 import {useEffect, useState} from 'react';
 import {Button, Checkbox, Form, Input, Modal, Popconfirm, Select, Space, Tabs, theme} from 'antd';
-import {useActiveTasksList} from '../../hooks/usePlanningData';
+import {useActiveTasksList, useTaskAssignmentTimeline} from '../../hooks/usePlanningData';
 import {useMe} from '../../hooks/useMe';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import {useSegments} from '../../hooks/useSettingsData';
@@ -16,6 +16,7 @@ import {
 import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';
 import {useIsMobile} from '../../hooks/useIsMobile';
 import {useDeleteTaskMutation, useSaveTaskMutation} from '../../hooks/useTaskMutations';
+import {AssignmentTimeline} from './assignmentTimeline';
 
 interface TaskFormValues {
   name: string;
@@ -55,7 +56,8 @@ export function TaskModal({
   const {data: me} = useMe();
   const isUser = me?.role === 'user';
   const canDelete = !!task && !isTerminal && !(isUser && task.has_active_assignments);
-  const [historyOpen, setHistoryOpen] = useHistoryToggle(open, isTerminal);
+  const [historyOpen, setHistoryOpen] = useHistoryToggle(open, false);
+  const assignmentTimeline = useTaskAssignmentTimeline(task?.id ?? null, open && isTerminal);
   const isMobile = useIsMobile();
   const {token} = theme.useToken();
 
@@ -198,6 +200,10 @@ export function TaskModal({
               </div>
               <div>
                 <strong>ПСИ:</strong> {task ? PSI_STATUS_LABELS[task.psi_status] : ''}
+              </div>
+              <div>
+                <div style={{marginBottom: 8}}><strong>Назначения:</strong></div>
+                <AssignmentTimeline assignments={assignmentTimeline.data} loading={assignmentTimeline.isLoading} error={assignmentTimeline.isError}/>
               </div>
             </div>
           ) : (
