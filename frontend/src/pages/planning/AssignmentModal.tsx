@@ -37,6 +37,7 @@ import {useAssignmentModalState} from './useAssignmentModalState';
 import {AssignmentStatusField} from './AssignmentStatusField';
 import {isPsiPlanningBlocked} from './psiAssignmentPolicy';
 import {assignmentStatusForSave} from './assignmentStatusRolePolicy';
+import type {ApiResult} from '../../lib/apiMutate';
 
 export interface AssignmentFormValues {
   date: dayjs.Dayjs;
@@ -212,6 +213,7 @@ export function AssignmentModal({
                                   taskAssignments,
                                   freezeDays,
                                   onClose,
+                                  onTaskCompletionSuggested,
                                 }: {
   open: boolean;
   teamId: number;
@@ -221,6 +223,7 @@ export function AssignmentModal({
   taskAssignments: Assignment[];
   freezeDays: Set<string>;
   onClose: () => void;
+  onTaskCompletionSuggested: (suggestion: NonNullable<ApiResult['task_completion_suggestion']>) => void;
 }) {
   const [form] = Form.useForm<AssignmentFormValues>();
   const {modal} = AntApp.useApp();
@@ -246,7 +249,12 @@ export function AssignmentModal({
   const saveMutation = useSaveAssignmentMutation({
     includeTasks: true,
     successMessage: 'Сохранено',
-    onSuccess: onClose,
+    onSuccess: (result) => {
+      if (result.task_completion_suggestion) {
+        onTaskCompletionSuggested(result.task_completion_suggestion);
+      }
+      onClose();
+    },
   });
   const autoSaveMutation = useBulkSaveAssignmentsMutation({
     includeTasks: true,

@@ -166,7 +166,8 @@ def get_task_completion_suggestion(conn, task_id):
     covered_blocks = set()
     relevant_statuses = []
     assignments = conn.execute(
-        'SELECT block, status FROM assignments WHERE task_id = ? AND is_deleted = 0',
+        "SELECT block, status FROM assignments "
+        "WHERE task_id = ? AND is_deleted = 0 AND status != 'cancelled'",
         (task_id,),
     ).fetchall()
     for assignment in assignments:

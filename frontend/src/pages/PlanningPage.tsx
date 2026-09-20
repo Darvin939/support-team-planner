@@ -416,6 +416,7 @@ export function PlanningPage() {
         taskAssignments={assignmentModal.task ? (assignmentsByTask.get(assignmentModal.task.id) ?? jumpAssignments ?? []) : []}
         freezeDays={freezeDays}
         onClose={() => setAssignmentModal({open: false, task: null, date: null, assignment: null})}
+        onTaskCompletionSuggested={setCompletionSuggestion}
       />
       <TaskCompletionSuggestionModal
         suggestion={completionSuggestion}

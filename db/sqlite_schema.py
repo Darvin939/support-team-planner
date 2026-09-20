@@ -1,3 +1,6 @@
+import sqlite3
+
+
 # @formatter:off
 SCHEMA = '''
     CREATE TABLE if NOT EXISTS teams (
@@ -184,4 +187,12 @@ SCHEMA = '''
 
 def create_current_schema(conn) -> None:
     conn.execute('PRAGMA foreign_keys = ON;')
-    conn.executescript(SCHEMA)
+    statement = ''
+    for line in SCHEMA.splitlines(keepends=True):
+        statement += line
+        if sqlite3.complete_statement(statement):
+            if statement.strip():
+                conn.execute(statement)
+            statement = ''
+    if statement.strip():
+        raise RuntimeError('Incomplete SQL statement in current SQLite schema')

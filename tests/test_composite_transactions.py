@@ -408,7 +408,8 @@ class CompositeTransactionApiTest(unittest.TestCase):
             "INSERT INTO assignments (id, task_id, date, block, status) VALUES "
             "(210, 10, '2026-08-25', 'Backend', 'success'), "
             "(211, 10, '2026-08-26', 'Frontend', 'planned'), "
-            "(212, 10, '2026-08-27', 'Unrelated', 'new')"
+            "(212, 10, '2026-08-27', 'Unrelated', 'new'), "
+            "(213, 10, '2026-08-24', 'Backend', 'cancelled')"
         )
         conn.commit()
         conn.close()
@@ -456,7 +457,7 @@ class CompositeTransactionApiTest(unittest.TestCase):
         self.assertIsNone(db.get_task_completion_suggestion(10))
 
         conn = sqlite3.connect(self.path)
-        conn.execute('DELETE FROM assignments WHERE id IN (210, 211, 212)')
+        conn.execute('DELETE FROM assignments WHERE id IN (210, 211, 212, 213)')
         conn.execute('UPDATE tasks SET completion_template_id = NULL WHERE id = 10')
         conn.commit()
         conn.close()

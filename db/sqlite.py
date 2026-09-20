@@ -1,12 +1,41 @@
+import os
 import sqlite3
 
 from db.backend import DBBackend
 from db.sqlite_functions import register_sqlite_functions
 from db.sqlite_migration_steps import SQLiteMigrationSteps
-from db.sqlite_migrations import Migration, run_migrations
+from db.sqlite_migrations import Migration, run_migrations, run_quick_check
 from db.sqlite_schema import create_current_schema
 
-DB_PATH = 'database.db'
+DB_PATH = os.environ.get('SUPPORT_PLANNER_DB_PATH', 'database.db')
+
+
+def sqlite_migrations() -> tuple[Migration, ...]:
+    steps = SQLiteMigrationSteps()
+    return (
+        Migration(
+            1,
+            'employees-to-users',
+            steps.migrate_employees_to_users,
+            foreign_keys_disabled=True,
+        ),
+        Migration(2, 'criticality-to-priority', steps.migrate_criticality_to_priority),
+        Migration(3, 'restore-criticality', steps.migrate_add_criticality_column),
+        Migration(4, 'add-segments', steps.migrate_add_segment_columns),
+        Migration(5, 'create-current-schema', create_current_schema),
+        Migration(6, 'add-task-completed-at', steps.migrate_add_task_completed_at),
+        Migration(7, 'normalize-and-bootstrap', steps.normalize_and_bootstrap),
+        Migration(8, 'add-task-completion-template', steps.migrate_add_task_completion_template),
+        Migration(9, 'add-task-psi-status', steps.migrate_add_task_psi_status),
+        Migration(10, 'add-task-instruction-url', steps.migrate_add_task_instruction_url),
+        Migration(11, 'add-new-task-notifications', steps.migrate_add_new_task_notifications),
+        Migration(12, 'add-seen-new-task-events', steps.migrate_add_seen_new_task_events),
+        Migration(
+            13,
+            'repair-new-task-notification-state',
+            steps.migrate_repair_new_task_notification_state
+        ),
+    )
 
 
 class SQLiteBackend(DBBackend):
@@ -46,19 +75,8 @@ class SQLiteBackend(DBBackend):
         return sqlite3.IntegrityError
 
     def init_schema(self, conn) -> None:
-        steps = SQLiteMigrationSteps()
-        migrations = (
-            Migration(1, 'employees-to-users', steps.migrate_employees_to_users),
-            Migration(2, 'criticality-to-priority', steps.migrate_criticality_to_priority),
-            Migration(3, 'restore-criticality', steps.migrate_add_criticality_column),
-            Migration(4, 'add-segments', steps.migrate_add_segment_columns),
-            Migration(5, 'create-current-schema', create_current_schema),
-            Migration(6, 'add-task-completed-at', steps.migrate_add_task_completed_at),
-            Migration(7, 'normalize-and-bootstrap', steps.normalize_and_bootstrap),
-            Migration(8, 'add-task-completion-template', steps.migrate_add_task_completion_template),
-            Migration(9, 'add-task-psi-status', steps.migrate_add_task_psi_status),
-            Migration(10, 'add-task-instruction-url', steps.migrate_add_task_instruction_url),
-            Migration(11, 'add-new-task-notifications', steps.migrate_add_new_task_notifications),
-            Migration(12, 'add-seen-new-task-events', steps.migrate_add_seen_new_task_events),
-        )
-        run_migrations(conn, migrations)
+        run_migrations(conn, sqlite_migrations())
+
+    def predeploy_migrate(self, conn) -> None:
+        self.init_schema(conn)
+        run_quick_check(conn)

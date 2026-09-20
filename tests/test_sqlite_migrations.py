@@ -1,4 +1,6 @@
 import sqlite3
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -47,7 +49,7 @@ class SQLiteInfrastructureTests(unittest.TestCase):
         conn.row_factory = sqlite3.Row
         try:
             SQLiteBackend().init_schema(conn)
-            self.assertEqual(current_version(conn), 12)
+            self.assertEqual(current_version(conn), 13)
             tables = {row[0] for row in conn.execute(
                 "SELECT name FROM sqlite_master WHERE type = 'table'"
             )}
@@ -83,7 +85,7 @@ class SQLiteInfrastructureTests(unittest.TestCase):
         ''')
         try:
             SQLiteBackend().init_schema(conn)
-            self.assertEqual(current_version(conn), 12)
+            self.assertEqual(current_version(conn), 13)
             self.assertEqual(conn.execute('SELECT name FROM tasks WHERE id = 3').fetchone()[0], 'Legacy task')
             self.assertEqual(conn.execute('SELECT user_id FROM assignments WHERE id = 4').fetchone()[0], 2)
             task_columns = {row[1] for row in conn.execute('PRAGMA table_info(tasks)')}
@@ -131,6 +133,237 @@ class SQLiteInfrastructureTests(unittest.TestCase):
                 conn.close()
             finally:
                 sqlite_backend.DB_PATH = old_path
+
+    def _current_database_at_version_12(self):
+        conn = sqlite3.connect(':memory:')
+        conn.row_factory = sqlite3.Row
+        SQLiteBackend().init_schema(conn)
+        conn.execute('DELETE FROM schema_migrations WHERE version = 13')
+        conn.execute('PRAGMA user_version = 12')
+        conn.commit()
+        return conn
+
+    def test_version_12_legacy_notification_table_is_repaired(self):
+        conn = self._current_database_at_version_12()
+        try:
+            conn.execute('''INSERT INTO users
+                (id, first_name, role, login, is_assignee) VALUES (101, 'Legacy', 'user', 'legacy', 1)''')
+            conn.execute('ALTER TABLE user_new_task_notification_state RENAME TO user_notification_state')
+            conn.execute('''INSERT INTO user_notification_state
+                (user_id, new_tasks_seen_at, new_tasks_seen_history_id)
+                VALUES (101, '2026-09-01 10:00:00', 41)''')
+            conn.execute('DROP TABLE schema_migrations')
+            conn.commit()
+
+            SQLiteBackend().init_schema(conn)
+
+            self.assertEqual(current_version(conn), 13)
+            self.assertIsNone(conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='user_notification_state'"
+            ).fetchone())
+            self.assertEqual(
+                ('2026-09-01 10:00:00', 41),
+                tuple(conn.execute('''SELECT new_tasks_seen_at, new_tasks_seen_history_id
+                    FROM user_new_task_notification_state WHERE user_id = 101''').fetchone()),
+            )
+            self.assertEqual(13, conn.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0])
+        finally:
+            conn.close()
+
+    def test_version_11_legacy_notification_table_runs_steps_12_and_13(self):
+        conn = self._current_database_at_version_12()
+        try:
+            conn.execute('''INSERT INTO users
+                (id, first_name, role, login, is_assignee) VALUES (111, 'Version11', 'user', 'v11', 1)''')
+            conn.execute('''INSERT INTO user_new_task_notification_state
+                (user_id, new_tasks_seen_at, new_tasks_seen_history_id)
+                VALUES (111, '2026-08-31 09:00:00', 31)''')
+            conn.execute('DROP TABLE user_new_task_notification_seen_events')
+            conn.execute('ALTER TABLE user_new_task_notification_state RENAME TO user_notification_state')
+            conn.execute('DROP TABLE schema_migrations')
+            conn.execute('PRAGMA user_version = 11')
+            conn.commit()
+
+            SQLiteBackend().init_schema(conn)
+
+            self.assertEqual(current_version(conn), 13)
+            self.assertIsNotNone(conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' "
+                "AND name='user_new_task_notification_seen_events'"
+            ).fetchone())
+            self.assertEqual(
+                ('2026-08-31 09:00:00', 31),
+                tuple(conn.execute('''SELECT new_tasks_seen_at, new_tasks_seen_history_id
+                    FROM user_new_task_notification_state WHERE user_id = 111''').fetchone()),
+            )
+            self.assertIsNone(conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='user_notification_state'"
+            ).fetchone())
+            self.assertEqual(13, conn.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0])
+        finally:
+            conn.close()
+
+    def test_version_12_both_notification_tables_merge_maximum_cursor(self):
+        conn = self._current_database_at_version_12()
+        try:
+            conn.execute('''INSERT INTO users
+                (id, first_name, role, login, is_assignee) VALUES (102, 'Both', 'user', 'both', 1)''')
+            conn.execute('''INSERT INTO user_new_task_notification_state VALUES
+                (102, '2026-09-02 10:00:00', 10)''')
+            conn.execute('''CREATE TABLE user_notification_state (
+                user_id INTEGER PRIMARY KEY,
+                new_tasks_seen_at TEXT NOT NULL,
+                new_tasks_seen_history_id INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )''')
+            conn.execute('''INSERT INTO user_notification_state VALUES
+                (102, '2026-09-02 10:00:00', 12)''')
+            conn.commit()
+
+            SQLiteBackend().init_schema(conn)
+
+            self.assertEqual(
+                ('2026-09-02 10:00:00', 12),
+                tuple(conn.execute('''SELECT new_tasks_seen_at, new_tasks_seen_history_id
+                    FROM user_new_task_notification_state WHERE user_id = 102''').fetchone()),
+            )
+            self.assertIsNone(conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='user_notification_state'"
+            ).fetchone())
+        finally:
+            conn.close()
+
+    def test_version_12_without_notification_state_recreates_and_backfills(self):
+        conn = self._current_database_at_version_12()
+        try:
+            conn.execute('DROP TABLE user_new_task_notification_state')
+            conn.execute('''INSERT INTO users
+                (id, first_name, role, login, is_assignee) VALUES (103, 'Missing', 'user', 'missing', 1)''')
+            conn.commit()
+
+            SQLiteBackend().init_schema(conn)
+
+            self.assertIsNotNone(conn.execute(
+                'SELECT 1 FROM user_new_task_notification_state WHERE user_id = 103'
+            ).fetchone())
+            self.assertEqual(current_version(conn), 13)
+        finally:
+            conn.close()
+
+    def test_version_12_canonical_notification_state_is_preserved(self):
+        conn = self._current_database_at_version_12()
+        try:
+            conn.execute('''INSERT INTO users
+                (id, first_name, role, login, is_assignee) VALUES (104, 'Current', 'user', 'current', 1)''')
+            conn.execute("INSERT INTO user_new_task_notification_state VALUES (104, '2026-09-03', 17)")
+            conn.commit()
+
+            SQLiteBackend().init_schema(conn)
+
+            self.assertEqual(
+                ('2026-09-03', 17),
+                tuple(conn.execute('''SELECT new_tasks_seen_at, new_tasks_seen_history_id
+                    FROM user_new_task_notification_state WHERE user_id = 104''').fetchone()),
+            )
+        finally:
+            conn.close()
+
+    def test_incompatible_legacy_table_rolls_back_version_13(self):
+        conn = self._current_database_at_version_12()
+        try:
+            conn.execute('DROP TABLE user_new_task_notification_state')
+            conn.execute('CREATE TABLE user_notification_state (user_id INTEGER PRIMARY KEY)')
+            conn.commit()
+
+            with self.assertRaisesRegex(RuntimeError, 'incompatible columns'):
+                SQLiteBackend().init_schema(conn)
+
+            self.assertEqual(current_version(conn), 12)
+            self.assertIsNotNone(conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='user_notification_state'"
+            ).fetchone())
+            self.assertEqual(12, conn.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0])
+        finally:
+            conn.close()
+
+    def test_orphan_legacy_row_rolls_back_version_13(self):
+        conn = self._current_database_at_version_12()
+        try:
+            conn.execute('DROP TABLE user_new_task_notification_state')
+            conn.execute('''CREATE TABLE user_notification_state (
+                user_id INTEGER PRIMARY KEY,
+                new_tasks_seen_at TEXT NOT NULL,
+                new_tasks_seen_history_id INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )''')
+            conn.execute("INSERT INTO user_notification_state VALUES (999999, '', 0)")
+            conn.commit()
+
+            with self.assertRaisesRegex(RuntimeError, 'missing user 999999'):
+                SQLiteBackend().init_schema(conn)
+
+            self.assertEqual(current_version(conn), 12)
+        finally:
+            conn.close()
+
+    def test_failed_postcondition_rolls_back_operation_and_version(self):
+        conn = sqlite3.connect(':memory:')
+        try:
+            def operation(connection):
+                connection.execute('CREATE TABLE partial_change (id INTEGER)')
+
+            def reject(_connection):
+                raise RuntimeError('postcondition rejected')
+
+            with self.assertRaisesRegex(RuntimeError, 'postcondition rejected'):
+                run_migrations(conn, (Migration(1, 'atomic', operation, postcondition=reject),))
+
+            self.assertEqual(current_version(conn), 0)
+            self.assertIsNone(conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='partial_change'"
+            ).fetchone())
+        finally:
+            conn.close()
+
+    def test_future_database_version_is_rejected(self):
+        conn = sqlite3.connect(':memory:')
+        try:
+            conn.execute('PRAGMA user_version = 2')
+            with self.assertRaisesRegex(RuntimeError, 'newer than supported'):
+                run_migrations(conn, (Migration(1, 'first', lambda connection: None),))
+        finally:
+            conn.close()
+
+    def test_migration_checksum_mismatch_is_rejected(self):
+        conn = sqlite3.connect(':memory:')
+        try:
+            run_migrations(conn, (Migration(1, 'first', lambda connection: None, checksum='original'),))
+            with self.assertRaisesRegex(RuntimeError, 'journal mismatch at version 1'):
+                run_migrations(conn, (Migration(1, 'first', lambda connection: None, checksum='changed'),))
+        finally:
+            conn.close()
+
+    def test_predeploy_cli_success_and_future_version_failure(self):
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            database = Path(temp_dir) / 'predeploy.db'
+            success = subprocess.run(
+                [sys.executable, 'migrate_database.py', '--database', str(database)],
+                cwd=root, capture_output=True, text=True, encoding='utf-8', check=False,
+            )
+            self.assertEqual(success.returncode, 0, success.stderr)
+            self.assertIn('user_version=13', success.stdout)
+
+            conn = sqlite3.connect(database)
+            conn.execute('PRAGMA user_version = 99')
+            conn.commit()
+            conn.close()
+            failure = subprocess.run(
+                [sys.executable, 'migrate_database.py', '--database', str(database)],
+                cwd=root, capture_output=True, text=True, encoding='utf-8', check=False,
+            )
+            self.assertNotEqual(failure.returncode, 0)
+            self.assertIn('newer than supported', failure.stderr)
 
 
 if __name__ == '__main__':

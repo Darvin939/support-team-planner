@@ -3,6 +3,60 @@ import sqlite3
 import auth
 
 
+_NOTIFICATION_STATE_COLUMNS = {
+    'user_id': ('INTEGER', 0, 1),
+    'new_tasks_seen_at': ('TEXT', 1, 0),
+    'new_tasks_seen_history_id': ('INTEGER', 1, 0),
+}
+
+
+def _table_exists(conn, table_name: str) -> bool:
+    return conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (table_name,)
+    ).fetchone() is not None
+
+
+def _validate_notification_state_table(conn, table_name: str) -> None:
+    rows = conn.execute(f'PRAGMA table_info("{table_name}")').fetchall()
+    actual = {row[1]: (str(row[2]).upper(), row[3], row[5]) for row in rows}
+    if actual != _NOTIFICATION_STATE_COLUMNS:
+        raise RuntimeError(
+            f'Notification state table {table_name} has incompatible columns: {actual}'
+        )
+    foreign_keys = conn.execute(f'PRAGMA foreign_key_list("{table_name}")').fetchall()
+    expected_fk = any(
+        row[2] == 'users' and row[3] == 'user_id' and row[4] == 'id' and str(row[6]).upper() == 'CASCADE'
+        for row in foreign_keys
+    )
+    if not expected_fk:
+        raise RuntimeError(f'Notification state table {table_name} has no expected users foreign key')
+
+
+def _validate_notification_state_rows(conn, table_name: str) -> None:
+    orphan = conn.execute(f'''
+        SELECT state.user_id
+          FROM "{table_name}" state
+          LEFT JOIN users ON users.id = state.user_id
+         WHERE users.id IS NULL
+         LIMIT 1
+    ''').fetchone()
+    if orphan is not None:
+        raise RuntimeError(
+            f'Notification state table {table_name} references missing user {orphan[0]}'
+        )
+
+
+def _create_notification_state_table(conn) -> None:
+    conn.execute('''
+        CREATE TABLE user_new_task_notification_state (
+            user_id INTEGER PRIMARY KEY,
+            new_tasks_seen_at TEXT NOT NULL,
+            new_tasks_seen_history_id INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        )
+    ''')
+
+
 class SQLiteMigrationSteps:
     @staticmethod
     def normalize_and_bootstrap(conn) -> None:
@@ -262,6 +316,55 @@ class SQLiteMigrationSteps:
                         ON user_new_task_notification_seen_events (task_history_id)''')
         conn.execute('''CREATE INDEX IF NOT EXISTS idx_user_new_task_notification_seen_events_seen_at
                         ON user_new_task_notification_seen_events (seen_at)''')
+
+    @staticmethod
+    def migrate_repair_new_task_notification_state(conn) -> None:
+        legacy = 'user_notification_state'
+        canonical = 'user_new_task_notification_state'
+        has_legacy = _table_exists(conn, legacy)
+        has_canonical = _table_exists(conn, canonical)
+
+        if has_legacy:
+            _validate_notification_state_table(conn, legacy)
+            _validate_notification_state_rows(conn, legacy)
+        if has_canonical:
+            _validate_notification_state_table(conn, canonical)
+            _validate_notification_state_rows(conn, canonical)
+
+        if has_legacy and not has_canonical:
+            conn.execute(f'ALTER TABLE "{legacy}" RENAME TO "{canonical}"')
+        elif has_legacy and has_canonical:
+            conn.execute(f'''
+                INSERT INTO "{canonical}"
+                    (user_id, new_tasks_seen_at, new_tasks_seen_history_id)
+                SELECT user_id, new_tasks_seen_at, new_tasks_seen_history_id
+                  FROM "{legacy}"
+                 WHERE 1
+                ON CONFLICT(user_id) DO UPDATE SET
+                    new_tasks_seen_at = CASE
+                        WHEN (excluded.new_tasks_seen_at, excluded.new_tasks_seen_history_id) >
+                             (new_tasks_seen_at, new_tasks_seen_history_id)
+                        THEN excluded.new_tasks_seen_at ELSE new_tasks_seen_at END,
+                    new_tasks_seen_history_id = CASE
+                        WHEN (excluded.new_tasks_seen_at, excluded.new_tasks_seen_history_id) >
+                             (new_tasks_seen_at, new_tasks_seen_history_id)
+                        THEN excluded.new_tasks_seen_history_id ELSE new_tasks_seen_history_id END
+            ''')
+            _validate_notification_state_rows(conn, canonical)
+            conn.execute(f'DROP TABLE "{legacy}"')
+        elif not has_canonical:
+            _create_notification_state_table(conn)
+
+        cursor = conn.execute(
+            'SELECT changed_at, id FROM task_history ORDER BY changed_at DESC, id DESC LIMIT 1'
+        ).fetchone()
+        changed_at = cursor[0] if cursor else ''
+        history_id = cursor[1] if cursor else 0
+        conn.execute('''
+            INSERT OR IGNORE INTO user_new_task_notification_state
+                (user_id, new_tasks_seen_at, new_tasks_seen_history_id)
+            SELECT id, ?, ? FROM users
+        ''', (changed_at, history_id))
 
     _DEFAULT_SEGMENT_NAME = 'По умолчанию'
 
