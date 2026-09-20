@@ -1,11 +1,15 @@
 import {lazy, Suspense, useEffect, useState} from 'react';
 import {App as AntApp, ConfigProvider, Spin} from 'antd';
 import ruRU from 'antd/locale/ru_RU';
+import dayjs from 'dayjs';
+import 'dayjs/locale/ru';
 import {QueryClientProvider} from '@tanstack/react-query';
 import {BrowserRouter, Navigate, Route, Routes} from 'react-router-dom';
 import {queryClient} from './queryClient';
 import {AuthenticatedLayout} from './components/AuthenticatedLayout';
 import {darkTheme, lightTheme} from './theme';
+
+dayjs.locale('ru');
 
 const LoginPage = lazy(() => import('./pages/LoginPage').then((m) => ({default: m.LoginPage})));
 const StatisticsPage = lazy(() => import('./pages/StatisticsPage').then((m) => ({default: m.StatisticsPage})));

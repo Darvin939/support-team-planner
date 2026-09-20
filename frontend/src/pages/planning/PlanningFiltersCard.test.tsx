@@ -53,4 +53,41 @@ describe('PlanningFiltersCard task statuses', () => {
     expect(screen.queryByText('К планированию')).toBeNull();
     expect(screen.queryByText('В работе')).toBeNull();
   });
+
+  it('shows planning date presets and applies a selected preset', () => {
+    const onRangeChange = vi.fn();
+    render(
+      <PlanningFiltersCard
+        isMobile={false}
+        range={[dayjs('2026-08-01'), dayjs('2026-08-31')]}
+        onRangeChange={onRangeChange}
+        search=""
+        setSearch={vi.fn()}
+        criticalities={[]}
+        setCriticalities={vi.fn()}
+        segmentIds={[]}
+        setSegmentIds={vi.fn()}
+        assignmentStatuses={[]}
+        setAssignmentStatuses={vi.fn()}
+        taskStatuses={[]}
+        setTaskStatuses={vi.fn()}
+        segments={[]}
+        showCompleted={false}
+        setShowCompleted={vi.fn()}
+      />,
+    );
+
+    const rangeInputs = screen.getAllByRole('textbox');
+    fireEvent.mouseDown(rangeInputs[0]);
+    fireEvent.click(rangeInputs[0]);
+
+    expect(screen.getByText('Прошлые 30 дней')).toBeTruthy();
+    expect(screen.getByText('Прошлые 7')).toBeTruthy();
+    expect(screen.getByText('Эта неделя')).toBeTruthy();
+    expect(screen.getByText('±7 дней')).toBeTruthy();
+    expect(screen.getByText('±14 дней')).toBeTruthy();
+
+    fireEvent.click(screen.getByText('Прошлые 7'));
+    expect(onRangeChange).toHaveBeenCalledWith(expect.any(Array), expect.any(Array));
+  });
 });

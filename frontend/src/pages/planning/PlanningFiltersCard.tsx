@@ -4,6 +4,7 @@ import dayjs, {type Dayjs} from 'dayjs';
 import {FilterField, FilterGrid} from '../../components/FilterGrid';
 import {ASSIGNMENT_STATUS_OPTIONS, CRITICALITY_OPTIONS, TASK_STATUS_OPTIONS, type AssignmentStatus, type Criticality, type Segment, type TaskStatus} from '../../domain/types';
 import {DISPLAY_DATE_FORMAT} from '../../lib/dateFormats';
+import {getPlanningDateRangePresets} from './dateRangePresets';
 
 export function PlanningFiltersCard(props: {
   isMobile: boolean;
@@ -24,6 +25,7 @@ export function PlanningFiltersCard(props: {
   setShowCompleted: Dispatch<SetStateAction<boolean>>;
 }) {
   const width = props.isMobile ? '100%' : 180;
+  const presets = getPlanningDateRangePresets();
   return (
     <Card style={{marginBottom: 16}}>
       <Typography.Title level={5} style={{marginTop: 0}}>Фильтры</Typography.Title>
@@ -31,6 +33,7 @@ export function PlanningFiltersCard(props: {
         <FilterField label="ПЕРИОД" isMobile={props.isMobile} mobileSpan={2}>
           <DatePicker.RangePicker value={props.range} onChange={props.onRangeChange}
             format={DISPLAY_DATE_FORMAT} minDate={dayjs('2000-01-01')} maxDate={dayjs('2099-12-31')}
+            presets={presets}
             allowClear style={props.isMobile ? {width: '100%'} : undefined}/>
         </FilterField>
         <FilterField label="ПОИСК ПО ОПИСАНИЮ" isMobile={props.isMobile}>
