@@ -5,7 +5,6 @@ from fastapi import HTTPException, Request
 
 import db
 
-
 _ROLE_RANK = {'user': 0, 'editor': 1, 'admin': 2}
 
 
@@ -13,7 +12,7 @@ _ROLE_RANK = {'user': 0, 'editor': 1, 'admin': 2}
 class CurrentUser:
     id: int
     role: str
-    login: str | None = None
+    login: Optional[str] = None
 
 
 def _access_policy(kind: str, minimum_role: Optional[str] = None):

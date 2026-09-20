@@ -60,6 +60,7 @@ runtime_files=(
     "task_dependency_rules.py"
     "task_rules.py"
     "utils.py"
+    "migrate_database.py"
     "requirements.txt"
     "run.sh"
     "check.sh"
