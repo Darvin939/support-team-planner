@@ -19,7 +19,9 @@ import {
   CloseCircleOutlined,
   CloseOutlined,
   CopyOutlined,
+  DeleteOutlined,
   EditOutlined,
+  ExclamationCircleOutlined,
   HolderOutlined,
   InfoCircleOutlined,
   PlusCircleOutlined,
@@ -50,6 +52,7 @@ const ASSIGNMENT_STATUS_ICONS: Record<AssignmentStatus, ReactNode> = {
   planned: <CalendarOutlined/>,
   rollback: <UndoOutlined/>,
   success: <CheckCircleOutlined/>,
+  unsuccessful: <ExclamationCircleOutlined/>,
   cancelled: <CloseCircleOutlined/>,
 };
 
@@ -78,6 +81,7 @@ interface UsePlanningColumnsOptions {
   statusMutation: MutateFn<{ taskId: number; status: TaskStatus }>;
   psiStatusMutation: MutateFn<{ taskId: number; psiStatus: Extract<PsiStatus, 'required' | 'passed'> }>;
   assignmentStatusMutation: MutateFn<{ assignmentId: number; status: AssignmentStatus }>;
+  deleteAssignmentMutation: MutateFn<number>;
   setGraphModal: Dispatch<SetStateAction<{ open: boolean; taskId?: number }>>;
   setTaskModal: Dispatch<SetStateAction<{ open: boolean; task: Task | null }>>;
   setAssignmentModal: Dispatch<
@@ -109,6 +113,7 @@ export function usePlanningColumns({
                                      statusMutation,
                                      psiStatusMutation,
                                      assignmentStatusMutation,
+                                     deleteAssignmentMutation,
                                      setGraphModal,
                                      setTaskModal,
                                      setAssignmentModal,
@@ -434,21 +439,23 @@ export function usePlanningColumns({
           const isTerminal = task.task_status === 'done' || task.task_status === 'cancelled';
           const psiBlocked = task.psi_status === 'required';
           if (!assignment) return null;
-          if (isTerminal) return <ScheduleChip assignment={assignment} draggable={false}/>;
-          if (!canChangeAssignmentStatus(isUser) || psiBlocked) {
-            return <ScheduleChip assignment={assignment} draggable={assignment.status === 'new'}/>;
+          if (!canChangeAssignmentStatus(isUser)) {
+            return <ScheduleChip assignment={assignment} draggable={!isTerminal && !psiBlocked && assignment.status === 'new'}/>;
           }
+          const canChangeStatus = !isTerminal && !psiBlocked;
           const statusItems: MenuProps['items'] = [
-            {
+            ...(canChangeStatus ? [{
               key: 'status-group',
-              type: 'group',
+              type: 'group' as const,
               label: 'Статус',
               children: ASSIGNMENT_STATUS_OPTIONS.filter((o) => o.value !== assignment.status).map((o) => ({
                 key: o.value,
                 label: ASSIGNMENT_STATUS_LABELS[o.value] ?? o.label,
                 icon: ASSIGNMENT_STATUS_ICONS[o.value as AssignmentStatus],
               }))
-            }
+            }] : []),
+            {type: 'divider'},
+            {key: 'delete', label: 'Удалить', icon: <DeleteOutlined/>, danger: true},
           ];
           return (
             <Dropdown
@@ -459,12 +466,23 @@ export function usePlanningColumns({
                 items: statusItems,
                 onClick: ({key, domEvent}) => {
                   domEvent.stopPropagation();
+                  if (key === 'delete') {
+                    setOpenContextMenu(null);
+                    modal.confirm({
+                      title: 'Удалить это назначение?',
+                      okText: 'Удалить',
+                      cancelText: 'Отмена',
+                      okButtonProps: {danger: true},
+                      onOk: () => deleteAssignmentMutation.mutate(assignment.id),
+                    });
+                    return;
+                  }
                   assignmentStatusMutation.mutate({assignmentId: assignment.id, status: key as AssignmentStatus});
                 },
               }}
             >
               <div>
-                <ScheduleChip assignment={assignment} draggable={!psiBlocked}/>
+                <ScheduleChip assignment={assignment} draggable={!isTerminal && !psiBlocked}/>
               </div>
             </Dropdown>
           );
@@ -473,5 +491,5 @@ export function usePlanningColumns({
     });
 
     return [infoColumn, ...dateColumns];
-  }, [teamId, dates, assignmentByKey, depsByTask, today, token, freezeDays, isUser, selectedAssignmentIds, openContextMenu, message, modal]);
+  }, [teamId, dates, assignmentByKey, depsByTask, today, token, freezeDays, isUser, selectedAssignmentIds, openContextMenu, message, modal, deleteAssignmentMutation]);
 }

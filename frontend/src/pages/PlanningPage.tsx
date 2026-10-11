@@ -185,6 +185,7 @@ export function PlanningPage() {
   const {
     rescheduleMutation,
     assignmentStatusMutation,
+    deleteAssignmentMutation,
     bulkDeleteMutation,
     bulkRescheduleMutation,
     isTaskLocked,
@@ -292,6 +293,7 @@ export function PlanningPage() {
     statusMutation,
     psiStatusMutation,
     assignmentStatusMutation,
+    deleteAssignmentMutation,
     setGraphModal,
     setTaskModal,
     setAssignmentModal,

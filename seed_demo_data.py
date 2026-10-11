@@ -31,7 +31,7 @@ EXTRA_TEMPLATES = {
 }
 TASK_STATUSES = ('new', 'done', 'cancelled')
 PSI_STATUSES = ('not_required', 'passed', 'required')
-ASSIGNMENT_STATUSES = ('new', 'planned', 'success', 'rollback', 'cancelled')
+ASSIGNMENT_STATUSES = ('new', 'planned', 'success', 'unsuccessful', 'rollback', 'cancelled')
 
 VERBS = [
     'Обновление', 'Исправление', 'Доработка', 'Оптимизация', 'Внедрение',
@@ -187,12 +187,12 @@ def create_users(team_ids):
 
 def assignment_status(task_status, offset):
     if task_status == 'done':
-        return random.choice(['success', 'success', 'rollback', 'cancelled'])
+        return random.choice(['success', 'success', 'unsuccessful', 'rollback', 'cancelled'])
     if task_status == 'cancelled':
         return 'cancelled'
     if offset > 0:
         return random.choice(['new', 'planned', 'cancelled'])
-    return random.choice(['new', 'planned', 'success', 'rollback', 'cancelled'])
+    return random.choice(['new', 'planned', 'success', 'unsuccessful', 'rollback', 'cancelled'])
 
 
 def create_tasks_and_assignments(team_ids, segment_ids, template_ids, users, assignees_by_team):

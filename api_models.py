@@ -3,7 +3,7 @@ from typing import List, Literal, Optional, Union
 from pydantic import BaseModel
 
 TaskStatus = Literal['new', 'done', 'cancelled']
-AssignmentStatus = Literal['new', 'planned', 'rollback', 'success', 'cancelled']
+AssignmentStatus = Literal['new', 'planned', 'rollback', 'success', 'unsuccessful', 'cancelled']
 Criticality = Literal['low', 'medium', 'high']
 UserRole = Literal['user', 'editor', 'admin']
 PsiStatus = Literal['not_required', 'required', 'passed']

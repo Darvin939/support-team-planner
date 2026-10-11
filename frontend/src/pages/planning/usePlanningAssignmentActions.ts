@@ -5,6 +5,7 @@ import {
   assignmentToPayload,
   useBulkDeleteAssignmentsMutation,
   useBulkRescheduleAssignmentsMutation,
+  useDeleteAssignmentMutation,
   useSaveAssignmentMutation,
 } from '../../hooks/useAssignmentMutations';
 import type {ApiResult} from '../../lib/apiMutate';
@@ -32,6 +33,10 @@ export function usePlanningAssignmentActions(options: {
     successMessage: ({deleted}) => `Удалено назначений: ${deleted}`,
     onSuccess: () => options.setSelectedAssignmentIds(new Set()),
   });
+  const deleteAssignmentMutation = useDeleteAssignmentMutation({
+    includeTasks: true,
+    successMessage: 'Назначение удалено',
+  });
   const bulkRescheduleMutation = useBulkRescheduleAssignmentsMutation({
     successMessage: ({moved}) => `Перенесено назначений: ${moved}`,
     onSuccess: () => options.setSelectedAssignmentIds(new Set()),
@@ -52,6 +57,7 @@ export function usePlanningAssignmentActions(options: {
         saveAssignmentStatus.mutate(assignmentToPayload(existing, {status}));
       },
     },
+    deleteAssignmentMutation,
     bulkDeleteMutation,
     bulkRescheduleMutation,
     isTaskLocked: (taskId: number) => {

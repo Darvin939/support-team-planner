@@ -35,4 +35,13 @@ describe('assignment timeline helpers', () => {
     rerender(<AssignmentTimeline assignments={undefined} error/>);
     expect(screen.getByText('Не удалось загрузить назначения')).toBeTruthy();
   });
+
+  it('renders unsuccessful as an error-colored result', () => {
+    render(<AssignmentTimeline assignments={[
+      {date: '2026-09-01', block: 'Проверка', status: 'unsuccessful'},
+    ]}/>);
+    const status = screen.getByText('Неуспешно');
+    expect(status.style.color).toBeTruthy();
+    expect(status.parentElement?.style.borderLeft).toContain(status.style.color);
+  });
 });

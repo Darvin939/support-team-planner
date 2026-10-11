@@ -775,6 +775,20 @@ class CompositeTransactionApiTest(unittest.TestCase):
             self.assertTrue(task['has_assignments'])
             self.assertFalse(task['has_active_assignments'])
 
+        for inactive_status in ('cancelled', 'unsuccessful'):
+            conn = sqlite3.connect(self.path)
+            conn.execute("UPDATE assignments SET status = ? WHERE id = 220", (inactive_status,))
+            conn.commit()
+            conn.close()
+            with self.login() as client:
+                task = client.get('/api/task/10').json()
+                self.assertFalse(task['has_active_assignments'])
+
+        conn = sqlite3.connect(self.path)
+        conn.execute("UPDATE assignments SET status = 'new' WHERE id = 220")
+        conn.commit()
+        conn.close()
+
         conn = sqlite3.connect(self.path)
         conn.execute("UPDATE tasks SET psi_status = 'passed' WHERE id = 10")
         conn.commit()

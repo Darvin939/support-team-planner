@@ -73,7 +73,7 @@ class ApiModelsContractTest(unittest.TestCase):
     def test_domain_enum_inputs_are_explicit(self):
         expected = {
             ('TaskStatusIn', 'status'): ['new', 'done', 'cancelled'],
-            ('AssignmentIn', 'status'): ['new', 'planned', 'rollback', 'success', 'cancelled'],
+            ('AssignmentIn', 'status'): ['new', 'planned', 'rollback', 'success', 'unsuccessful', 'cancelled'],
             ('TaskIn', 'criticality'): ['low', 'medium', 'high'],
             ('UserIn', 'role'): ['user', 'editor', 'admin'],
             ('TaskPriorityIn', 'position'): ['start', 'end'],

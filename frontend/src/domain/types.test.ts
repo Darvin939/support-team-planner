@@ -29,6 +29,11 @@ describe('domain enum contracts', () => {
     expect(TASK_STATUS_OPTIONS.map(({value}) => value)).toEqual(Object.keys(TASK_STATUS_LABELS));
   });
 
+  it('exposes unsuccessful as a distinct assignment status', () => {
+    expect(ASSIGNMENT_STATUS_OPTIONS).toContainEqual({value: 'unsuccessful', label: 'Неуспешно'});
+    expect(ASSIGNMENT_STATUS_LABELS.unsuccessful).toBe('Неуспешно');
+  });
+
   it('does not expose legacy task labels', () => {
     expect(Object.keys(TASK_STATUS_LABELS)).not.toContain('ready');
     expect(Object.keys(TASK_STATUS_LABELS)).not.toContain('in_progress');

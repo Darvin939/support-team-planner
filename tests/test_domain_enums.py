@@ -37,7 +37,7 @@ class DomainEnumContractTest(unittest.TestCase):
     def test_literal_vocabularies_are_current(self):
         self.assertEqual(('new', 'done', 'cancelled'), get_args(TaskStatus))
         self.assertEqual(
-            ('new', 'planned', 'rollback', 'success', 'cancelled'),
+            ('new', 'planned', 'rollback', 'success', 'unsuccessful', 'cancelled'),
             get_args(AssignmentStatus),
         )
         self.assertEqual(('low', 'medium', 'high'), get_args(Criticality))
@@ -83,6 +83,13 @@ class DomainEnumContractTest(unittest.TestCase):
                 self.assertEqual(expected, set(statuses))
                 self.assertNotIn('ready', statuses)
                 self.assertNotIn('in_progress', statuses)
+
+    def test_demo_seeds_only_declare_current_assignment_statuses(self):
+        expected = set(get_args(AssignmentStatus))
+        for filename in ('seed_demo_data.py', 'seed_large_demo_data.py'):
+            statuses = tuple_assignment(ROOT / filename, 'ASSIGNMENT_STATUSES')
+            with self.subTest(filename=filename):
+                self.assertEqual(expected, set(statuses))
 
 
 if __name__ == '__main__':

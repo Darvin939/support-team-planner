@@ -51,7 +51,7 @@ def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, include_re
                    EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0)
                        AS has_assignments,
                    EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0
-                          AND a.status != 'new') AS has_active_assignments
+                          AND a.status NOT IN ('new', 'cancelled', 'unsuccessful')) AS has_active_assignments
             FROM tasks
             JOIN segments ON tasks.segment_id = segments.id
             WHERE tasks.team_id = ?
@@ -94,7 +94,7 @@ def get_task_by_id(conn, task_id):
                   EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0)
                       AS has_assignments,
                   EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0
-                         AND a.status != 'new') AS has_active_assignments
+                         AND a.status NOT IN ('new', 'cancelled', 'unsuccessful')) AS has_active_assignments
              FROM tasks JOIN segments ON tasks.segment_id = segments.id
             WHERE tasks.id = ? AND tasks.is_deleted = 0''',
         (task_id,),
@@ -129,7 +129,7 @@ def get_archived_tasks_by_team(conn, team_id, offset=0, limit=20, search=None,
                    EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0)
                        AS has_assignments,
                    EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0
-                          AND a.status != 'new') AS has_active_assignments
+                          AND a.status NOT IN ('new', 'cancelled', 'unsuccessful')) AS has_active_assignments
               FROM tasks JOIN segments ON tasks.segment_id = segments.id
              WHERE tasks.team_id = ? AND tasks.is_deleted = 0 AND {filters}
              ORDER BY tasks.completed_at IS NULL, tasks.completed_at DESC, tasks.id DESC
@@ -185,9 +185,10 @@ def task_exists(conn, task_id):
 
 @with_db_connection(commit_on_success=False)
 def task_has_active_assignments(conn, task_id):
-    """Есть ли у задачи (неудалённые) назначения со статусом, отличным от 'new'"""
+    """Есть ли у задачи неудалённые назначения с активным рабочим статусом."""
     row = conn.execute(
-        "SELECT 1 FROM assignments WHERE task_id = ? AND is_deleted = 0 AND status != 'new' LIMIT 1",
+        "SELECT 1 FROM assignments WHERE task_id = ? AND is_deleted = 0 "
+        "AND status NOT IN ('new', 'cancelled', 'unsuccessful') LIMIT 1",
         (task_id,)
     ).fetchone()
     return row is not None

@@ -8,7 +8,7 @@ import {PlanningDateGrid} from './PlanningDateGrid';
 
 function statusColor(token: ReturnType<typeof theme.useToken>['token'], status: AssignmentStatus): string {
   return status === 'planned' ? token.colorWarning
-    : status === 'rollback' ? token.colorError
+    : status === 'rollback' || status === 'unsuccessful' ? token.colorError
       : status === 'success' ? token.colorSuccess
         : status === 'cancelled' ? token.colorTextSecondary : token.colorPrimary;
 }

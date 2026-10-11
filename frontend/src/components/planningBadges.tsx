@@ -143,7 +143,7 @@ export function ScheduleChip({assignment, onClick, draggable}: {
 }) {
   const {token} = theme.useToken();
   const statusColor =
-    assignment.status === 'planned' ? token.colorWarning : assignment.status === 'rollback' ? token.colorError : assignment.status === 'success' ? token.colorSuccess : assignment.status === 'cancelled' ? token.colorTextSecondary : token.colorPrimary;
+    assignment.status === 'planned' ? token.colorWarning : assignment.status === 'rollback' || assignment.status === 'unsuccessful' ? token.colorError : assignment.status === 'success' ? token.colorSuccess : assignment.status === 'cancelled' ? token.colorTextSecondary : token.colorPrimary;
 
   return (
     <div

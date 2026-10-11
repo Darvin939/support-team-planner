@@ -21,6 +21,31 @@ beforeAll(() => {
 afterEach(cleanup);
 
 describe('PlanningFiltersCard task statuses', () => {
+  it('offers the unsuccessful assignment status', () => {
+    render(
+      <PlanningFiltersCard
+        isMobile={false}
+        range={[dayjs('2026-08-01'), dayjs('2026-08-31')]}
+        onRangeChange={vi.fn()}
+        search=""
+        setSearch={vi.fn()}
+        criticalities={[]}
+        setCriticalities={vi.fn()}
+        segmentIds={[]}
+        setSegmentIds={vi.fn()}
+        assignmentStatuses={[]}
+        setAssignmentStatuses={vi.fn()}
+        taskStatuses={[]}
+        setTaskStatuses={vi.fn()}
+        segments={[]}
+        showCompleted={false}
+        setShowCompleted={vi.fn()}
+      />,
+    );
+    fireEvent.mouseDown(screen.getAllByRole('combobox')[2]);
+    expect(screen.getByText('Неуспешно')).toBeTruthy();
+  });
+
   it('offers only current task statuses', () => {
     render(
       <PlanningFiltersCard

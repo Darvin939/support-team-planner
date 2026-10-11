@@ -9,7 +9,7 @@ export interface ActiveAssignment {
   criticality: 'high' | 'medium' | 'low';
   date: string;
   block: string | null;
-  status: 'new' | 'planned' | 'rollback' | 'success' | 'cancelled';
+  status: 'new' | 'planned' | 'rollback' | 'success' | 'unsuccessful' | 'cancelled';
   user_name: string | null;
   comment: string | null;
 }

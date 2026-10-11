@@ -4,7 +4,8 @@ import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/reac
 import {afterEach, beforeAll, describe, expect, it, vi} from 'vitest';
 import type {ReactNode} from 'react';
 import {App as AntApp} from 'antd';
-import type {Task} from '../../domain/types';
+import dayjs from 'dayjs';
+import type {Assignment, Task} from '../../domain/types';
 import {TaskNameWithCriticality} from './TaskNameWithCriticality';
 import {usePlanningColumns} from './usePlanningColumns';
 
@@ -86,6 +87,7 @@ function PlanningTaskCell({
     statusMutation: {mutate: vi.fn()},
     psiStatusMutation: {mutate: psiMutate},
     assignmentStatusMutation: {mutate: vi.fn()},
+    deleteAssignmentMutation: {mutate: vi.fn()},
     setGraphModal: vi.fn(),
     setTaskModal: vi.fn(),
     setAssignmentModal: vi.fn(),
@@ -94,6 +96,97 @@ function PlanningTaskCell({
   const renderCell = columns[0].render as (_: unknown, task: Task, index: number) => ReactNode;
   return <>{renderCell(undefined, task, 0)}</>;
 }
+
+function PlanningAssignmentCell({
+  task = {...planningTask, psi_status: 'not_required'},
+  isUser = false,
+  statusMutate = vi.fn(),
+  deleteMutate = vi.fn(),
+}: {
+  task?: Task;
+  isUser?: boolean;
+  statusMutate?: (vars: {assignmentId: number; status: Assignment['status']}) => void;
+  deleteMutate?: (assignmentId: number) => void;
+}) {
+  const date = '2026-08-22';
+  const assignment: Assignment = {
+    id: 81, task_id: task.id, date, block: 'Проверка', status: 'new',
+    user_id: null, user_name: null, comment: null, time_spent: null,
+  };
+  const columns = usePlanningColumns({
+    teamId: 1,
+    dates: [dayjs(date)],
+    assignmentByKey: new Map([[`${task.id}-${date}`, assignment]]),
+    depsByTask: new Map(),
+    today: date,
+    token: {} as never,
+    freezeDays: new Set(),
+    isUser,
+    chipDragSuppressRef: {current: false},
+    panSuppressRef: {current: false},
+    selectSuppressRef: {current: false},
+    selectedAssignmentIds: new Set(),
+    onToggleAssignment: vi.fn(),
+    onClearSelection: vi.fn(),
+    priorityMutation: {mutate: vi.fn()},
+    statusMutation: {mutate: vi.fn()},
+    psiStatusMutation: {mutate: vi.fn()},
+    assignmentStatusMutation: {mutate: statusMutate},
+    deleteAssignmentMutation: {mutate: deleteMutate},
+    setGraphModal: vi.fn(),
+    setTaskModal: vi.fn(),
+    setAssignmentModal: vi.fn(),
+    onDepNavigate: vi.fn(),
+  });
+  const renderCell = columns[1].render as (_: unknown, task: Task, index: number) => ReactNode;
+  return <>{renderCell(undefined, task, 0)}</>;
+}
+
+describe('usePlanningColumns assignment context menu', () => {
+  it('offers unsuccessful status and applies it', async () => {
+    const mutate = vi.fn();
+    render(<AntApp><PlanningAssignmentCell statusMutate={mutate}/></AntApp>);
+    fireEvent.contextMenu(screen.getByText('Новый'));
+    fireEvent.click(await screen.findByText('Неуспешно'));
+    expect(mutate).toHaveBeenCalledWith({assignmentId: 81, status: 'unsuccessful'});
+  });
+
+  it('confirms deletion and does not delete when cancelled', async () => {
+    const mutate = vi.fn();
+    render(<AntApp><PlanningAssignmentCell deleteMutate={mutate}/></AntApp>);
+    fireEvent.contextMenu(screen.getByText('Новый'));
+    await screen.findByText('Удалить');
+    let deleteItems = document.querySelectorAll<HTMLElement>('li.ant-dropdown-menu-item-danger');
+    fireEvent.click(deleteItems[deleteItems.length - 1]);
+    expect(await screen.findByRole('dialog', {name: 'Удалить это назначение?'})).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', {name: 'Отмена'}));
+    expect(mutate).not.toHaveBeenCalled();
+
+    fireEvent.contextMenu(screen.getByText('Новый'));
+    await waitFor(() => expect(document.querySelectorAll('li.ant-dropdown-menu-item-danger').length).toBeGreaterThan(0));
+    deleteItems = document.querySelectorAll<HTMLElement>('li.ant-dropdown-menu-item-danger');
+    fireEvent.click(deleteItems[deleteItems.length - 1]);
+    const confirmButtons = await screen.findAllByRole('button', {name: 'Удалить'});
+    fireEvent.click(confirmButtons[confirmButtons.length - 1]);
+    expect(mutate).toHaveBeenCalledWith(81);
+  });
+
+  it.each([
+    ['terminal task', {...planningTask, task_status: 'done', psi_status: 'not_required'} as Task],
+    ['PSI-blocked task', {...planningTask, task_status: 'new', psi_status: 'required'} as Task],
+  ])('keeps deletion but hides status changes for a %s', async (_label, task) => {
+    render(<AntApp><PlanningAssignmentCell task={task}/></AntApp>);
+    fireEvent.contextMenu(screen.getByText('Новый'));
+    expect(await screen.findByText('Удалить')).toBeTruthy();
+    expect(screen.queryByText('Запланировано')).toBeNull();
+  });
+
+  it('does not expose deletion to the user role', () => {
+    render(<AntApp><PlanningAssignmentCell isUser/></AntApp>);
+    fireEvent.contextMenu(screen.getByText('Новый'));
+    expect(screen.queryByText('Удалить')).toBeNull();
+  });
+});
 
 describe('usePlanningColumns PSI context action', () => {
   it('confirms required to passed and does nothing when confirmation is cancelled', async () => {

@@ -54,4 +54,11 @@ describe('ScheduleChip comment', () => {
     render(<ScheduleChip assignment={{...assignment, comment: null}}/>);
     expect(document.querySelector('[data-assignment-comment]')).toBeNull();
   });
+
+  it('renders an unsuccessful assignment with error color semantics', () => {
+    render(<ScheduleChip assignment={{...assignment, status: 'unsuccessful'}}/>);
+    const status = screen.getByText('Неуспешно');
+    expect(status.style.color).toBeTruthy();
+    expect(status.parentElement?.style.borderLeft).toContain(status.style.color);
+  });
 });
