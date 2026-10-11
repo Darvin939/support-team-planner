@@ -38,7 +38,7 @@ describe('contextual confirmation theme', () => {
     const darkBackground = renderConfirmation(true);
 
     expect(lightBackground).toBeTruthy();
-    expect(darkBackground).toBeTruthy();
+    expect(darkBackground).toBe('#2d2f37');
     expect(darkBackground).not.toBe(lightBackground);
     expect(screen.getByRole('dialog', {name: 'Проверка темы'})).toBeTruthy();
   });

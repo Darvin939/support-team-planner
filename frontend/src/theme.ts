@@ -1,8 +1,7 @@
 import {theme as antdTheme, type ThemeConfig} from 'antd';
 
-// Color values are Ant Design's own official palette (@ant-design/colors v8.0.1
-// blue/gold/red/green + their dedicated *Dark variants) - not hand-picked, so the
-// dark theme doesn't just look like the light theme boosted brighter.
+// Semantic colors follow Ant Design's palette; neutral dark surfaces mirror the
+// regular (non-ultra) dark mode from 3x-ui.
 const shared = {
   borderRadius: 9,
   borderRadiusSM: 6,
@@ -18,10 +17,10 @@ export const darkTheme: ThemeConfig = {
     colorWarning: '#d89614',
     colorError: '#d32029',
     colorInfo: '#1668dc',
-    colorBgBase: '#0B0F16',
-    colorBgContainer: '#131A24',
-    colorBgElevated: '#1B2430',
-    colorBgLayout: '#0B0F16',
+    colorBgBase: '#1a1b1f',
+    colorBgContainer: '#23252b',
+    colorBgElevated: '#2d2f37',
+    colorBgLayout: '#1a1b1f',
   },
 };
 
@@ -41,6 +40,6 @@ export const lightTheme: ThemeConfig = {
 // Sidebar ("chrome") stays a distinct dark panel in both themes in the current
 // vanilla-JS app; mirrored here for the AppShell rather than left to antd's Sider defaults.
 export const chrome = {
-  dark: {bg: '#0A0E14', text: '#F7F9FCA3'},
+  dark: {bg: '#15161a', text: '#F7F9FCA3'},
   light: {bg: '#F5F7FA', text: '#10151FA3'},
 };
