@@ -146,7 +146,7 @@ export function StatisticsPage() {
               allowClear
               showSearch={{optionFilterProp: 'label'}}
               placeholder="Все команды"
-              style={{minWidth: isMobile ? '100%' : 280, width: isMobile ? '100%' : undefined}}
+              style={{minWidth: isMobile ? '100%' : 300, width: isMobile ? '100%' : undefined}}
               value={selectedTeamIds}
               onChange={handleTeamsChange}
               options={teams?.map((t) => ({value: t.id, label: t.name}))}

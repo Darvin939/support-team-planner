@@ -291,7 +291,7 @@ export function PlanningPage() {
         <Typography.Title level={2}>Планирование</Typography.Title>
         <NewTasksOverviewCard/>
         <Card>
-          <Select style={{minWidth: 260}} placeholder="-- Выберите команду --" showSearch={{optionFilterProp: 'label'}}
+          <Select style={{minWidth: 300}} placeholder="-- Выберите команду --" showSearch={{optionFilterProp: 'label'}}
                   onChange={handleTeamSelect} options={teams?.map((t) => ({value: t.id, label: t.name}))}/>
         </Card>
         <div style={{marginTop: 24}}>
@@ -307,7 +307,7 @@ export function PlanningPage() {
       <NewTasksOverviewCard/>
 
       <Card style={{marginBottom: 16}}>
-        <Select style={{minWidth: 260}} value={teamId} showSearch={{optionFilterProp: 'label'}}
+        <Select style={{minWidth: 300}} value={teamId} showSearch={{optionFilterProp: 'label'}}
                 onChange={handleTeamSelect} options={teams?.map((t) => ({value: t.id, label: t.name}))}/>
       </Card>
 

@@ -170,7 +170,7 @@ export function JournalPage() {
 
       <Card style={{marginBottom: 16}}>
         <Select
-          style={{minWidth: 260}}
+          style={{minWidth: 300}}
           placeholder="-- Выберите команду --"
           value={teamId}
           onChange={handleTeamSelect}
