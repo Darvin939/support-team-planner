@@ -53,7 +53,7 @@ class DeclarativeRoutePolicyTest(unittest.TestCase):
         '/api/blocks', '/api/block-templates', '/api/segments', '/api/freeze-days', '/api/teams',
         '/api/teams/{team_id}', '/api/teams/{team_id}/blocks', '/api/teams/{team_id}/assignees',
         '/api/users', '/api/assignments/{team_id}', '/api/assignment/{assignment_id}/history',
-        '/api/active-assignments/{team_id}', '/api/tasks/{team_id}/deps',
+        '/api/active-assignments/{team_id}', '/api/active-assignment-counts/{team_id}', '/api/tasks/{team_id}/deps',
         '/api/tasks/{team_id}/dependency-graph', '/api/tasks/{team_id}/active-list',
         '/api/tasks/{team_id}', '/api/task/{task_id}', '/api/tasks/{team_id}/archive',
         '/api/task/{task_id}/history', '/api/task/{task_id}/assignment-timeline', '/api/journal/{team_id}',

@@ -78,3 +78,16 @@ def get_active_assignments_stats(conn, team_id, start_date, end_date, team_ids=N
         'crit_medium': row['crit_medium'] or 0,
         'crit_low': row['crit_low'] or 0,
     }
+
+
+@with_db_connection(commit_on_success=False)
+def get_active_assignment_counts_by_date(conn, team_id, start_date, end_date, team_ids=None):
+    """Return active assignment counts grouped by date for the requested teams."""
+    where, params = _active_assignments_where(team_id, start_date, end_date, team_ids)
+    query = '''SELECT a.date, COUNT(*) AS count
+               FROM assignments a
+                   JOIN tasks t ON a.task_id = t.id
+               ''' + where + '''
+               GROUP BY a.date
+               ORDER BY a.date'''
+    return conn.execute(query, tuple(params)).fetchall()

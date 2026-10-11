@@ -23,6 +23,8 @@ export const queryKeys = {
     active: ['active-assignments'] as const,
     activeList: (from: string, to: string, teamIds: number[], offset: number, limit: number) =>
       ['active-assignments', from, to, [...teamIds].sort((a, b) => a - b), offset, limit] as const,
+    dateCounts: (from: string, to: string, teamIds: number[]) =>
+      ['active-assignment-counts', from, to, [...teamIds].sort((a, b) => a - b)] as const,
     today: (teamId: number, date: string) => ['active-assignments', teamId, date, date] as const,
     overdue: (from: string, to: string, limit: number) =>
       ['active-assignments', 'overdue-preview', from, to, limit] as const,

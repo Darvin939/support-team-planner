@@ -16,6 +16,7 @@ from backend.access_control import (
     require_user,
 )
 from backend.api_models import (
+    ActiveAssignmentDateCount,
     ActiveAssignmentsPage,
     AssignmentIn,
     AssignmentOut,
@@ -31,6 +32,26 @@ from backend.task_rules import VALID_TASK_TRANSITIONS
 from backend.task_rules import task_is_locked
 
 router = APIRouter()
+
+
+def _parse_required_api_date(value: Optional[str], parameter_name: str) -> str:
+    if not value:
+        raise HTTPException(status_code=422, detail=f'Параметр {parameter_name} обязателен')
+    try:
+        return date.fromisoformat(value).isoformat()
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f'Некорректная дата в параметре {parameter_name}')
+
+
+def _resolve_statistics_teams(request: Request, team_id: int, team_ids: Optional[str]):
+    parsed_team_ids = parse_int_csv(team_ids)
+    if parsed_team_ids:
+        require_team_list_access(request, parsed_team_ids)
+    elif team_id:
+        require_team_access(request, team_id)
+    else:
+        parsed_team_ids = effective_team_filter(request)
+    return parsed_team_ids
 
 
 def _validate_user_assignment_status(current_user: CurrentUser, data: AssignmentIn):
@@ -289,13 +310,7 @@ def get_active_assignments_api(
     today_str = date.today().strftime('%Y-%m-%d')
     start_date = start_date or today_str
     end_date = end_date or today_str
-    parsed_team_ids = parse_int_csv(team_ids)
-    if parsed_team_ids:
-        require_team_list_access(request, parsed_team_ids)
-    elif team_id:
-        require_team_access(request, team_id)
-    else:
-        parsed_team_ids = effective_team_filter(request)
+    parsed_team_ids = _resolve_statistics_teams(request, team_id, team_ids)
     assignments = db.get_active_assignments_in_period(
         team_id, start_date, end_date, team_ids=parsed_team_ids, offset=offset, limit=limit,
     )
@@ -325,3 +340,26 @@ def get_active_assignments_api(
             'criticality': {'high': stats['crit_high'], 'medium': stats['crit_medium'], 'low': stats['crit_low']},
         },
     }
+
+
+@router.get(
+    '/api/active-assignment-counts/{team_id}',
+    dependencies=[Depends(require_user)],
+    response_model=list[ActiveAssignmentDateCount],
+)
+def get_active_assignment_counts_api(
+    request: Request,
+    team_id: int,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    team_ids: Optional[str] = None,
+):
+    normalized_start = _parse_required_api_date(start_date, 'start_date')
+    normalized_end = _parse_required_api_date(end_date, 'end_date')
+    if normalized_start > normalized_end:
+        raise HTTPException(status_code=422, detail='Начальная дата не может быть позже конечной')
+    parsed_team_ids = _resolve_statistics_teams(request, team_id, team_ids)
+    rows = db.get_active_assignment_counts_by_date(
+        team_id, normalized_start, normalized_end, team_ids=parsed_team_ids,
+    )
+    return [{'date': row['date'], 'count': row['count']} for row in rows]

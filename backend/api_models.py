@@ -152,6 +152,11 @@ class ActiveAssignmentsPage(BaseModel):
     stats: ActiveAssignmentStats
 
 
+class ActiveAssignmentDateCount(BaseModel):
+    date: str
+    count: int
+
+
 class NotificationCursor(BaseModel):
     changed_at: str
     history_id: int

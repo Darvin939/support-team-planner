@@ -1,6 +1,6 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import type {TableColumnsType} from 'antd';
-import {Card, DatePicker, Empty, Select, Space, Table, Typography} from 'antd';
+import {App as AntApp, Card, DatePicker, Empty, Select, Space, Table, Typography} from 'antd';
 import dayjs from 'dayjs';
 import {useTeams} from '../hooks/useTeams';
 import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
@@ -15,9 +15,25 @@ import {AppPagination} from '../components/AppPagination';
 import {readStoredJson, writeStoredJson} from '../lib/storage';
 import {usePaginationState} from '../hooks/usePaginationState';
 import {ASSIGNMENT_STATUS_LABELS, type AssignmentStatus} from '../domain/types';
-import {type ActiveAssignment, type ActiveAssignmentsResponse, useActiveAssignments,} from '../hooks/useStatisticsData';
+import {
+  getStatisticsCalendarRange,
+  type ActiveAssignment,
+  type ActiveAssignmentsResponse,
+  useActiveAssignmentDateCounts,
+  useActiveAssignments,
+} from '../hooks/useStatisticsData';
 
 const STORAGE_STATS_TEAMS = 'statsSelectedTeams';
+
+export function StatisticsDateCell({originNode, count}: {originNode: ReactNode; count?: number}) {
+  if (!count) return originNode;
+  return (
+    <div className="statistics-calendar-date-cell">
+      {originNode}
+      <span className="statistics-calendar-work-count" aria-hidden="true">{count > 9 ? '9+' : count}</span>
+    </div>
+  );
+}
 
 function buildColumns(showDate: boolean): TableColumnsType<ActiveAssignment> {
   const cols: TableColumnsType<ActiveAssignment> = [
@@ -91,12 +107,14 @@ function StatsSection({
 }
 
 export function StatisticsPage() {
+  const {message} = AntApp.useApp();
   const {data: teams} = useTeams();
   const isMobile = useIsMobile();
 
   const [selectedTeamIds, setSelectedTeamIds] = useState<number[]>(() => readStoredJson(STORAGE_STATS_TEAMS, []));
 
   const [range, handleRangeChange] = useDateRangeFilter(() => [dayjs().subtract(14, 'day'), dayjs().add(14, 'day')]);
+  const [calendarMonth, setCalendarMonth] = useState(() => range[0].startOf('month'));
   const todayPagination = usePaginationState(DEFAULT_PAGE_SIZE);
   const periodPagination = usePaginationState(DEFAULT_PAGE_SIZE);
   const pageSize = todayPagination.pageSize;
@@ -133,6 +151,19 @@ export function StatisticsPage() {
   const today = dayjs().format(API_DATE_FORMAT);
   const {data: todayData} = useActiveAssignments(today, today, selectedTeamIds, todayPagination.offset, pageSize);
   const {data: periodData} = useActiveAssignments(periodFrom, periodTo, selectedTeamIds, periodPagination.offset, pageSize);
+  const calendarRange = useMemo(() => getStatisticsCalendarRange(calendarMonth), [calendarMonth]);
+  const countsQuery = useActiveAssignmentDateCounts(calendarRange.from, calendarRange.to, selectedTeamIds);
+  const countsByDate = useMemo(
+    () => new Map((countsQuery.data ?? []).map((item) => [item.date, item.count])),
+    [countsQuery.data],
+  );
+  const lastCountErrorAt = useRef(0);
+
+  useEffect(() => {
+    if (!countsQuery.isError || countsQuery.errorUpdatedAt === lastCountErrorAt.current) return;
+    lastCountErrorAt.current = countsQuery.errorUpdatedAt;
+    void message.error('Не удалось загрузить количество работ по датам');
+  }, [countsQuery.errorUpdatedAt, countsQuery.isError, message]);
 
   return (
     <>
@@ -175,6 +206,20 @@ export function StatisticsPage() {
               minDate={dayjs('2000-01-01')}
               maxDate={dayjs('2099-12-31')}
               allowClear
+              onPickerValueChange={(values, info) => {
+                const visibleMonth = values[info.range === 'end' ? 1 : 0];
+                if (visibleMonth) setCalendarMonth(visibleMonth.startOf('month'));
+              }}
+              cellRender={(current, info) => {
+                if (info.type !== 'date' || !dayjs.isDayjs(current)) return info.originNode;
+                const dateKey = current.format(API_DATE_FORMAT);
+                return (
+                  <StatisticsDateCell
+                    originNode={info.originNode}
+                    count={countsByDate.get(dateKey)}
+                  />
+                );
+              }}
               style={isMobile ? {width: '100%'} : undefined}
             />
           </FilterField>
