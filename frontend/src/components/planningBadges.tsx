@@ -1,8 +1,8 @@
 import {type CSSProperties, useState} from 'react';
 import {CheckOutlined, CloseOutlined} from '@ant-design/icons';
 import {Button, Popover, Space, theme, Tooltip} from 'antd';
-import {ASSIGNMENT_STATUS_LABELS, TASK_STATUS_LABELS} from '../domain/types';
 import type {AssignmentStatus, Criticality, PsiStatus, TaskStatus} from '../domain/types';
+import {ASSIGNMENT_STATUS_LABELS, TASK_STATUS_LABELS} from '../domain/types';
 
 export function tintedStyle(color: string): CSSProperties {
   return {

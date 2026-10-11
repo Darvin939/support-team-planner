@@ -1,16 +1,39 @@
-import subprocess
+import json
+import tempfile
 import unittest
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import Mock
 
-from app_metadata import generate_build_id, load_application_metadata
+from backend.app_metadata import generate_build_id, load_application_metadata
 
 
 class ApplicationMetadataTests(unittest.TestCase):
     def test_development_metadata_uses_version_file_and_dev_build_id(self):
         metadata = load_application_metadata(environ={})
-        self.assertEqual(metadata['release_version'], '0.1.0')
+        version_file = Path(__file__).resolve().parents[1] / 'application_version.json'
+        version = json.loads(version_file.read_text(encoding='utf-8'))['release_version']
+        self.assertEqual(metadata['release_version'], version)
         self.assertEqual(metadata['build_id'], 'dev')
+
+    def test_distribution_metadata_is_loaded_from_distribution_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            backend_root = root / 'backend'
+            backend_root.mkdir()
+            (root / 'application_version.json').write_text(
+                json.dumps({'release_version': '1.2.3'}), encoding='utf-8'
+            )
+            (root / 'app_build_metadata.json').write_text(
+                json.dumps({'build_id': 'dist-build'}), encoding='utf-8'
+            )
+
+            metadata = load_application_metadata(app_root=backend_root, environ={})
+
+        self.assertEqual(metadata, {
+            'release_version': '1.2.3',
+            'build_id': 'dist-build',
+        })
 
     def test_environment_overrides_release_and_build_metadata(self):
         metadata = load_application_metadata(environ={

@@ -6,10 +6,10 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-import auth
-import db
-import db.sqlite as sqlite_backend
-from support_planner import app
+import backend.db.sqlite as sqlite_backend
+from backend import auth
+from backend import db
+from backend.application import app
 
 
 class TeamAccessApiTest(unittest.TestCase):
@@ -125,8 +125,8 @@ class TeamAccessApiTest(unittest.TestCase):
             self.assertEqual(400, response.status_code)
 
     def test_journal_filters_are_normalized_and_forwarded(self):
-        with patch('routers.journal.db.get_team_history', return_value=[{'id': 1}]) as get_items, patch(
-            'routers.journal.db.get_team_history_count',
+        with patch('backend.routers.journal.db.get_team_history', return_value=[{'id': 1}]) as get_items, patch(
+            'backend.routers.journal.db.get_team_history_count',
             return_value=1,
         ) as get_total, self.login('limited', 'password123') as client:
             response = client.get(

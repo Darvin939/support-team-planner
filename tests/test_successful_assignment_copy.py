@@ -5,10 +5,10 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-import auth
-import db
-import db.sqlite as sqlite_backend
-from support_planner import app
+import backend.db.sqlite as sqlite_backend
+from backend import auth
+from backend import db
+from backend.application import app
 
 
 class SuccessfulAssignmentCopyTest(unittest.TestCase):

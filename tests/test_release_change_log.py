@@ -5,15 +5,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import auth
-import db
-import db.sqlite as sqlite_backend
 from fastapi.testclient import TestClient
 
-from app_metadata import load_application_metadata
-from release_change_log import load_release_changelog
-from support_planner import app
-
+import backend.db.sqlite as sqlite_backend
+from backend import auth
+from backend import db
+from backend.app_metadata import load_application_metadata
+from backend.release_change_log import load_release_changelog
+from backend.application import app
 
 RELEASE_VERSION = load_application_metadata()['release_version']
 

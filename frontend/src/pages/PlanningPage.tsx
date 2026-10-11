@@ -1,32 +1,17 @@
 import {type HTMLAttributes, lazy, Suspense, useCallback, useEffect, useMemo, useState} from 'react';
 import {useLocation, useNavigate, useParams} from 'react-router-dom';
-import {
-  Alert,
-  Card,
-  Empty,
-  Select,
-  Spin,
-  Table,
-  theme,
-  Typography
-} from 'antd';
+import {Alert, Card, Empty, Select, Spin, Table, theme, Typography} from 'antd';
 import dayjs, {type Dayjs} from 'dayjs';
 import {useTeams} from '../hooks/useTeams';
 import {useMe} from '../hooks/useMe';
-import {
-  type Assignment,
-  type Task,
-} from '../domain/types';
+import {type Assignment, type Task,} from '../domain/types';
 import {useFreezeDays, useSegments} from '../hooks/useSettingsData';
 import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
 import {useIsMobile} from '../hooks/useIsMobile';
 import {type DepBadgeEntry} from '../components/planningBadges';
 import {TaskModal} from './planning/TaskModal';
 import {AssignmentModal} from './planning/AssignmentModal';
-import {
-  TaskCompletionSuggestionModal,
-  type TaskCompletionSuggestion,
-} from './planning/TaskCompletionSuggestionModal';
+import {type TaskCompletionSuggestion, TaskCompletionSuggestionModal,} from './planning/TaskCompletionSuggestionModal';
 import {TaskArchiveModal} from './planning/TaskArchiveModal';
 import {useAssignmentDrag} from './planning/useAssignmentDrag';
 import {useAssignmentSelection} from './planning/useAssignmentSelection';

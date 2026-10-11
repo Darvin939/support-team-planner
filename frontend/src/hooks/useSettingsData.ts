@@ -2,6 +2,7 @@ import {useQuery} from '@tanstack/react-query';
 import {apiGet, buildApiUrl} from '../lib/apiMutate';
 import {queryKeys} from '../lib/queryKeys';
 import type {Block, BlockTemplate, Segment, User} from '../domain/types';
+
 export type {Block, BlockTemplate, BlockTemplateEntry, Segment, User} from '../domain/types';
 
 export function useUsers() {

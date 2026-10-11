@@ -1,10 +1,5 @@
 import {useMemo} from 'react';
-import {
-  useAssignments,
-  useTaskDeps,
-  useTasks,
-  useTodayActive,
-} from '../../hooks/usePlanningData';
+import {useAssignments, useTaskDeps, useTasks, useTodayActive,} from '../../hooks/usePlanningData';
 
 export function usePlanningQueries(options: {
   teamId: number;

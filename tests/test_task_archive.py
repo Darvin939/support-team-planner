@@ -5,12 +5,11 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-import auth
-import db
-import db.sqlite as sqlite_backend
-from db.sqlite import SQLiteBackend
-from db.sqlite_migration_steps import SQLiteMigrationSteps
-from support_planner import app
+import backend.db.sqlite as sqlite_backend
+from backend import auth
+from backend import db
+from backend.db.sqlite_migration_steps import SQLiteMigrationSteps
+from backend.application import app
 
 
 class CompletedAtMigrationTest(unittest.TestCase):

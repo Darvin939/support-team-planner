@@ -1,6 +1,6 @@
 import {QueryClient, QueryObserver} from '@tanstack/react-query';
 import {describe, expect, it, vi} from 'vitest';
-import {meQueryOptions, type Me} from './useMe';
+import {type Me, meQueryOptions} from './useMe';
 
 
 const me: Me = {

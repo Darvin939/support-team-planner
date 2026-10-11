@@ -113,13 +113,13 @@ HTTPS может быть настроен через HashiCorp Vault. Подд�
 Чтобы наполнить базу небольшим воспроизводимым набором данных:
 
 ```bash
-python seed_demo_data.py
+python -m scripts.seed_demo_data
 ```
 
 Для нагрузочного набора предназначен отдельный генератор. Перед запуском изучите его параметры — значения по умолчанию создают миллионы записей:
 
 ```bash
-python seed_large_demo_data.py --help
+python -m scripts.seed_large_demo_data --help
 ```
 
 Скрипты изменяют `database.db`. Перед их запуском сохраните резервную копию базы.
@@ -150,7 +150,7 @@ WAL-безопасную резервную копию через SQLite backup 
 Примените миграции и полную проверку целостности отдельной командой:
 
 ```bash
-python migrate_database.py --database database.db
+python -m scripts.migrate_database --database database.db
 ```
 
 Команда применяет те же миграции, что и startup backend, проверяет схему, журнал миграций,
@@ -180,13 +180,15 @@ python migrate_database.py --database database.db
 
 ```text
 .
-├── support_planner.py       # FastAPI-приложение и запуск Uvicorn
-├── routers/                 # HTTP- и API-маршруты
-├── db/                      # доступ к SQLite, схема и миграции
+├── backend/                 # FastAPI-приложение, доменная логика, db/ и routers/
+├── support_planner.py       # совместимая корневая точка запуска приложения
+├── scripts/                 # миграция БД и демо-данные
+├── application_version.json # текущая версия релиза
+├── changelog.json           # редакционная история релизов
+├── build-distribution.sh    # сборка production-дистрибутива
 ├── frontend/                # React-приложение
 ├── tests/                   # backend-тесты
 ├── openspec/                # спецификации и история изменений
-├── seed_demo_data.py        # небольшой демонстрационный набор
-├── seed_large_demo_data.py  # генератор нагрузочных данных
-└── database.db              # рабочая база SQLite
+├── requirements.txt         # зависимости backend
+└── database.db              # локальная рабочая база SQLite (не хранится в Git)
 ```

@@ -4,10 +4,10 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-import db
-import db.sqlite as sqlite_backend
-import routers.shell as shell_router
-from support_planner import app
+import backend.db.sqlite as sqlite_backend
+import backend.routers.shell as shell_router
+from backend import db
+from backend.application import app
 
 
 class ApiErrorFormatTest(unittest.TestCase):

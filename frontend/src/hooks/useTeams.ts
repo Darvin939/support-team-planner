@@ -2,6 +2,7 @@ import {useQuery} from '@tanstack/react-query';
 import {apiGet, buildApiUrl} from '../lib/apiMutate';
 import {queryKeys} from '../lib/queryKeys';
 import type {Team} from '../domain/types';
+
 export type {Team} from '../domain/types';
 
 export function useTeams() {

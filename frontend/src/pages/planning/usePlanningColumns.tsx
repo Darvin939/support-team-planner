@@ -29,7 +29,7 @@ import {
   VerticalAlignBottomOutlined,
   VerticalAlignTopOutlined,
 } from '@ant-design/icons';
-import type {AssignmentStatus, Assignment, PsiStatus, Task, TaskDep, TaskStatus} from '../../domain/types';
+import type {Assignment, AssignmentStatus, PsiStatus, Task, TaskDep, TaskStatus} from '../../domain/types';
 import {ASSIGNMENT_STATUS_LABELS, ASSIGNMENT_STATUS_OPTIONS, TASK_STATUS_LABELS} from '../../domain/types';
 import {DepBadge, type DepBadgeEntry, PsiStatusBadge, ScheduleChip} from '../../components/planningBadges';
 import {linkify} from '../../lib/linkify';

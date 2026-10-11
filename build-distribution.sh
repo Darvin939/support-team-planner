@@ -51,27 +51,19 @@ if [[ "$output_path" == "/" || "$output_path" == "$script_dir" ]]; then
 fi
 
 runtime_files=(
-    "app_metadata.py"
+    "support_planner.py"
     "application_version.json"
     "changelog.json"
-    "support_planner.py"
-    "access_control.py"
-    "api_models.py"
-    "auth.py"
-    "query_parsing.py"
-    "ssl_context.py"
-    "task_dependency_rules.py"
-    "task_rules.py"
-    "utils.py"
-    "migrate_database.py"
     "requirements.txt"
     "run.sh"
     "check.sh"
 )
 
 runtime_patterns=(
-    "db/*.py"
-    "routers/*.py"
+    "backend/*.py"
+    "backend/db/*.py"
+    "backend/routers/*.py"
+    "scripts/*.py"
 )
 
 for relative_path in "${runtime_files[@]}"; do
@@ -103,8 +95,8 @@ command -v "$python_command" >/dev/null 2>&1 || {
 }
 
 release_version="$(SUPPORT_PLANNER_RELEASE_VERSION="${SUPPORT_PLANNER_RELEASE_VERSION:-}" \
-    "$python_command" "$script_dir/app_metadata.py" --release-version)"
-build_id="$("$python_command" "$script_dir/app_metadata.py" --generate-build-id)"
+    "$python_command" "$script_dir/backend/app_metadata.py" --release-version)"
+build_id="$("$python_command" "$script_dir/backend/app_metadata.py" --generate-build-id)"
 
 if [[ ! "$release_version" =~ ^[A-Za-z0-9][A-Za-z0-9.+-]*$ || ! "$build_id" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]]; then
     echo "Error: release version or build id contains unsupported characters." >&2

@@ -5,10 +5,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import db.sqlite as sqlite_backend
-from db.sqlite import SQLiteBackend
-from db.sqlite_functions import register_sqlite_functions
-from db.sqlite_migrations import Migration, current_version, run_migrations
+import backend.db.sqlite as sqlite_backend
+from backend.db.sqlite import SQLiteBackend
+from backend.db.sqlite_functions import register_sqlite_functions
+from backend.db.sqlite_migrations import Migration, current_version, run_migrations
 
 
 class SQLiteInfrastructureTests(unittest.TestCase):
@@ -376,7 +376,7 @@ class SQLiteInfrastructureTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             database = Path(temp_dir) / 'predeploy.db'
             success = subprocess.run(
-                [sys.executable, 'migrate_database.py', '--database', str(database)],
+                [sys.executable, '-m', 'scripts.migrate_database', '--database', str(database)],
                 cwd=root, capture_output=True, text=True, encoding='utf-8', check=False,
             )
             self.assertEqual(success.returncode, 0, success.stderr)
@@ -387,7 +387,7 @@ class SQLiteInfrastructureTests(unittest.TestCase):
             conn.commit()
             conn.close()
             failure = subprocess.run(
-                [sys.executable, 'migrate_database.py', '--database', str(database)],
+                [sys.executable, '-m', 'scripts.migrate_database', '--database', str(database)],
                 cwd=root, capture_output=True, text=True, encoding='utf-8', check=False,
             )
             self.assertNotEqual(failure.returncode, 0)

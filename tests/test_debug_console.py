@@ -1,8 +1,8 @@
-import unittest
 import logging
+import unittest
 
-from routers.debug import _log_entry, _safe_log
-from support_planner import _is_debug_log_poll_access
+from backend.routers.debug import _log_entry, _safe_log
+from backend.application import _is_debug_log_poll_access
 
 
 class DebugConsolePolicyTests(unittest.TestCase):

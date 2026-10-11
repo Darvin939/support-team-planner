@@ -1,7 +1,6 @@
 import unittest
 
-from support_planner import app
-
+from backend.application import app
 
 REQUEST_SCHEMA_NAMES = {
     'AssignmentIn',

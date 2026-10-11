@@ -5,7 +5,7 @@ from typing import get_args
 
 from pydantic import ValidationError
 
-from api_models import (
+from backend.api_models import (
     AssignmentIn,
     AssignmentStatus,
     Criticality,
@@ -17,7 +17,6 @@ from api_models import (
     UserIn,
     UserRole,
 )
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -69,8 +68,8 @@ class DomainEnumContractTest(unittest.TestCase):
             self.assertEqual(value, TaskPriorityIn(position=value).position)
 
     def test_routes_do_not_repeat_pydantic_enum_membership_checks(self):
-        task_routes = (ROOT / 'routers' / 'tasks.py').read_text(encoding='utf-8')
-        user_routes = (ROOT / 'routers' / 'users.py').read_text(encoding='utf-8')
+        task_routes = (ROOT / 'backend' / 'routers' / 'tasks.py').read_text(encoding='utf-8')
+        user_routes = (ROOT / 'backend' / 'routers' / 'users.py').read_text(encoding='utf-8')
         self.assertNotIn("data.criticality not in", task_routes)
         self.assertNotIn("data.position not in", task_routes)
         self.assertNotIn('_VALID_ROLES', user_routes)
@@ -78,7 +77,7 @@ class DomainEnumContractTest(unittest.TestCase):
     def test_demo_seeds_only_declare_current_task_statuses(self):
         expected = set(get_args(TaskStatus))
         for filename in ('seed_demo_data.py', 'seed_large_demo_data.py'):
-            statuses = tuple_assignment(ROOT / filename, 'TASK_STATUSES')
+            statuses = tuple_assignment(ROOT / 'scripts' / filename, 'TASK_STATUSES')
             with self.subTest(filename=filename):
                 self.assertEqual(expected, set(statuses))
                 self.assertNotIn('ready', statuses)
@@ -87,7 +86,7 @@ class DomainEnumContractTest(unittest.TestCase):
     def test_demo_seeds_only_declare_current_assignment_statuses(self):
         expected = set(get_args(AssignmentStatus))
         for filename in ('seed_demo_data.py', 'seed_large_demo_data.py'):
-            statuses = tuple_assignment(ROOT / filename, 'ASSIGNMENT_STATUSES')
+            statuses = tuple_assignment(ROOT / 'scripts' / filename, 'ASSIGNMENT_STATUSES')
             with self.subTest(filename=filename):
                 self.assertEqual(expected, set(statuses))
 

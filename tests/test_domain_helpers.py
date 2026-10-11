@@ -1,17 +1,17 @@
 import unittest
+from typing import get_args
 from unittest.mock import patch
 
-from query_parsing import parse_int_csv
-from task_dependency_rules import TaskDependencyEditError, validate_task_dependency_edit
-from api_models import TaskStatus
-from task_rules import (
+from backend.api_models import TaskStatus
+from backend.query_parsing import parse_int_csv
+from backend.task_dependency_rules import TaskDependencyEditError, validate_task_dependency_edit
+from backend.task_rules import (
     TERMINAL_TASK_STATUSES,
     VALID_TASK_TRANSITIONS,
     is_terminal_task_status,
     task_is_locked,
     terminal_task_status_sql,
 )
-from typing import get_args
 
 
 class DomainHelpersTest(unittest.TestCase):
@@ -43,7 +43,7 @@ class DomainHelpersTest(unittest.TestCase):
         task = {'team_id': 1, 'task_status': 'new', 'is_deleted': 0}
         dependency = {'team_id': 1, 'task_status': 'done', 'is_deleted': 0}
         with patch(
-            'task_dependency_rules.db.get_tasks_for_dependency_edit',
+            'backend.task_dependency_rules.db.get_tasks_for_dependency_edit',
             return_value=(task, dependency),
         ):
             self.assertIsNone(validate_task_dependency_edit(10, 11))
@@ -58,7 +58,7 @@ class DomainHelpersTest(unittest.TestCase):
         )
         for tasks in cases:
             with self.subTest(tasks=tasks), patch(
-                'task_dependency_rules.db.get_tasks_for_dependency_edit',
+                'backend.task_dependency_rules.db.get_tasks_for_dependency_edit',
                 return_value=tasks,
             ):
                 with self.assertRaisesRegex(TaskDependencyEditError, 'Задача не найдена') as raised:
@@ -80,7 +80,7 @@ class DomainHelpersTest(unittest.TestCase):
         )
         for task, dependency, message in cases:
             with self.subTest(message=message), patch(
-                'task_dependency_rules.db.get_tasks_for_dependency_edit',
+                'backend.task_dependency_rules.db.get_tasks_for_dependency_edit',
                 return_value=(task, dependency),
             ):
                 with self.assertRaisesRegex(TaskDependencyEditError, message) as raised:

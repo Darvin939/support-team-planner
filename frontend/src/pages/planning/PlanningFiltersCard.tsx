@@ -2,7 +2,15 @@ import type {Dispatch, SetStateAction} from 'react';
 import {Card, Checkbox, DatePicker, Input, Select, Typography} from 'antd';
 import dayjs, {type Dayjs} from 'dayjs';
 import {FilterField, FilterGrid} from '../../components/FilterGrid';
-import {ASSIGNMENT_STATUS_OPTIONS, CRITICALITY_OPTIONS, TASK_STATUS_OPTIONS, type AssignmentStatus, type Criticality, type Segment, type TaskStatus} from '../../domain/types';
+import {
+  ASSIGNMENT_STATUS_OPTIONS,
+  type AssignmentStatus,
+  type Criticality,
+  CRITICALITY_OPTIONS,
+  type Segment,
+  TASK_STATUS_OPTIONS,
+  type TaskStatus
+} from '../../domain/types';
 import {DISPLAY_DATE_FORMAT} from '../../lib/dateFormats';
 import {getPlanningDateRangePresets} from './dateRangePresets';
 

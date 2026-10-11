@@ -2,6 +2,7 @@
 import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {afterEach, beforeAll, describe, expect, it, vi} from 'vitest';
 import {AppPagination} from './AppPagination';
+
 beforeAll(() => {
   vi.stubGlobal('matchMedia', vi.fn(() => ({
     matches: false, addListener: vi.fn(), removeListener: vi.fn(),

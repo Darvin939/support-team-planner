@@ -2,7 +2,7 @@ import {message} from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import {apiMutate} from '../lib/apiMutate';
 import {invalidateTaskData} from '../lib/queryInvalidation';
-import {TASK_STATUS_LABELS, type Criticality, type PsiStatus, type TaskStatus} from '../domain/types';
+import {type Criticality, type PsiStatus, TASK_STATUS_LABELS, type TaskStatus} from '../domain/types';
 
 export interface TaskPayload {
   task_id?: number;

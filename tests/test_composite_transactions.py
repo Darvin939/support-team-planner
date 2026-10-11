@@ -6,11 +6,11 @@ from unittest.mock import Mock, patch
 
 from fastapi.testclient import TestClient
 
-import auth
-import db
-import db.connection as db_connection
-import db.sqlite as sqlite_backend
-from support_planner import app
+import backend.db.connection as db_connection
+import backend.db.sqlite as sqlite_backend
+from backend import auth
+from backend import db
+from backend.application import app
 
 
 class CompositeTransactionScopeTest(unittest.TestCase):

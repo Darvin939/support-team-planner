@@ -15,11 +15,7 @@ import {AppPagination} from '../components/AppPagination';
 import {readStoredJson, writeStoredJson} from '../lib/storage';
 import {usePaginationState} from '../hooks/usePaginationState';
 import {ASSIGNMENT_STATUS_LABELS, type AssignmentStatus} from '../domain/types';
-import {
-  type ActiveAssignment,
-  type ActiveAssignmentsResponse,
-  useActiveAssignments,
-} from '../hooks/useStatisticsData';
+import {type ActiveAssignment, type ActiveAssignmentsResponse, useActiveAssignments,} from '../hooks/useStatisticsData';
 
 const STORAGE_STATS_TEAMS = 'statsSelectedTeams';
 

@@ -1,7 +1,7 @@
 import sqlite3
 import unittest
 
-import db
+from backend import db
 
 
 class TeamAccessDaoTest(unittest.TestCase):

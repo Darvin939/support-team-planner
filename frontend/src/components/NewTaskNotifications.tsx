@@ -9,9 +9,9 @@ import {
   type NewTaskNotification,
   type NotificationCursor,
   useMarkNewTasksSeen,
-  useNewTaskViewQueue,
   useNewTaskNotificationsPage,
   useNewTaskNotificationsPreview,
+  useNewTaskViewQueue,
 } from '../hooks/useNewTaskNotifications';
 import {NotificationTabPanel, useDeferredDrawerNavigation, useNotificationCenter} from './NotificationCenter';
 
