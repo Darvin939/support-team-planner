@@ -35,6 +35,7 @@ def sqlite_migrations() -> tuple[Migration, ...]:
             'repair-new-task-notification-state',
             steps.migrate_repair_new_task_notification_state
         ),
+        Migration(14, 'add-release-change-log', steps.migrate_add_release_change_log),
     )
 
 

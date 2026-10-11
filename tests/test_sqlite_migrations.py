@@ -49,11 +49,14 @@ class SQLiteInfrastructureTests(unittest.TestCase):
         conn.row_factory = sqlite3.Row
         try:
             SQLiteBackend().init_schema(conn)
-            self.assertEqual(current_version(conn), 13)
+            self.assertEqual(current_version(conn), 14)
             tables = {row[0] for row in conn.execute(
                 "SELECT name FROM sqlite_master WHERE type = 'table'"
             )}
-            self.assertTrue({'users', 'tasks', 'assignments', 'task_history'} <= tables)
+            self.assertTrue({
+                'users', 'tasks', 'assignments', 'task_history', 'application_metadata',
+                'user_release_change_log_seen',
+            } <= tables)
             self.assertEqual(conn.execute("SELECT role FROM users WHERE login = 'admin'").fetchone()[0], 'admin')
         finally:
             conn.close()
@@ -85,7 +88,7 @@ class SQLiteInfrastructureTests(unittest.TestCase):
         ''')
         try:
             SQLiteBackend().init_schema(conn)
-            self.assertEqual(current_version(conn), 13)
+            self.assertEqual(current_version(conn), 14)
             self.assertEqual(conn.execute('SELECT name FROM tasks WHERE id = 3').fetchone()[0], 'Legacy task')
             self.assertEqual(conn.execute('SELECT user_id FROM assignments WHERE id = 4').fetchone()[0], 2)
             task_columns = {row[1] for row in conn.execute('PRAGMA table_info(tasks)')}
@@ -120,6 +123,29 @@ class SQLiteInfrastructureTests(unittest.TestCase):
         finally:
             conn.close()
 
+    def test_release_change_log_migration_creates_user_scoped_tables(self):
+        conn = sqlite3.connect(':memory:')
+        conn.executescript('''
+            CREATE TABLE users (id INTEGER PRIMARY KEY);
+            INSERT INTO users (id) VALUES (7);
+        ''')
+        conn.execute('PRAGMA foreign_keys = ON')
+        try:
+            steps = sqlite_backend.SQLiteMigrationSteps()
+            steps.migrate_add_release_change_log(conn)
+            steps.migrate_add_release_change_log(conn)
+            conn.execute('''INSERT INTO application_metadata
+                (id, release_version, build_id, updated_at) VALUES (1, '1.2.3', 'test-build', 'now')''')
+            conn.execute('''INSERT INTO user_release_change_log_seen
+                (user_id, release_version, seen_at) VALUES (7, '1.2.3', 'now')''')
+            conn.execute('DELETE FROM users WHERE id = 7')
+            self.assertIsNone(conn.execute(
+                "SELECT 1 FROM user_release_change_log_seen WHERE user_id = 7"
+            ).fetchone())
+            self.assertEqual(1, conn.execute('SELECT COUNT(*) FROM application_metadata').fetchone()[0])
+        finally:
+            conn.close()
+
     def test_backend_connections_enable_wal_and_foreign_keys(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             old_path = sqlite_backend.DB_PATH
@@ -138,7 +164,9 @@ class SQLiteInfrastructureTests(unittest.TestCase):
         conn = sqlite3.connect(':memory:')
         conn.row_factory = sqlite3.Row
         SQLiteBackend().init_schema(conn)
-        conn.execute('DELETE FROM schema_migrations WHERE version = 13')
+        conn.execute('DELETE FROM schema_migrations WHERE version > 12')
+        conn.execute('DROP TABLE application_metadata')
+        conn.execute('DROP TABLE user_release_change_log_seen')
         conn.execute('PRAGMA user_version = 12')
         conn.commit()
         return conn
@@ -157,7 +185,7 @@ class SQLiteInfrastructureTests(unittest.TestCase):
 
             SQLiteBackend().init_schema(conn)
 
-            self.assertEqual(current_version(conn), 13)
+            self.assertEqual(current_version(conn), 14)
             self.assertIsNone(conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='user_notification_state'"
             ).fetchone())
@@ -166,7 +194,7 @@ class SQLiteInfrastructureTests(unittest.TestCase):
                 tuple(conn.execute('''SELECT new_tasks_seen_at, new_tasks_seen_history_id
                     FROM user_new_task_notification_state WHERE user_id = 101''').fetchone()),
             )
-            self.assertEqual(13, conn.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0])
+            self.assertEqual(14, conn.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0])
         finally:
             conn.close()
 
@@ -186,7 +214,7 @@ class SQLiteInfrastructureTests(unittest.TestCase):
 
             SQLiteBackend().init_schema(conn)
 
-            self.assertEqual(current_version(conn), 13)
+            self.assertEqual(current_version(conn), 14)
             self.assertIsNotNone(conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' "
                 "AND name='user_new_task_notification_seen_events'"
@@ -199,7 +227,7 @@ class SQLiteInfrastructureTests(unittest.TestCase):
             self.assertIsNone(conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='user_notification_state'"
             ).fetchone())
-            self.assertEqual(13, conn.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0])
+            self.assertEqual(14, conn.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0])
         finally:
             conn.close()
 
@@ -246,7 +274,7 @@ class SQLiteInfrastructureTests(unittest.TestCase):
             self.assertIsNotNone(conn.execute(
                 'SELECT 1 FROM user_new_task_notification_state WHERE user_id = 103'
             ).fetchone())
-            self.assertEqual(current_version(conn), 13)
+            self.assertEqual(current_version(conn), 14)
         finally:
             conn.close()
 
@@ -352,7 +380,7 @@ class SQLiteInfrastructureTests(unittest.TestCase):
                 cwd=root, capture_output=True, text=True, encoding='utf-8', check=False,
             )
             self.assertEqual(success.returncode, 0, success.stderr)
-            self.assertIn('user_version=13', success.stdout)
+            self.assertIn('user_version=14', success.stdout)
 
             conn = sqlite3.connect(database)
             conn.execute('PRAGMA user_version = 99')

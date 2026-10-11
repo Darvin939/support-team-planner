@@ -17,12 +17,10 @@ from db.errors import (
 from db.freeze_days import *
 from db.history import *
 from db.new_task_notifications import *
+from db.release_change_log import *
 from db.reference_data import *
 from db.statistics import *
 from db.task_dependencies import *
 from db.tasks import *
 from db.teams import *
 from db.users import *
-
-
-init_db()

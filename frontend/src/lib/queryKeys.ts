@@ -47,7 +47,7 @@ export const queryKeys = {
     list: (offset: number, limit: number, changedAt: string, historyId: number) =>
       ['new-task-notifications', 'list', offset, limit, changedAt, historyId] as const,
   },
-  taskHistory: (taskId: number | null, offset: number) => ['task-history', taskId, offset] as const,
+  releaseChangeLog: ['release-change-log'] as const,
   entityHistory: (kind: string, entityId: number | null, offset: number) => ['entity-history', kind, entityId, offset] as const,
   blocks: ['blocks'] as const,
   blockTemplates: ['block-templates'] as const,

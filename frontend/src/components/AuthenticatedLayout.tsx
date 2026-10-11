@@ -5,12 +5,16 @@ import {AppShell} from './AppShell';
 import {MyAccountModal} from './MyAccountModal';
 import {useMe} from '../hooks/useMe';
 import {formatDisplayName} from '../hooks/useUserNames';
+import {useMarkReleaseVersionsSeen, useReleaseChangeLog} from '../hooks/useReleaseChangeLog';
+import {ReleaseChangeLogExperience} from './ReleaseChangeLog';
 
 export function AuthenticatedLayout({isDark, onToggleTheme}: { isDark: boolean; onToggleTheme: () => void }) {
   const {data: me, isLoading, isError} = useMe();
   const navigate = useNavigate();
   const location = useLocation();
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const releaseChangeLog = useReleaseChangeLog();
+  const markReleaseVersionsSeen = useMarkReleaseVersionsSeen();
 
   useEffect(() => {
     // Сессия истекла/недействительна, пока SPA уже открыт — ведём себя как обычный
@@ -35,19 +39,28 @@ export function AuthenticatedLayout({isDark, onToggleTheme}: { isDark: boolean; 
 
   return (
     <>
-      <AppShell
-        activePath={basePath}
-        isDark={isDark}
-        role={me.role}
-        login={me.login ?? null}
-        userName={formatDisplayName(me)}
-        onToggleTheme={onToggleTheme}
-        onNavigate={navigate}
-        onLogout={handleLogout}
-        onOpenProfile={() => setProfileModalOpen(true)}
+      <ReleaseChangeLogExperience
+        data={releaseChangeLog.data}
+        isLoading={releaseChangeLog.isLoading}
+        isAcknowledging={markReleaseVersionsSeen.isPending}
+        markSeen={(versions) => markReleaseVersionsSeen.mutateAsync(versions)}
       >
-        <Outlet/>
-      </AppShell>
+        {({application, openHistory}) => <AppShell
+          activePath={basePath}
+          isDark={isDark}
+          role={me.role}
+          login={me.login ?? null}
+          userName={formatDisplayName(me)}
+          onToggleTheme={onToggleTheme}
+          onNavigate={navigate}
+          onLogout={handleLogout}
+          onOpenProfile={() => setProfileModalOpen(true)}
+          applicationMetadata={application}
+          onOpenReleaseHistory={openHistory}
+        >
+          <Outlet/>
+        </AppShell>}
+      </ReleaseChangeLogExperience>
       <MyAccountModal open={profileModalOpen} onClose={() => setProfileModalOpen(false)}/>
     </>
   );

@@ -4,6 +4,7 @@ import {Layout, Menu} from 'antd';
 import {chrome} from '../theme';
 import {useIsMobile} from '../hooks/useIsMobile';
 import {OverdueNotifications} from './OverdueNotifications';
+import type {ReleaseChangeLogData} from '../hooks/useReleaseChangeLog';
 
 export const TOP_BAR_HEIGHT = 56;
 
@@ -131,6 +132,8 @@ export function AppShell({
                            onNavigate,
                            onLogout,
                            onOpenProfile,
+                           applicationMetadata,
+                           onOpenReleaseHistory,
                          }: {
   children: ReactNode;
   activePath: string;
@@ -142,6 +145,8 @@ export function AppShell({
   onNavigate: (path: string) => void;
   onLogout: () => void;
   onOpenProfile: () => void;
+  applicationMetadata?: ReleaseChangeLogData['application'];
+  onOpenReleaseHistory: () => void;
 }) {
   const c = isDark ? chrome.dark : chrome.light;
   const isMobile = useIsMobile();
@@ -285,6 +290,21 @@ export function AppShell({
           flexDirection: 'column',
           gap: 2
         }}>
+          <button
+            type="button"
+            onClick={onOpenReleaseHistory}
+            title={applicationMetadata ? `Версия ${applicationMetadata.release_version}, сборка ${applicationMetadata.build_id}` : 'История изменений'}
+            aria-label="Открыть историю изменений"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 11, justifyContent: showCollapsedUI ? 'center' : 'flex-start',
+              width: '100%', padding: '8px 10px', background: 'none', border: 'none',
+              color: c.text, cursor: 'pointer', textAlign: 'left', fontSize: '0.76rem', opacity: 0.78,
+            }}
+          >
+            {!showCollapsedUI && <span style={{minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
+              {applicationMetadata ? `v${applicationMetadata.release_version} · ${applicationMetadata.build_id}` : 'История изменений'}
+            </span>}
+          </button>
           <button
             onClick={onOpenProfile}
             title="Изменить пароль"

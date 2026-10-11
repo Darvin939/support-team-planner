@@ -1,6 +1,7 @@
 import os
 import logging
 import re
+from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
 
 from fastapi import FastAPI, HTTPException, Request
@@ -10,12 +11,14 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 import db
+from app_metadata import load_application_metadata
 from routers.assignments import router as assignments_router
 from routers.freeze_days import router as freeze_days_router
 from routers.debug import LOG_PATH, router as debug_router
 from routers.journal import router as journal_router
 from routers.notifications import router as notifications_router
 from routers.reference_data import router as reference_data_router
+from routers.release_change_log import router as release_change_log_router
 from routers.shell import register_shell
 from routers.task_dependencies import router as task_dependencies_router
 from routers.tasks import router as tasks_router
@@ -32,7 +35,15 @@ def _is_debug_log_poll_access(record, rendered: str) -> bool:
     return record.name == 'uvicorn.access' and bool(_DEBUG_LOG_POLL_PATTERN.search(rendered))
 
 
-app = FastAPI()
+@asynccontextmanager
+async def _application_lifespan(_app):
+    db.init_db()
+    metadata = load_application_metadata()
+    db.upsert_application_metadata(metadata['release_version'], metadata['build_id'])
+    yield
+
+
+app = FastAPI(lifespan=_application_lifespan)
 app.include_router(reference_data_router)
 app.include_router(freeze_days_router)
 app.include_router(teams_router)
@@ -42,6 +53,7 @@ app.include_router(task_dependencies_router)
 app.include_router(tasks_router)
 app.include_router(journal_router)
 app.include_router(notifications_router)
+app.include_router(release_change_log_router)
 app.include_router(debug_router)
 register_shell(app)
 

@@ -59,6 +59,26 @@ def _create_notification_state_table(conn) -> None:
 
 class SQLiteMigrationSteps:
     @staticmethod
+    def migrate_add_release_change_log(conn) -> None:
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS application_metadata (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                release_version TEXT NOT NULL,
+                build_id TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        ''')
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS user_release_change_log_seen (
+                user_id INTEGER NOT NULL,
+                release_version TEXT NOT NULL,
+                seen_at TEXT NOT NULL,
+                PRIMARY KEY (user_id, release_version),
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            )
+        ''')
+
+    @staticmethod
     def normalize_and_bootstrap(conn) -> None:
         # Промежуточные статусы задачи (ready/in_progress) упразднены — у задачи остаётся только
         # единое активное состояние (new) и терминальные (done/cancelled). Безусловно, при каждом

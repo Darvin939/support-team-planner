@@ -178,6 +178,10 @@ class MarkNewTaskItemsSeenIn(BaseModel):
     task_ids: List[int]
 
 
+class MarkReleaseChangeLogSeenIn(BaseModel):
+    release_versions: List[str]
+
+
 class MarkNewTasksSeenIn(BaseModel):
     watermark: NotificationCursor
 

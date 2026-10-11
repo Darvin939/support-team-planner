@@ -51,6 +51,9 @@ if [[ "$output_path" == "/" || "$output_path" == "$script_dir" ]]; then
 fi
 
 runtime_files=(
+    "app_metadata.py"
+    "application_version.json"
+    "changelog.json"
     "support_planner.py"
     "access_control.py"
     "api_models.py"
@@ -93,6 +96,20 @@ command -v zip >/dev/null 2>&1 || {
     echo "Error: zip is required to create the distribution archive." >&2
     exit 1
 }
+python_command="${PYTHON:-python3}"
+command -v "$python_command" >/dev/null 2>&1 || {
+    echo "Error: $python_command is required to write application build metadata." >&2
+    exit 1
+}
+
+release_version="$(SUPPORT_PLANNER_RELEASE_VERSION="${SUPPORT_PLANNER_RELEASE_VERSION:-}" \
+    "$python_command" "$script_dir/app_metadata.py" --release-version)"
+build_id="$("$python_command" "$script_dir/app_metadata.py" --generate-build-id)"
+
+if [[ ! "$release_version" =~ ^[A-Za-z0-9][A-Za-z0-9.+-]*$ || ! "$build_id" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]]; then
+    echo "Error: release version or build id contains unsupported characters." >&2
+    exit 1
+fi
 
 echo "Building production frontend..."
 (cd "$script_dir/frontend" && npm run build)
@@ -141,6 +158,10 @@ for pattern in "${runtime_patterns[@]}"; do
         cp -- "$source_path" "$destination"
     done
 done
+
+SUPPORT_PLANNER_RELEASE_VERSION="$release_version" SUPPORT_PLANNER_BUILD_ID="$build_id" \
+    "$python_command" -c 'import json, os; print(json.dumps({"release_version": os.environ["SUPPORT_PLANNER_RELEASE_VERSION"], "build_id": os.environ["SUPPORT_PLANNER_BUILD_ID"]}, ensure_ascii=False))' \
+    > "$staging_dir/app_build_metadata.json"
 
 mkdir -p -- "$staging_dir/frontend"
 cp -R -- "$script_dir/frontend/dist" "$staging_dir/frontend/dist"
