@@ -130,6 +130,7 @@ SCHEMA = '''
         field_name         TEXT,
         old_value          TEXT,
         new_value          TEXT,
+        event_id           TEXT,
         changed_at         TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         changed_by_user_id INTEGER,
         FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE CASCADE,
@@ -145,6 +146,7 @@ SCHEMA = '''
         field_name         TEXT,
         old_value          TEXT,
         new_value          TEXT,
+        event_id           TEXT,
         changed_at         TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         changed_by_user_id INTEGER,
         FOREIGN KEY (assignment_id) REFERENCES assignments (id) ON DELETE CASCADE,
@@ -157,6 +159,8 @@ SCHEMA = '''
         ON task_history (action, changed_at, id, task_id);
     CREATE INDEX IF NOT EXISTS idx_assignment_history_assignment_id ON assignment_history (assignment_id);
     CREATE INDEX IF NOT EXISTS idx_assignment_history_task_id ON assignment_history (task_id);
+    CREATE INDEX IF NOT EXISTS idx_task_history_event_id ON task_history (event_id);
+    CREATE INDEX IF NOT EXISTS idx_assignment_history_event_id ON assignment_history (event_id);
 
     CREATE index if NOT EXISTS idx_assignments_task_id ON assignments (task_id);
     CREATE index if NOT EXISTS idx_assignments_date ON assignments (date);

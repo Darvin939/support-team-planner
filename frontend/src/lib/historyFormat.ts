@@ -1,4 +1,5 @@
 export const HISTORY_FIELD_LABELS: Record<string, string> = {
+  segment_id: 'Сегмент', team_id: 'Команда', task_id: 'Работа',
   name: 'Название', description: 'Описание', instruction_url: 'Ссылка на инструкцию',
   criticality: 'Критичность', priority: 'Приоритет', task_status: 'Статус',
   date: 'Дата', block: 'Блок', status: 'Статус',
@@ -10,6 +11,7 @@ export const HISTORY_FIELD_LABELS: Record<string, string> = {
 
 export interface HistoryEntry {
   id: number;
+  event_id?: string | null;
   entity?: 'task' | 'assignment';
   action?: string;
   field_name: string;
@@ -21,7 +23,25 @@ export interface HistoryEntry {
   changed_by_first_name?: string | null;
   changed_by_middle_name?: string | null;
   task_name?: string;
+  task_id?: number;
+  assignment_id?: number | null;
   task_is_deleted?: boolean | number;
+}
+
+export interface HistoryEvent {
+  key: string;
+  entries: HistoryEntry[];
+}
+
+export function groupHistoryEntries(entries: HistoryEntry[]): HistoryEvent[] {
+  const events = new Map<string, HistoryEvent>();
+  entries.forEach((entry) => {
+    const key = entry.event_id ? `event:${entry.event_id}` : `entry:${entry.entity ?? 'entity'}:${entry.id}`;
+    const existing = events.get(key);
+    if (existing) existing.entries.push(entry);
+    else events.set(key, {key, entries: [entry]});
+  });
+  return [...events.values()];
 }
 
 export function formatChangedBy(entry: HistoryEntry): string {

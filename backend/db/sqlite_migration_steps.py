@@ -58,6 +58,16 @@ def _create_notification_state_table(conn) -> None:
 
 class SQLiteMigrationSteps:
     @staticmethod
+    def migrate_add_history_event_id(conn) -> None:
+        for table_name in ('task_history', 'assignment_history'):
+            columns = {row[1] for row in conn.execute(f'PRAGMA table_info({table_name})').fetchall()}
+            if 'event_id' not in columns:
+                conn.execute(f'ALTER TABLE {table_name} ADD COLUMN event_id TEXT')
+            conn.execute(
+                f'CREATE INDEX IF NOT EXISTS idx_{table_name}_event_id ON {table_name} (event_id)'
+            )
+
+    @staticmethod
     def migrate_add_release_change_log(conn) -> None:
         conn.execute('''
             CREATE TABLE IF NOT EXISTS application_metadata (

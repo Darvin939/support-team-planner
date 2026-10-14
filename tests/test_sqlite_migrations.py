@@ -49,7 +49,7 @@ class SQLiteInfrastructureTests(unittest.TestCase):
         conn.row_factory = sqlite3.Row
         try:
             SQLiteBackend().init_schema(conn)
-            self.assertEqual(current_version(conn), 14)
+            self.assertEqual(current_version(conn), 15)
             tables = {row[0] for row in conn.execute(
                 "SELECT name FROM sqlite_master WHERE type = 'table'"
             )}
@@ -88,7 +88,7 @@ class SQLiteInfrastructureTests(unittest.TestCase):
         ''')
         try:
             SQLiteBackend().init_schema(conn)
-            self.assertEqual(current_version(conn), 14)
+            self.assertEqual(current_version(conn), 15)
             self.assertEqual(conn.execute('SELECT name FROM tasks WHERE id = 3').fetchone()[0], 'Legacy task')
             self.assertEqual(conn.execute('SELECT user_id FROM assignments WHERE id = 4').fetchone()[0], 2)
             task_columns = {row[1] for row in conn.execute('PRAGMA table_info(tasks)')}
@@ -185,7 +185,7 @@ class SQLiteInfrastructureTests(unittest.TestCase):
 
             SQLiteBackend().init_schema(conn)
 
-            self.assertEqual(current_version(conn), 14)
+            self.assertEqual(current_version(conn), 15)
             self.assertIsNone(conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='user_notification_state'"
             ).fetchone())
@@ -194,7 +194,7 @@ class SQLiteInfrastructureTests(unittest.TestCase):
                 tuple(conn.execute('''SELECT new_tasks_seen_at, new_tasks_seen_history_id
                     FROM user_new_task_notification_state WHERE user_id = 101''').fetchone()),
             )
-            self.assertEqual(14, conn.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0])
+            self.assertEqual(15, conn.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0])
         finally:
             conn.close()
 
@@ -214,7 +214,7 @@ class SQLiteInfrastructureTests(unittest.TestCase):
 
             SQLiteBackend().init_schema(conn)
 
-            self.assertEqual(current_version(conn), 14)
+            self.assertEqual(current_version(conn), 15)
             self.assertIsNotNone(conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' "
                 "AND name='user_new_task_notification_seen_events'"
@@ -227,7 +227,7 @@ class SQLiteInfrastructureTests(unittest.TestCase):
             self.assertIsNone(conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='user_notification_state'"
             ).fetchone())
-            self.assertEqual(14, conn.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0])
+            self.assertEqual(15, conn.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0])
         finally:
             conn.close()
 
@@ -274,7 +274,7 @@ class SQLiteInfrastructureTests(unittest.TestCase):
             self.assertIsNotNone(conn.execute(
                 'SELECT 1 FROM user_new_task_notification_state WHERE user_id = 103'
             ).fetchone())
-            self.assertEqual(current_version(conn), 14)
+            self.assertEqual(current_version(conn), 15)
         finally:
             conn.close()
 
@@ -380,7 +380,7 @@ class SQLiteInfrastructureTests(unittest.TestCase):
                 cwd=root, capture_output=True, text=True, encoding='utf-8', check=False,
             )
             self.assertEqual(success.returncode, 0, success.stderr)
-            self.assertIn('user_version=14', success.stdout)
+            self.assertIn('user_version=15', success.stdout)
 
             conn = sqlite3.connect(database)
             conn.execute('PRAGMA user_version = 99')

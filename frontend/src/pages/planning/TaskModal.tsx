@@ -13,7 +13,7 @@ import {
   PSI_STATUS_LABELS,
   type Task
 } from '../../domain/types';
-import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';
+import {HistoryPanel} from './HistoryPanel';
 import {useIsMobile} from '../../hooks/useIsMobile';
 import {useDeleteTaskMutation, useSaveTaskMutation} from '../../hooks/useTaskMutations';
 import {AssignmentTimeline} from './assignmentTimeline';
@@ -56,7 +56,6 @@ export function TaskModal({
   const {data: me} = useMe();
   const isUser = me?.role === 'user';
   const canDelete = !!task && !isTerminal && !(isUser && task.has_active_assignments);
-  const [historyOpen, setHistoryOpen] = useHistoryToggle(open, false);
   const assignmentTimeline = useTaskAssignmentTimeline(task?.id ?? null, open && isTerminal);
   const isMobile = useIsMobile();
   const {token} = theme.useToken();
@@ -131,10 +130,10 @@ export function TaskModal({
       }
       open={open}
       onCancel={onClose}
-      width={isMobile ? '95%' : historyOpen ? 1080 : 760}
+      width={isMobile ? '95%' : 760}
       footer={
         <Space>
-          {task && <HistoryToggleButton open={historyOpen} onClick={() => setHistoryOpen((v) => !v)}/>}
+          {activeTab === 'history' ? <Button onClick={onClose}>Закрыть</Button> : <>
           {canDelete && (
             <Popconfirm title="Удалить всю работу со всеми назначениями?" onConfirm={() => deleteMutation.mutate()}
                         okText="Удалить" cancelText="Отмена">
@@ -148,6 +147,7 @@ export function TaskModal({
               {task ? 'Обновить' : 'Создать'}
             </Button>
           )}
+          </>}
         </Space>
       }
     >
@@ -155,6 +155,8 @@ export function TaskModal({
         <Form form={form} layout="vertical" disabled={isTerminal} onFinish={saveTask}
               style={{flex: 1, minWidth: 0}}>
           {isTerminal ? (
+            <Tabs activeKey={activeTab} onChange={setActiveTab} items={[
+              {key: 'main', label: 'Основное', children: (
             <div style={{display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 16}}>
               <div style={{overflowWrap: 'anywhere'}}>
                 <strong>Имя:</strong> {task?.name}
@@ -206,6 +208,11 @@ export function TaskModal({
                 <AssignmentTimeline assignments={assignmentTimeline.data} loading={assignmentTimeline.isLoading} error={assignmentTimeline.isError}/>
               </div>
             </div>
+              )},
+              {key: 'history', label: 'История', children: (
+                <HistoryPanel kind="task" entityId={task?.id ?? null} open={activeTab === 'history'}/>
+              )},
+            ]}/>
           ) : (
             <Tabs
               activeKey={activeTab}
@@ -300,11 +307,15 @@ export function TaskModal({
                     </Form.Item>
                   ),
                 },
+                ...(task ? [{
+                  key: 'history',
+                  label: 'История',
+                  children: <HistoryPanel kind="task" entityId={task.id} open={activeTab === 'history'}/>,
+                }] : []),
               ]}
             />
           )}
         </Form>
-        <HistoryPanel kind="task" entityId={task?.id ?? null} open={historyOpen}/>
       </div>
     </Modal>
   );

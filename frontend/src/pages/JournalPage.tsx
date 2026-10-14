@@ -8,64 +8,60 @@ import {useUserNames, useUserOptions} from '../hooks/useUserNames';
 import {useIsMobile} from '../hooks/useIsMobile';
 import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
 import {FilterField, FilterGrid} from '../components/FilterGrid';
-import {formatChangedBy, formatHistoryText, type HistoryEntry} from '../lib/historyFormat';
+import {formatChangedBy, formatHistoryText, groupHistoryEntries, type HistoryEntry, type HistoryEvent} from '../lib/historyFormat';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT} from '../lib/dateFormats';
 import {useDebouncedValue} from '../hooks/useDebouncedValue';
 import {useStoredTeamRoute} from '../hooks/useStoredTeamRoute';
 import {usePaginationState} from '../hooks/usePaginationState';
-import {JOURNAL_PAGE_SIZE, type JournalFilters, type JournalItem, useJournal} from '../hooks/useJournalData';
-import {HISTORY_PAGE_SIZE, useEntityHistory} from './planning/historyShared';
+import {JOURNAL_PAGE_SIZE, type JournalFilters, useJournal} from '../hooks/useJournalData';
+import {getHistoryEventColor, getHistoryEventKind, getHistoryEventSummary, HISTORY_PAGE_SIZE, HistoryEntries, useEntityHistory} from './planning/historyShared';
 import {AppPagination} from '../components/AppPagination';
 import {TOP_BAR_HEIGHT} from '../components/AppShell';
 
-export function buildJournalColumns(getUserName: (id: string) => string): TableColumnsType<JournalItem> {
+export function buildJournalColumns(_getUserName: (id: string) => string): TableColumnsType<HistoryEvent> {
   return [
     {
       title: 'Дата и время',
-      dataIndex: 'changed_at',
       key: 'changed_at',
       width: 170,
+      render: (_, event) => event.entries[0].changed_at,
     },
     {
       title: 'Работа',
-      dataIndex: 'task_name',
       key: 'task_name',
       width: 260,
       ellipsis: {showTitle: false},
-      render: (taskName: string | undefined, item) => (
+      render: (_: string | undefined, event) => {
+        const item = event.entries[0];
+        const taskName = item.task_name;
+        return (
         <Tooltip title={taskName || '—'}>
           <span>
             {taskName || '—'}
             {item.task_is_deleted ? <Tag style={{marginLeft: 6}}>удалена</Tag> : null}
           </span>
         </Tooltip>
-      ),
+        );
+      },
     },
     {
       title: 'Объект',
-      dataIndex: 'entity',
       key: 'entity',
       width: 130,
       responsive: ['lg'],
-      render: (entity: JournalItem['entity']) => (
-        <Tag>{entity === 'assignment' ? 'Назначение' : 'Работа'}</Tag>
-      ),
+      render: (_, event) => <Tag>{event.entries[0].entity === 'assignment' ? 'Назначение' : 'Работа'}</Tag>,
     },
     {
       title: 'Изменение',
       key: 'change',
-      width: 420,
-      ellipsis: {showTitle: false},
-      render: (_, item) => {
-        const text = formatHistoryText(item, getUserName, true);
-        return <Tooltip title={text}><span>{text}</span></Tooltip>;
-      },
+      width: 180,
+      render: (_, event) => <Tag color={getHistoryEventColor(getHistoryEventKind(event))}>{getHistoryEventSummary(event)}</Tag>,
     },
     {
       title: 'Автор',
       key: 'author',
       width: 180,
-      render: (_, item) => formatChangedBy(item),
+      render: (_, event) => formatChangedBy(event.entries[0]),
     },
   ];
 }
@@ -83,32 +79,27 @@ export function buildTaskHistoryColumns(getUserName: (id: string) => string): Ta
   ];
 }
 
-function TaskHistoryModal({taskId, taskName, onClose}: {
-  taskId: number | null;
+function TaskHistoryModal({kind, entityId, taskName, date, onClose}: {
+  kind: 'task' | 'assignment' | null;
+  entityId: number | null;
   taskName: string | null;
+  date: string | null;
   onClose: () => void
 }) {
   const pagination = usePaginationState(HISTORY_PAGE_SIZE);
-  const {data, isLoading} = useEntityHistory('task', taskId, pagination.offset);
-  const getUserName = useUserNames();
+  const {data, isLoading} = useEntityHistory(kind ?? 'task', entityId, pagination.offset);
 
   useEffect(() => {
-    if (taskId !== null) pagination.reset();
-  }, [taskId, pagination.reset]);
+    if (entityId !== null) pagination.reset();
+  }, [entityId, kind, pagination.reset]);
+
+  const title = kind === 'assignment'
+    ? `История назначения: ${taskName || 'Работа'}${date ? ` · ${date}` : ''}`
+    : taskName ? `История работы: ${taskName}` : 'История работы';
 
   return (
-    <Modal title={taskName ? `История задачи: ${taskName}` : 'История задачи'} open={taskId !== null} onCancel={onClose}
-           footer={null} width={1000} destroyOnHidden>
-      <Table<HistoryEntry>
-        rowKey={(entry) => `${entry.entity ?? 'entity'}-${entry.id}`}
-        size="small"
-        loading={isLoading}
-        dataSource={data?.history ?? []}
-        pagination={false}
-        columns={buildTaskHistoryColumns(getUserName)}
-        locale={{emptyText: 'Изменений пока нет'}}
-        scroll={{x: 870}}
-      />
+    <Modal title={title} open={entityId !== null} onCancel={onClose} footer={null} width={900} destroyOnHidden>
+      <HistoryEntries entries={data?.history} loading={isLoading} showAssignmentContext={kind === 'task'}/>
       {data && <AppPagination compact current={pagination.page} pageSize={pagination.pageSize}
                               total={data.total} onChange={pagination.onChange}/>}
     </Modal>
@@ -121,7 +112,9 @@ export function JournalPage() {
   const {data: teams} = useTeams();
   const userOptions = useUserOptions();
   const pagination = usePaginationState(JOURNAL_PAGE_SIZE);
-  const [modalTask, setModalTask] = useState<{ id: number; name: string } | null>(null);
+  const [modalHistory, setModalHistory] = useState<{
+    kind: 'task' | 'assignment'; id: number; taskName: string; date: string | null
+  } | null>(null);
   const getUserName = useUserNames();
 
   const [search, setSearch] = useState('');
@@ -159,6 +152,7 @@ export function JournalPage() {
 
   const {data, isLoading} = useJournal(teamId, pagination.offset, pagination.pageSize, filters);
   const columns = buildJournalColumns(getUserName);
+  const events = groupHistoryEntries(data?.items ?? []);
 
   function handleTeamSelect(value: number | undefined) {
     selectTeamRoute(value);
@@ -223,18 +217,24 @@ export function JournalPage() {
             </FilterGrid>
           </Card>
 
-          <Table<JournalItem>
-            rowKey={(item) => `${item.entity ?? 'entity'}-${item.id}`}
+          <Table<HistoryEvent>
+            rowKey={(event) => event.key}
             columns={columns}
-            dataSource={data?.items ?? []}
+            dataSource={events}
             loading={isLoading}
             pagination={false}
             size="small"
             scroll={{x: 1160}}
             sticky={{offsetHeader: isMobile ? TOP_BAR_HEIGHT : 0}}
             locale={{emptyText: 'Изменений пока нет'}}
-            onRow={(item) => ({
-              onClick: () => setModalTask({id: item.task_id, name: item.task_name ?? ''}),
+            onRow={(event) => ({
+              onClick: () => {
+                const item = event.entries[0];
+                const kind = item.entity === 'assignment' && item.assignment_id ? 'assignment' : 'task';
+                const id = kind === 'assignment' ? item.assignment_id : item.task_id;
+                if (id == null) return;
+                setModalHistory({kind, id, taskName: item.task_name ?? '', date: item.date ?? null});
+              },
               style: {cursor: 'pointer'},
             })}
             style={{marginBottom: 16}}
@@ -244,8 +244,9 @@ export function JournalPage() {
         </>
       )}
 
-      <TaskHistoryModal taskId={modalTask?.id ?? null} taskName={modalTask?.name ?? null}
-                        onClose={() => setModalTask(null)}/>
+      <TaskHistoryModal kind={modalHistory?.kind ?? null} entityId={modalHistory?.id ?? null}
+                        taskName={modalHistory?.taskName ?? null} date={modalHistory?.date ?? null}
+                        onClose={() => setModalHistory(null)}/>
     </>
   );
 }

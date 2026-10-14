@@ -90,6 +90,7 @@ class AssignmentTimelineOut(BaseModel):
 
 class HistoryEntryOut(BaseModel):
     id: int
+    event_id: Optional[str] = None
     entity: Optional[str] = None
     action: Optional[str] = None
     field_name: Optional[str] = None
@@ -102,6 +103,7 @@ class HistoryEntryOut(BaseModel):
     changed_by_first_name: Optional[str] = None
     changed_by_middle_name: Optional[str] = None
     task_id: Optional[int] = None
+    assignment_id: Optional[int] = None
     task_name: Optional[str] = None
     task_is_deleted: Optional[Union[bool, int]] = None
 

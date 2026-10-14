@@ -1,4 +1,4 @@
-import {type CSSProperties, useMemo} from 'react';
+import {type CSSProperties, useEffect, useMemo, useState} from 'react';
 import {
   Alert,
   App as AntApp,
@@ -12,6 +12,7 @@ import {
   Select,
   Space,
   Switch,
+  Tabs,
   theme,
   TimePicker
 } from 'antd';
@@ -29,7 +30,7 @@ import {
 import type {Assignment, AssignmentStatus, BlockTemplateEntry, Task} from '../../domain/types';
 import {getAutoScheduleDateRange} from '../../lib/autoSchedule';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT, DISPLAY_DATE_SHORT_FORMAT, TIME_FORMAT} from '../../lib/dateFormats';
-import {HistoryPanel, HistoryToggleButton, useHistoryToggle} from './HistoryPanel';
+import {HistoryPanel} from './HistoryPanel';
 import {useIsMobile} from '../../hooks/useIsMobile';
 import {usePlanningGridDragScroll} from './usePlanningGridDragScroll';
 import {PlanningDateGridFrame} from './PlanningDateGrid';
@@ -342,7 +343,10 @@ export function AssignmentModal({
   const psiPlanningBlocked = task
     ? isPsiPlanningBlocked(task.psi_status, assignment?.status ?? null)
     : false;
-  const [historyOpen, setHistoryOpen] = useHistoryToggle(open, false);
+  const [activeTab, setActiveTab] = useState('assignment');
+  useEffect(() => {
+    if (open) setActiveTab('assignment');
+  }, [open, assignment?.id]);
   const isSaving = saveMutation.isPending || autoSaveMutation.isPending;
   const selectedTemplateBlocks = templates?.find((t) => t.id === selectedTemplateId)?.blocks ?? [];
 
@@ -357,40 +361,13 @@ export function AssignmentModal({
   }
   const assigneeOptions = eligibleUsers.map((u) => ({value: u.id, label: formatDisplayName(u)}));
 
-  return (
-    <Modal
-      title={task ? `Работа: ${task.name}` : 'Работа'}
-      open={open}
-      onCancel={onClose}
-      width={isMobile ? '95%' : (autoAssignEnabled ? 640 : 520) + (historyOpen ? 320 : 0)}
-      footer={
-        <Space>
-          {assignment && <HistoryToggleButton open={historyOpen} onClick={() => setHistoryOpen((v) => !v)}/>}
-          {assignment && !readOnly && (
-            <Popconfirm title="Удалить эту запись?" onConfirm={() => assignment && deleteMutation.mutate(assignment.id)}
-                        okText="Удалить" cancelText="Отмена">
-              <Button danger loading={deleteMutation.isPending}>
-                Удалить
-              </Button>
-            </Popconfirm>
-          )}
-          {!readOnly && (
-            <Button type="primary" onClick={() => form.submit()} loading={isSaving}
-                    disabled={autoAssignMissingTemplate}>
-              {assignment ? 'Обновить' : 'Создать'}
-            </Button>
-          )}
-        </Space>
-      }
-    >
-      <div>
+  const assignmentForm = (
+    <div>
         {psiBlocked && <Alert type="warning" showIcon
                               title="До прохождения ПСИ доступны только назначения в статусе «Новый»"
                               style={{marginBottom: 16}}/>}
-        <div style={{display: 'flex', flexDirection: isMobile ? 'column' : 'row'}}>
-          <Form form={form} layout="vertical" disabled={readOnly}
-              onFinish={(values) => (autoAssignEnabled ? saveAutoAssignments(values) : saveAssignment(values))}
-              style={{flex: 1, minWidth: 0}}>
+        <Form form={form} layout="vertical" disabled={readOnly}
+              onFinish={(values) => (autoAssignEnabled ? saveAutoAssignments(values) : saveAssignment(values))}>
           <Space.Compact block>
             <Form.Item name="date" label="Дата" style={{flex: 1}} rules={[{required: true}]}>
               <DatePicker style={{width: '100%'}} format={DISPLAY_DATE_FORMAT} minDate={dayjs('2000-01-01')}
@@ -406,11 +383,9 @@ export function AssignmentModal({
                    style={{marginBottom: 16}}/>
           )}
 
-          <div style={{display: 'flex', gap: 24, marginBottom: 16}}>
-            <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
-              <span>Автоназначение</span>
-              <Switch checked={autoAssignEnabled} onChange={handleAutoAssignToggle} disabled={psiPlanningBlocked}/>
-            </div>
+          <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16}}>
+            <span>Автоназначение</span>
+            <Switch checked={autoAssignEnabled} onChange={handleAutoAssignToggle} disabled={psiPlanningBlocked}/>
           </div>
 
           {!autoAssignEnabled && (
@@ -439,8 +414,7 @@ export function AssignmentModal({
                   options={templates?.map((t) => ({value: t.id, label: t.name}))}
                 />
                 {autoAssignMissingTemplate && (
-                  <div style={{color: token.colorError, fontSize: '0.75rem', marginTop: 4}}>Выберите график
-                    раскатки</div>
+                  <div style={{color: token.colorError, fontSize: '0.75rem', marginTop: 4}}>Выберите график раскатки</div>
                 )}
               </div>
               {selectedTemplateId && watchedDate && (
@@ -460,36 +434,68 @@ export function AssignmentModal({
                       setAutoAssignSelected(null);
                     }}
                   />
-                  <div style={{marginTop: 6, fontSize: '0.8rem', opacity: 0.7}}>Нажмите на блок, затем на нужную дату —
-                    блок переместится туда.
-                  </div>
+                  <div style={{marginTop: 6, fontSize: '0.8rem', opacity: 0.7}}>Нажмите на блок, затем на нужную дату — блок переместится туда.</div>
                 </>
               )}
             </div>
           )}
 
           <AssignmentStatusField disabled={autoAssignEnabled || isUser || !!psiBlocked}/>
-
           {!autoAssignEnabled && (
             <>
               <Form.Item name="user_id" label="Исполнитель">
-                <Select
-                  allowClear
-                  showSearch={{optionFilterProp: 'label'}}
-                  placeholder="Не выбран"
-                  options={assigneeOptions}
-                  disabled={psiPlanningBlocked}
-                />
+                <Select allowClear showSearch={{optionFilterProp: 'label'}} placeholder="Не выбран"
+                        options={assigneeOptions} disabled={psiPlanningBlocked}/>
               </Form.Item>
               <Form.Item name="comment" label="Комментарий">
                 <Input.TextArea placeholder="Комментарий..." autoSize={{minRows: 1, maxRows: 3}}/>
               </Form.Item>
             </>
           )}
-          </Form>
-          <HistoryPanel kind="assignment" entityId={assignment?.id ?? null} open={historyOpen}/>
-        </div>
+        </Form>
       </div>
+  );
+
+  return (
+    <Modal
+      title={task
+        ? `Назначение: ${task.name}${assignment?.date ? ` · ${dayjs(assignment.date).format(DISPLAY_DATE_FORMAT)}` : ''}`
+        : 'Назначение'}
+      open={open}
+      onCancel={onClose}
+      width={isMobile ? '95%' : 760}
+      footer={
+        <Space>
+          {activeTab === 'history' ? <Button onClick={onClose}>Закрыть</Button> : <>
+          {assignment && !readOnly && (
+            <Popconfirm title="Удалить эту запись?" onConfirm={() => assignment && deleteMutation.mutate(assignment.id)}
+                        okText="Удалить" cancelText="Отмена">
+              <Button danger loading={deleteMutation.isPending}>
+                Удалить
+              </Button>
+            </Popconfirm>
+          )}
+          {!readOnly && (
+            <Button type="primary" onClick={() => form.submit()} loading={isSaving}
+                    disabled={autoAssignMissingTemplate}>
+              {assignment ? 'Обновить' : 'Создать'}
+            </Button>
+          )}
+          </>}
+        </Space>
+      }
+    >
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        items={[
+          {key: 'assignment', label: 'Назначение', forceRender: true, children: assignmentForm},
+          ...(assignment ? [{
+            key: 'history', label: 'История',
+            children: <HistoryPanel kind="assignment" entityId={assignment.id} open={activeTab === 'history'}/>,
+          }] : []),
+        ]}
+      />
     </Modal>
   );
 }

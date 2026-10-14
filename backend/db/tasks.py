@@ -1,4 +1,5 @@
 import json
+import uuid
 
 from backend.db.connection import backend as _backend, with_db_connection
 from backend.task_rules import is_terminal_task_status, terminal_task_status_sql
@@ -161,20 +162,22 @@ def _priority_at_tier_end(conn, team_id, criticality, exclude_task_id=None):
     return (min_priority - _PRIORITY_GAP) if min_priority is not None else 0
 
 
-def _record_task_history(conn, task_id, action, field_name=None, old_value=None, new_value=None, changed_by=None):
+def _record_task_history(conn, task_id, action, field_name=None, old_value=None, new_value=None, changed_by=None,
+                         event_id=None):
     conn.execute(
-        '''INSERT INTO task_history (task_id, action, field_name, old_value, new_value, changed_by_user_id)
-           VALUES (?, ?, ?, ?, ?, ?)''',
-        (task_id, action, field_name, old_value, new_value, changed_by))
+        '''INSERT INTO task_history (task_id, action, field_name, old_value, new_value, changed_by_user_id, event_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?)''',
+        (task_id, action, field_name, old_value, new_value, changed_by, event_id or uuid.uuid4().hex))
 
 
 def _record_assignment_history(conn, assignment_id, task_id, date_str, action, field_name=None, old_value=None,
-                                new_value=None, changed_by=None):
+                                new_value=None, changed_by=None, event_id=None):
     conn.execute(
         '''INSERT INTO assignment_history
-               (assignment_id, task_id, date, action, field_name, old_value, new_value, changed_by_user_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
-        (assignment_id, task_id, date_str, action, field_name, old_value, new_value, changed_by))
+               (assignment_id, task_id, date, action, field_name, old_value, new_value, changed_by_user_id, event_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+        (assignment_id, task_id, date_str, action, field_name, old_value, new_value, changed_by,
+         event_id or uuid.uuid4().hex))
 
 
 @with_db_connection(commit_on_success=False)
@@ -211,6 +214,7 @@ def create_or_update_task(conn, task_id, team_id, name, description, criticality
     новая задача), т.к. её старое числовое значение priority больше ничего не значит относительно
     задач другого уровня. На CREATE новая задача всегда уходит в конец списка своего уровня
     критичности (наименьший приоритет внутри него)."""
+    event_id = uuid.uuid4().hex
     existing = conn.execute(
         'SELECT name, description, instruction_url, criticality, psi_status, priority, segment_id '
         'FROM tasks WHERE id = ?',
@@ -223,14 +227,14 @@ def create_or_update_task(conn, task_id, team_id, name, description, criticality
             old_val = existing[field]
             if old_val != new_val:
                 _record_task_history(conn, task_id, 'update', field_name=field,
-                                      old_value=old_val, new_value=new_val, changed_by=changed_by)
+                                      old_value=old_val, new_value=new_val, changed_by=changed_by, event_id=event_id)
         new_priority = existing['priority']
         if criticality != existing['criticality']:
             new_priority = _priority_at_tier_end(conn, team_id, criticality, exclude_task_id=task_id)
             if new_priority != existing['priority']:
                 _record_task_history(conn, task_id, 'update', field_name='priority',
                                       old_value=str(existing['priority']), new_value=str(new_priority),
-                                      changed_by=changed_by)
+                                      changed_by=changed_by, event_id=event_id)
         conn.execute(
             '''UPDATE tasks
                SET name        = ?,
@@ -257,7 +261,7 @@ def create_or_update_task(conn, task_id, team_id, name, description, criticality
                                 'criticality': criticality, 'psi_status': psi_status,
                                 'segment_id': segment_id, 'priority': new_priority},
                                ensure_ascii=False)
-        _record_task_history(conn, task_id, 'create', new_value=snapshot, changed_by=changed_by)
+        _record_task_history(conn, task_id, 'create', new_value=snapshot, changed_by=changed_by, event_id=event_id)
     return task_id
 
 

@@ -115,6 +115,7 @@ def get_assignment_timeline_by_task(conn, task_id):
 def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, status, user_id, comment,
                                  time_spent=None, changed_by=None):
     """Создать или обновить назначение"""
+    event_id = uuid.uuid4().hex
     existing = conn.execute('SELECT * FROM assignments WHERE id = ?', (assignment_id,)).fetchone()
 
     new_values = {'date': date_str, 'task_id': task_id, 'block': block, 'status': status,
@@ -125,7 +126,8 @@ def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, s
             old_val = existing[field]
             if old_val != new_val:
                 _record_assignment_history(conn, assignment_id, task_id, date_str, 'update', field_name=field,
-                                            old_value=old_val, new_value=new_val, changed_by=changed_by)
+                                            old_value=old_val, new_value=new_val, changed_by=changed_by,
+                                            event_id=event_id)
         conn.execute(
             '''UPDATE assignments
                SET date        = ?,
@@ -147,7 +149,7 @@ def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, s
         new_assignment_id = _backend.last_insert_id(cursor)
         snapshot = json.dumps(new_values, ensure_ascii=False, default=str)
         _record_assignment_history(conn, new_assignment_id, task_id, date_str, 'create',
-                                    new_value=snapshot, changed_by=changed_by)
+                                    new_value=snapshot, changed_by=changed_by, event_id=event_id)
 
 
 @with_db_connection(commit_on_success=False)
