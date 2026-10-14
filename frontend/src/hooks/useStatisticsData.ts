@@ -30,23 +30,16 @@ export interface ActiveAssignmentDateCount {
   count: number;
 }
 
-export function getStatisticsCalendarRange(firstPanelMonth: Dayjs): {from: string; to: string} {
-  const firstDay = firstPanelMonth.startOf('month');
-  const daysSinceMonday = (firstDay.day() + 6) % 7;
-  const firstGridDate = firstDay.subtract(daysSinceMonday, 'day');
-
-  const secondMonthFirstDay = firstPanelMonth.add(1, 'month').startOf('month');
-  const secondDaysSinceMonday = (secondMonthFirstDay.day() + 6) % 7;
-  const secondGridDate = secondMonthFirstDay.subtract(secondDaysSinceMonday, 'day');
-
+export function getStatisticsCalendarRange(month: Dayjs): {from: string; to: string} {
   return {
-    from: firstGridDate.format(API_DATE_FORMAT),
-    to: secondGridDate.add(41, 'day').format(API_DATE_FORMAT),
+    from: month.startOf('month').format(API_DATE_FORMAT),
+    to: month.endOf('month').format(API_DATE_FORMAT),
   };
 }
 
-export function useActiveAssignments(from: string, to: string, teamIds: number[], offset: number, limit: number) {
+export function useActiveAssignments(from: string, to: string, teamIds: number[], offset: number, limit: number, enabled = true) {
   return useQuery<ActiveAssignmentsResponse>({
+    enabled,
     queryKey: queryKeys.assignments.activeList(from, to, teamIds, offset, limit),
     queryFn: () => apiGet(buildApiUrl('/api/active-assignments/0', {
       start_date: from,
@@ -58,8 +51,9 @@ export function useActiveAssignments(from: string, to: string, teamIds: number[]
   });
 }
 
-export function useActiveAssignmentDateCounts(from: string, to: string, teamIds: number[]) {
+export function useActiveAssignmentDateCounts(from: string, to: string, teamIds: number[], enabled = true) {
   return useQuery<ActiveAssignmentDateCount[]>({
+    enabled,
     queryKey: queryKeys.assignments.dateCounts(from, to, teamIds),
     queryFn: () => apiGet(buildApiUrl('/api/active-assignment-counts/0', {
       start_date: from,
