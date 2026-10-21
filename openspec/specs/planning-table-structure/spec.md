@@ -4,7 +4,7 @@
 TBD - created by archiving change split-planning-page-columns. Update Purpose after archive.
 ## Requirements
 ### Requirement: Assignment timelines use a shared bounded date-grid layout
-The terminal task card and expandable archive rows SHALL expose a read-only assignment timeline using the shared `PlanningDateGrid` layout primitive. The primitive SHALL provide bounded horizontal scrolling, click-and-drag panning without text selection or browser context menus, sticky opaque first-column layering, and safe rendering inside modal/expanded-row width constraints. The auto-scheduling grid SHALL reuse this layout and drag-scroll mechanism while retaining its own interactive draggable block behavior.
+Task cards for works of every status and expandable archive rows SHALL expose a read-only assignment timeline using the shared `PlanningDateGrid` layout primitive. The timeline SHALL show all non-deleted assignments of the work, regardless of assignment status and independently of the planning page's selected date range. The primitive SHALL provide bounded horizontal scrolling, click-and-drag panning without text selection or browser context menus, sticky opaque first-column layering, and safe rendering inside modal/expanded-row width constraints. The auto-scheduling grid SHALL reuse this layout and drag-scroll mechanism while retaining its own interactive draggable block behavior.
 
 #### Scenario: Timeline remains inside an archive modal
 - **WHEN** an expanded archive task has assignments spanning more dates than fit in the modal
@@ -21,6 +21,14 @@ The terminal task card and expandable archive rows SHALL expose a read-only assi
 #### Scenario: Grid drag does not select content
 - **WHEN** the user pans either date grid with a mouse drag
 - **THEN** text selection and the browser context menu are suppressed for the drag gesture
+
+#### Scenario: Active task card shows its full assignment timeline
+- **WHEN** a user opens the card of an existing work that is not completed or cancelled
+- **THEN** the main tab shows the read-only timeline for all its non-deleted assignments, regardless of the planning page's selected date range
+
+#### Scenario: Archive timeline includes every assignment status
+- **WHEN** a user expands an archived work with non-deleted assignments of any statuses
+- **THEN** the timeline shows those assignments grouped by date with their localized status
 
 ### Requirement: Task assignment timeline data is minimal and access-controlled
 The system SHALL provide `GET /api/task/{task_id}/assignment-timeline`, returning only `date`, `block`, and `status` for non-deleted assignments ordered by date and assignment id, after checking access to the task. Archive timeline data SHALL be loaded lazily per expanded row and cached by task id; closed rows SHALL not issue requests. The existing `successful-history` clipboard behavior SHALL remain unchanged.

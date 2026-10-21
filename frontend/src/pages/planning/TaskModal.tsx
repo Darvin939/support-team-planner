@@ -56,7 +56,7 @@ export function TaskModal({
   const {data: me} = useMe();
   const isUser = me?.role === 'user';
   const canDelete = !!task && !isTerminal && !(isUser && task.has_active_assignments);
-  const assignmentTimeline = useTaskAssignmentTimeline(task?.id ?? null, open && isTerminal);
+  const assignmentTimeline = useTaskAssignmentTimeline(task?.id ?? null, open && !!task);
   const isMobile = useIsMobile();
   const {token} = theme.useToken();
 
@@ -270,6 +270,12 @@ export function TaskModal({
                           <Checkbox disabled={task?.has_active_assignments}>Требуется ПСИ</Checkbox>
                         </Form.Item>
                       </div>
+                      {task && (
+                        <div>
+                          <div style={{marginBottom: 8}}><strong>Назначения:</strong></div>
+                          <AssignmentTimeline assignments={assignmentTimeline.data} loading={assignmentTimeline.isLoading} error={assignmentTimeline.isError}/>
+                        </div>
+                      )}
                     </>
                   ),
                 },

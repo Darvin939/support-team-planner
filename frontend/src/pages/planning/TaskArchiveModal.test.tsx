@@ -31,7 +31,14 @@ vi.mock('../../hooks/usePlanningData', () => ({
   }),
   useTaskAssignmentTimeline: (taskId: number, enabled: boolean) => {
     mocks.timeline(taskId, enabled);
-    return {data: [], isLoading: false, isError: false};
+    return {
+      data: [
+        {date: '2026-09-01', block: 'Анализ', status: 'success'},
+        {date: '2026-09-02', block: 'Проверка', status: 'planned'},
+      ],
+      isLoading: false,
+      isError: false,
+    };
   },
 }));
 vi.mock('../../hooks/useTaskMutations', () => ({
@@ -58,6 +65,9 @@ describe('TaskArchiveModal assignment timeline', () => {
 
     fireEvent.click(screen.getByRole('button', {name: 'Expand row'}));
     expect(mocks.timeline).toHaveBeenCalledWith(42, true);
-    expect(screen.getByText('Назначений нет')).toBeTruthy();
+    expect(screen.getByText('Анализ')).toBeTruthy();
+    expect(screen.getByText('Проверка')).toBeTruthy();
+    expect(screen.getByText('Успешно')).toBeTruthy();
+    expect(screen.getByText('Запланировано')).toBeTruthy();
   });
 });

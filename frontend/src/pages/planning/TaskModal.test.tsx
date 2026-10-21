@@ -8,6 +8,8 @@ import {TaskModal} from './TaskModal';
 const mocks = vi.hoisted(() => ({
   save: vi.fn(),
   remove: vi.fn(),
+  timeline: vi.fn(),
+  timelineData: [] as Array<{date: string; block: string; status: string}>,
   activeTasks: [
     {
       id: 2,
@@ -30,11 +32,10 @@ vi.mock('../../hooks/usePlanningData', () => ({
     data: mocks.activeTasks,
     isLoading: false,
   }),
-  useTaskAssignmentTimeline: () => ({
-    data: [],
-    isLoading: false,
-    isError: false,
-  }),
+  useTaskAssignmentTimeline: (taskId: number | null, enabled: boolean) => {
+    mocks.timeline(taskId, enabled);
+    return {data: mocks.timelineData, isLoading: false, isError: false};
+  },
 }));
 
 vi.mock('../../hooks/useMe', () => ({useMe: () => ({data: {role: 'admin'}})}));
@@ -75,6 +76,8 @@ afterEach(() => {
   cleanup();
   mocks.save.mockReset();
   mocks.remove.mockReset();
+  mocks.timeline.mockReset();
+  mocks.timelineData = [];
 });
 
 const task: Task = {
@@ -99,6 +102,26 @@ function renderModal(existingDepIds = [2], modalTask: Task = task) {
 }
 
 describe('TaskModal', () => {
+  it('shows the assignment timeline for an active task in the main tab', () => {
+    mocks.timelineData = [{date: '2026-09-01', block: 'Анализ', status: 'success'}];
+    renderModal();
+
+    expect(screen.getByText('Назначения:')).not.toBeNull();
+    expect(screen.getByText('Анализ')).not.toBeNull();
+    expect(screen.getByText('Успешно')).not.toBeNull();
+    expect(mocks.timeline).toHaveBeenCalledWith(task.id, true);
+  });
+
+  it('does not load a timeline for a closed card or a new task', () => {
+    const view = renderModal();
+    view.rerender(<TaskModal open={false} teamId={7} task={task} existingDepIds={[2]} onClose={vi.fn()}/>);
+    expect(mocks.timeline).toHaveBeenLastCalledWith(task.id, false);
+
+    view.rerender(<TaskModal open teamId={7} task={null} existingDepIds={[]} onClose={vi.fn()}/>);
+    expect(mocks.timeline).toHaveBeenLastCalledWith(null, false);
+    expect(screen.queryByText('Назначения:')).toBeNull();
+  });
+
   it('opens on the main tab and shows the selected dependency count', async () => {
     const view = renderModal();
 
@@ -236,5 +259,7 @@ describe('TaskModal', () => {
     const descriptionLink = screen.getByRole('link', {name: 'https://example.test/description-link'});
     expect(descriptionLink.getAttribute('target')).toBe('_blank');
     expect(descriptionLink.getAttribute('rel')).toContain('noreferrer');
+    expect(screen.getByText('Назначений нет')).not.toBeNull();
+    expect(mocks.timeline).toHaveBeenCalledWith(task.id, true);
   });
 });
