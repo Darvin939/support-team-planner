@@ -7,7 +7,11 @@ import {StatisticsCalendar} from '../components/StatisticsCalendar';
 afterEach(cleanup);
 const props = {
   month: dayjs('2026-10-01'), selectedDay: '2026-10-14',
-  counts: [{date: '2026-10-01', count: 9}, {date: '2026-10-02', count: 10}, {date: '2026-10-03', count: 100}],
+  counts: [
+    {date: '2026-10-01', count: 9}, {date: '2026-10-02', count: 10}, {date: '2026-10-03', count: 100},
+    {date: '2026-10-05', count: 1}, {date: '2026-10-06', count: 2}, {date: '2026-10-07', count: 5},
+    {date: '2026-10-08', count: 11}, {date: '2026-10-09', count: 21},
+  ],
   error: false, fetching: false, onRetry: vi.fn(), onNavigate: vi.fn(), onSelect: vi.fn(),
 };
 describe('StatisticsCalendar', () => {
@@ -19,6 +23,15 @@ describe('StatisticsCalendar', () => {
     expect(screen.queryByText('9+')).toBeNull();
     expect(document.querySelector('[data-date="2026-10-14"]')?.getAttribute('aria-pressed')).toBe('true');
     expect(document.querySelectorAll('[data-date]')).toHaveLength(31);
+  });
+  it('labels positive counts, explains the badge, and hides the zero badge', () => {
+    render(<StatisticsCalendar {...props}/>);
+    expect(screen.getByText('Число в ячейке — количество активных работ за день')).toBeTruthy();
+    for (const label of ['9 работ', '10 работ', '100 работ', '1 работа', '2 работы', '5 работ', '11 работ', '21 работа']) {
+      expect(screen.getByText(label)).toBeTruthy();
+    }
+    expect(screen.queryByText('0 работ')).toBeNull();
+    expect(document.querySelector('[data-date="2026-10-04"] .statistics-calendar-count')?.textContent).toBe('');
   });
   it('keeps days interactive during loading without fabricating zeros', () => {
     const onSelect = vi.fn();

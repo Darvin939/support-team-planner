@@ -18,6 +18,19 @@ interface Props {
   onSelect: (day: string) => void;
 }
 
+function formatWorkCount(count: number): string {
+  const lastTwoDigits = count % 100;
+  const lastDigit = count % 10;
+  const word = lastTwoDigits >= 11 && lastTwoDigits <= 14
+    ? 'работ'
+    : lastDigit === 1
+      ? 'работа'
+      : lastDigit >= 2 && lastDigit <= 4
+        ? 'работы'
+        : 'работ';
+  return `${count} ${word}`;
+}
+
 export function StatisticsCalendar({month, selectedDay, counts, error, fetching, onRetry, onNavigate, onSelect}: Props) {
   const {token} = theme.useToken();
   const byDate = useMemo(() => new Map(counts?.map(item => [item.date, item.count])), [counts]);
@@ -37,8 +50,11 @@ export function StatisticsCalendar({month, selectedDay, counts, error, fetching,
   return (
     <section className="statistics-calendar" style={colors} aria-label="Календарь активных работ">
       <div className="statistics-calendar-toolbar">
-        <div>
+        <div className="statistics-calendar-heading">
           <Typography.Title level={4} style={{margin: 0}}>Активные работы по дням</Typography.Title>
+          <Typography.Text type="secondary" className="statistics-calendar-hint">
+            Число в ячейке — количество активных работ за день
+          </Typography.Text>
         </div>
         <Space wrap>
           <Button aria-label="Предыдущий месяц" icon={<LeftOutlined/>}
@@ -52,7 +68,7 @@ export function StatisticsCalendar({month, selectedDay, counts, error, fetching,
       {error && <Alert type="error" showIcon title="Не удалось загрузить количество работ по датам"
                        action={<Button size="small" onClick={onRetry} loading={fetching}>Повторить</Button>}/>}
       <div className="statistics-calendar-status" role="status">
-        {fetching ? <span className="statistics-loading">{known ? 'Обновление количества работ…' : 'Загрузка количества работ…'}</span> : 'Число работ · выберите день для просмотра'}
+        {fetching ? <span className="statistics-loading">{known ? 'Обновление количества работ…' : 'Загрузка количества работ…'}</span> : 'Выберите день для просмотра'}
       </div>
       <div className="statistics-calendar-grid">
         {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(label =>
@@ -71,7 +87,9 @@ export function StatisticsCalendar({month, selectedDay, counts, error, fetching,
                     aria-label={`${date.locale('ru').format('D MMMM YYYY')}${isToday ? ', сегодня' : ''}: ${count === undefined ? (error ? 'количество недоступно' : 'загрузка количества') : `активных работ — ${count}`}`}
                     onClick={() => onSelect(key)}>
               <span className="statistics-calendar-date">{date.date()}{isToday && <span className="statistics-calendar-today-mark" aria-hidden="true"> •</span>}</span>
-              <span className="statistics-calendar-count" data-empty={count === 0 || undefined} aria-hidden="true">{count ?? '—'}</span>
+              <span className="statistics-calendar-count" aria-hidden="true">
+                {count === undefined ? null : count > 0 ? formatWorkCount(count) : null}
+              </span>
             </button>
           );
         })}
