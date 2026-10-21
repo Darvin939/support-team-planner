@@ -11,7 +11,6 @@ export function usePlanningQueries(options: {
   offset: number;
   pageSize: number;
   search: string;
-  showCompleted: boolean;
   dateFrom: string;
   dateTo: string;
   today: string;
@@ -19,9 +18,7 @@ export function usePlanningQueries(options: {
   freezeDaysPending: boolean;
   freezeDaysError: boolean;
 }) {
-  const tasksQuery = useTasks(
-    options.teamId, options.offset, options.pageSize, options.search, options.showCompleted,
-  );
+  const tasksQuery = useTasks(options.teamId, options.offset, options.pageSize, options.search);
   const taskIds = useMemo(() => tasksQuery.data?.tasks.map((task) => task.id) ?? [], [tasksQuery.data]);
   const queryTaskIds = useMemo(() => stableTaskIdsForPlanningQueries(taskIds), [taskIds]);
   const depsTaskIds = useMemo(

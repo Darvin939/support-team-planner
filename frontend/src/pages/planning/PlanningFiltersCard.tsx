@@ -1,5 +1,5 @@
 import type {Dispatch, SetStateAction} from 'react';
-import {Card, Checkbox, DatePicker, Input, Select, Typography} from 'antd';
+import {Card, DatePicker, Input, Select, Typography} from 'antd';
 import dayjs, {type Dayjs} from 'dayjs';
 import {FilterField, FilterGrid} from '../../components/FilterGrid';
 import {
@@ -10,8 +10,6 @@ import {
   type PsiStatus,
   PSI_STATUS_OPTIONS,
   type Segment,
-  TASK_STATUS_OPTIONS,
-  type TaskStatus
 } from '../../domain/types';
 import {DISPLAY_DATE_FORMAT} from '../../lib/dateFormats';
 import {getPlanningDateRangePresets} from './dateRangePresets';
@@ -28,13 +26,9 @@ export function PlanningFiltersCard(props: {
   setSegmentIds: Dispatch<SetStateAction<number[]>>;
   assignmentStatuses: AssignmentStatus[];
   setAssignmentStatuses: Dispatch<SetStateAction<AssignmentStatus[]>>;
-  taskStatuses: TaskStatus[];
-  setTaskStatuses: Dispatch<SetStateAction<TaskStatus[]>>;
   psiStatuses: PsiStatus[];
   setPsiStatuses: Dispatch<SetStateAction<PsiStatus[]>>;
   segments: Segment[] | undefined;
-  showCompleted: boolean;
-  setShowCompleted: Dispatch<SetStateAction<boolean>>;
 }) {
   const width = props.isMobile ? '100%' : 180;
   const presets = getPlanningDateRangePresets();
@@ -65,21 +59,9 @@ export function PlanningFiltersCard(props: {
           <Select mode="multiple" style={{width}} placeholder="Все" value={props.assignmentStatuses}
             onChange={props.setAssignmentStatuses} options={ASSIGNMENT_STATUS_OPTIONS}/>
         </FilterField>
-        <FilterField label="СТАТУС РАБОТЫ" isMobile={props.isMobile}>
-          <Select mode="multiple" style={{width}} placeholder="Все" value={props.taskStatuses}
-            onChange={props.setTaskStatuses} options={TASK_STATUS_OPTIONS}/>
-        </FilterField>
         <FilterField label="СТАТУС ПСИ" isMobile={props.isMobile}>
           <Select mode="multiple" style={{width}} placeholder="Все" value={props.psiStatuses}
             onChange={props.setPsiStatuses} options={PSI_STATUS_OPTIONS}/>
-        </FilterField>
-        <FilterField isMobile={props.isMobile} mobileSpan="full">
-          <div style={{display: 'flex', alignItems: 'center', height: '100%'}}>
-            <Checkbox checked={props.showCompleted}
-              onChange={(event) => props.setShowCompleted(event.target.checked)}>
-              Завершённые за 30 дней
-            </Checkbox>
-          </div>
         </FilterField>
       </FilterGrid>
     </Card>

@@ -61,7 +61,6 @@ def get_tasks_api(
     offset: int = 0,
     limit: int = 20,
     search: str = '',
-    include_recent_completed: bool = False,
 ):
     require_team_access(request, team_id)
     search_val = search.strip() or None
@@ -70,12 +69,10 @@ def get_tasks_api(
         offset=offset,
         limit=limit,
         search=search_val,
-        include_recent_completed=include_recent_completed,
     )
     total = db.get_tasks_count_by_team(
         team_id,
         search=search_val,
-        include_recent_completed=include_recent_completed,
     )
     return page_result([_task_json(task) for task in tasks], total, 'tasks')
 

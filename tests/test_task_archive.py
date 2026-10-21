@@ -114,15 +114,15 @@ class TaskArchiveApiTest(unittest.TestCase):
         self.assertIsNone(conn.execute('SELECT completed_at FROM tasks WHERE id = 10').fetchone()[0])
         conn.close()
 
-    def test_planning_list_includes_only_active_or_recent_terminal_tasks(self):
+    def test_planning_list_includes_only_active_tasks(self):
         with self.login() as client:
             active = client.get('/api/tasks/1').json()
             self.assertEqual([10], [task['id'] for task in active['tasks']])
-            recent = client.get('/api/tasks/1', params={
-                'include_recent_completed': 'true', 'search': 'alpha', 'offset': 0, 'limit': 10,
+            searched = client.get('/api/tasks/1', params={
+                'search': 'alpha', 'offset': 0, 'limit': 10,
             }).json()
-            self.assertEqual({10, 11}, {task['id'] for task in recent['tasks']})
-            self.assertEqual(2, recent['total'])
+            self.assertEqual([10], [task['id'] for task in searched['tasks']])
+            self.assertEqual(1, searched['total'])
 
     def test_direct_task_endpoint_ignores_age_but_enforces_access_and_missing(self):
         with self.login('limited-archive', 'password123') as client:

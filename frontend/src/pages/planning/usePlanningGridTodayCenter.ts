@@ -5,12 +5,10 @@ interface PlanningGridViewKeyOptions {
   dateFrom: string;
   dateTo: string;
   search: string;
-  showCompleted: boolean;
   page: number;
   pageSize: number;
   criticalities: string[];
   assignmentStatuses: string[];
-  taskStatuses: string[];
   psiStatuses: string[];
   segmentIds: number[];
   taskIds: number[];
@@ -29,12 +27,10 @@ export function createPlanningGridViewKey(options: PlanningGridViewKeyOptions): 
     options.dateFrom,
     options.dateTo,
     options.search,
-    options.showCompleted,
     options.page,
     options.pageSize,
     [...options.criticalities].sort(),
     [...options.assignmentStatuses].sort(),
-    [...options.taskStatuses].sort(),
     [...options.psiStatuses].sort(),
     [...options.segmentIds].sort((a, b) => a - b),
     [...options.taskIds].sort((a, b) => a - b),

@@ -7,15 +7,9 @@ from backend.task_rules import is_terminal_task_status, terminal_task_status_sql
 _PRIORITY_GAP = 1000
 
 
-def _active_task_filter(include_recent_completed, qualified=False):
+def _active_task_filter(qualified=False):
     prefix = 'tasks.' if qualified else ''
     predicate, params = terminal_task_status_sql(f'{prefix}task_status', negated=True)
-    if include_recent_completed:
-        return (
-            f"AND ({predicate} OR "
-            f"({prefix}completed_at IS NOT NULL AND {prefix}completed_at >= datetime('now', '-30 days')))",
-            list(params),
-        )
     return f'AND {predicate}', list(params)
 
 # === TASKS CRUD ===
@@ -36,9 +30,9 @@ def _fuzzy_search_clause(search, name_col='name', description_col='description')
 
 
 @with_db_connection(commit_on_success=False)
-def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, include_recent_completed=False):
+def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None):
     """Получить задачи команды с пагинацией и поиском"""
-    completed_clause, completed_params = _active_task_filter(include_recent_completed, qualified=True)
+    completed_clause, completed_params = _active_task_filter(qualified=True)
     params = [team_id]
     params += completed_params
     search_clause, search_params = _fuzzy_search_clause(search, 'tasks.name', 'tasks.description')
@@ -73,9 +67,9 @@ def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None, include_re
 
 
 @with_db_connection(commit_on_success=False)
-def get_tasks_count_by_team(conn, team_id, search=None, include_recent_completed=False):
+def get_tasks_count_by_team(conn, team_id, search=None):
     """Получить общее количество задач команды (с учётом поиска)"""
-    completed_clause, completed_params = _active_task_filter(include_recent_completed)
+    completed_clause, completed_params = _active_task_filter()
     params = [team_id]
     params += completed_params
     search_clause, search_params = _fuzzy_search_clause(search)

@@ -229,7 +229,7 @@ class ApiModelsContractTest(unittest.TestCase):
 
         task_list = paths['/api/tasks/{team_id}']['get']['parameters']
         self.assertEqual(
-            ['team_id', 'offset', 'limit', 'search', 'include_recent_completed'],
+            ['team_id', 'offset', 'limit', 'search'],
             [parameter['name'] for parameter in task_list],
         )
         journal = paths['/api/journal/{team_id}']['get']['parameters']

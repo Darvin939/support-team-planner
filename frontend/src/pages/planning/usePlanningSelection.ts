@@ -3,7 +3,6 @@ import {useEffect, useState} from 'react';
 export function usePlanningSelection(reset: {
   teamId: number | undefined;
   search: string;
-  showCompleted: boolean;
   page: number;
   pageSize: number;
 }) {
@@ -11,7 +10,7 @@ export function usePlanningSelection(reset: {
 
   useEffect(() => {
     setSelectedAssignmentIds(new Set());
-  }, [reset.teamId, reset.search, reset.showCompleted, reset.page, reset.pageSize]);
+  }, [reset.teamId, reset.search, reset.page, reset.pageSize]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {

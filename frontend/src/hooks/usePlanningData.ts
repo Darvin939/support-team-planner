@@ -15,10 +15,10 @@ export interface AssignmentTimelineItem {
   status: AssignmentStatus;
 }
 
-export function useTasks(teamId: number, offset: number, limit: number, search: string, includeRecentCompleted: boolean) {
+export function useTasks(teamId: number, offset: number, limit: number, search: string) {
   return useQuery<{ tasks: Task[]; total: number }>({
-    queryKey: queryKeys.tasks.list(teamId, offset, limit, search, includeRecentCompleted),
-    queryFn: () => apiGet(buildApiUrl(`/api/tasks/${teamId}`, {offset, limit, search, include_recent_completed: includeRecentCompleted})),
+    queryKey: queryKeys.tasks.list(teamId, offset, limit, search),
+    queryFn: () => apiGet(buildApiUrl(`/api/tasks/${teamId}`, {offset, limit, search})),
     enabled: !!teamId,
   });
 }

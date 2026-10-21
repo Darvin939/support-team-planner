@@ -74,7 +74,6 @@ export function PlanningPage() {
   const [range, handleRangeChange] = useDateRangeFilter(() => [dayjs().subtract(14, 'day'), dayjs().add(14, 'day')]);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search, 500);
-  const [showCompleted, setShowCompleted] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const pagination = usePaginationState(DEFAULT_PAGE_SIZE);
   const {page, pageSize} = pagination;
@@ -94,7 +93,7 @@ export function PlanningPage() {
   });
   const [completionSuggestion, setCompletionSuggestion] = useState<TaskCompletionSuggestion | null>(null);
   const {selectedAssignmentIds, setSelectedAssignmentIds} = usePlanningSelection({
-    teamId, search: debouncedSearch, showCompleted, page, pageSize,
+    teamId, search: debouncedSearch, page, pageSize,
   });
 
   const {
@@ -118,7 +117,7 @@ export function PlanningPage() {
 
   useEffect(() => {
     pagination.reset();
-  }, [teamId, debouncedSearch, showCompleted, pagination.reset]);
+  }, [teamId, debouncedSearch, pagination.reset]);
 
   const dateFrom = range[0].format(API_DATE_FORMAT);
   const dateTo = range[1].format(API_DATE_FORMAT);
@@ -155,7 +154,6 @@ export function PlanningPage() {
     offset: pagination.offset,
     pageSize,
     search: debouncedSearch,
-    showCompleted,
     dateFrom,
     dateTo,
     today,
@@ -203,7 +201,6 @@ export function PlanningPage() {
   const {
     criticalities: critFilter, setCriticalities: setCritFilter,
     assignmentStatuses: statusFilter, setAssignmentStatuses: setStatusFilter,
-    taskStatuses: taskStatusFilter, setTaskStatuses: setTaskStatusFilter,
     psiStatuses: psiStatusFilter, setPsiStatuses: setPsiStatusFilter,
     segmentIds: segmentFilter, setSegmentIds: setSegmentFilter,
     filteredTasks,
@@ -214,12 +211,10 @@ export function PlanningPage() {
     dateFrom,
     dateTo,
     search: debouncedSearch,
-    showCompleted,
     page,
     pageSize,
     criticalities: critFilter,
     assignmentStatuses: statusFilter,
-    taskStatuses: taskStatusFilter,
     psiStatuses: psiStatusFilter,
     segmentIds: segmentFilter,
     taskIds,
@@ -325,13 +320,9 @@ export function PlanningPage() {
         setSegmentIds={setSegmentFilter}
         assignmentStatuses={statusFilter}
         setAssignmentStatuses={setStatusFilter}
-        taskStatuses={taskStatusFilter}
-        setTaskStatuses={setTaskStatusFilter}
         psiStatuses={psiStatusFilter}
         setPsiStatuses={setPsiStatusFilter}
         segments={segments}
-        showCompleted={showCompleted}
-        setShowCompleted={setShowCompleted}
       />
 
       <PlanningStats items={todayActive}/>

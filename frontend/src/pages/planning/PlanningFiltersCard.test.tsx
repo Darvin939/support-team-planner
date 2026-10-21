@@ -20,7 +20,7 @@ beforeAll(() => {
 
 afterEach(cleanup);
 
-describe('PlanningFiltersCard task statuses', () => {
+describe('PlanningFiltersCard filters', () => {
   it('offers the unsuccessful assignment status', () => {
     render(
       <PlanningFiltersCard
@@ -35,52 +35,13 @@ describe('PlanningFiltersCard task statuses', () => {
         setSegmentIds={vi.fn()}
         assignmentStatuses={[]}
         setAssignmentStatuses={vi.fn()}
-        taskStatuses={[]}
-        setTaskStatuses={vi.fn()}
         psiStatuses={[]}
         setPsiStatuses={vi.fn()}
         segments={[]}
-        showCompleted={false}
-        setShowCompleted={vi.fn()}
       />,
     );
     fireEvent.mouseDown(screen.getAllByRole('combobox')[2]);
     expect(screen.getByText('Неуспешно')).toBeTruthy();
-  });
-
-  it('offers only current task statuses', () => {
-    render(
-      <PlanningFiltersCard
-        isMobile={false}
-        range={[dayjs('2026-08-01'), dayjs('2026-08-31')]}
-        onRangeChange={vi.fn()}
-        search=""
-        setSearch={vi.fn()}
-        criticalities={[]}
-        setCriticalities={vi.fn()}
-        segmentIds={[]}
-        setSegmentIds={vi.fn()}
-        assignmentStatuses={[]}
-        setAssignmentStatuses={vi.fn()}
-        taskStatuses={[]}
-        setTaskStatuses={vi.fn()}
-        psiStatuses={[]}
-        setPsiStatuses={vi.fn()}
-        segments={[]}
-        showCompleted={false}
-        setShowCompleted={vi.fn()}
-      />,
-    );
-
-    const selects = screen.getAllByRole('combobox');
-    expect(selects.length).toBe(5);
-    fireEvent.mouseDown(selects[3]);
-
-    expect(screen.getByText('Новый')).toBeTruthy();
-    expect(screen.getByText('Выполнено')).toBeTruthy();
-    expect(screen.getByText('Отменено')).toBeTruthy();
-    expect(screen.queryByText('К планированию')).toBeNull();
-    expect(screen.queryByText('В работе')).toBeNull();
   });
 
   it('offers all PSI statuses', () => {
@@ -97,17 +58,13 @@ describe('PlanningFiltersCard task statuses', () => {
         setSegmentIds={vi.fn()}
         assignmentStatuses={[]}
         setAssignmentStatuses={vi.fn()}
-        taskStatuses={[]}
-        setTaskStatuses={vi.fn()}
         psiStatuses={[]}
         setPsiStatuses={vi.fn()}
         segments={[]}
-        showCompleted={false}
-        setShowCompleted={vi.fn()}
       />,
     );
 
-    fireEvent.mouseDown(screen.getAllByRole('combobox')[4]);
+    fireEvent.mouseDown(screen.getAllByRole('combobox')[3]);
     expect(screen.getByText('Не требуется')).toBeTruthy();
     expect(screen.getByText('Требуется')).toBeTruthy();
     expect(screen.getByText('Пройдено')).toBeTruthy();
@@ -128,13 +85,9 @@ describe('PlanningFiltersCard task statuses', () => {
         setSegmentIds={vi.fn()}
         assignmentStatuses={[]}
         setAssignmentStatuses={vi.fn()}
-        taskStatuses={[]}
-        setTaskStatuses={vi.fn()}
         psiStatuses={[]}
         setPsiStatuses={vi.fn()}
         segments={[]}
-        showCompleted={false}
-        setShowCompleted={vi.fn()}
       />,
     );
 

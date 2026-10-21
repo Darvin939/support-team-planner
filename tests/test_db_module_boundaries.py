@@ -9,7 +9,7 @@ class DatabaseModuleBoundaryTest(unittest.TestCase):
     def test_public_dao_signature_hides_injected_connection(self):
         self.assertEqual([], list(inspect.signature(db.get_all_teams).parameters))
         self.assertEqual(
-            ['team_id', 'offset', 'limit', 'search', 'include_recent_completed'],
+            ['team_id', 'offset', 'limit', 'search'],
             list(inspect.signature(db.get_tasks_by_team).parameters),
         )
 
