@@ -20,6 +20,7 @@ interface DragState {
   insertionIndex: number;
   indicator: HTMLElement | null;
   scroller: HTMLElement | null;
+  pointerY: number;
 }
 
 /**
@@ -35,12 +36,26 @@ interface DragState {
  * который рисуется поверх box-shadow родительского <tr> и перекрывает индикатор везде, кроме
  * зазоров между ячейками.
  */
-export function useTaskRowDrag(options: { onDrop: (newOrder: number[]) => void; color: string }) {
+export function useTaskRowDrag(options: { onDrop: (newOrder: number[]) => void | Promise<unknown>; color: string }) {
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
   useEffect(() => {
     let dragState: DragState | null = null;
+
+    function updateInsertion(state: DragState, pointerY: number) {
+      state.otherRows.forEach((row) => {
+        const rect = row.el.getBoundingClientRect();
+        row.mid = rect.top + rect.height / 2;
+      });
+
+      const idx = state.otherRows.filter((row) => pointerY > row.mid).length;
+      state.insertionIndex = idx;
+
+      const before = idx < state.otherRows.length;
+      const targetRow = before ? state.otherRows[idx] : state.otherRows[state.otherRows.length - 1];
+      if (targetRow) positionIndicator(state, before, targetRow);
+    }
 
     function positionIndicator(state: DragState, before: boolean, row: RowInfo) {
       if (!state.indicator || !state.scroller) return;
@@ -65,8 +80,8 @@ export function useTaskRowDrag(options: { onDrop: (newOrder: number[]) => void; 
 
       dragState = {
         taskId,
-        startX: e.pageX,
-        startY: e.pageY,
+        startX: e.clientX,
+        startY: e.clientY,
         dragStarted: false,
         ghost: null,
         ghostOffsetY: 0,
@@ -76,6 +91,7 @@ export function useTaskRowDrag(options: { onDrop: (newOrder: number[]) => void; 
         insertionIndex: 0,
         indicator: null,
         scroller: document.querySelector<HTMLElement>('[data-planning-grid] .ant-table-body'),
+        pointerY: e.clientY,
       };
     }
 
@@ -83,8 +99,8 @@ export function useTaskRowDrag(options: { onDrop: (newOrder: number[]) => void; 
       if (!dragState) return;
       const state = dragState;
 
-      const dx = e.pageX - state.startX;
-      const dy = e.pageY - state.startY;
+      const dx = e.clientX - state.startX;
+      const dy = e.clientY - state.startY;
 
       if (!state.dragStarted && Math.sqrt(dx * dx + dy * dy) > DRAG_START_THRESHOLD_PX) {
         state.dragStarted = true;
@@ -131,16 +147,18 @@ export function useTaskRowDrag(options: { onDrop: (newOrder: number[]) => void; 
 
       if (!state.dragStarted) return;
 
+      state.pointerY = e.clientY;
+
       if (state.ghost) {
-        state.ghost.style.transform = `translate(${state.handleX}px, ${e.clientY - state.ghostOffsetY}px)`;
+        state.ghost.style.transform = `translate(${state.handleX}px, ${state.pointerY - state.ghostOffsetY}px)`;
       }
 
-      const idx = state.otherRows.filter((r) => e.clientY > r.mid).length;
-      state.insertionIndex = idx;
+      updateInsertion(state, state.pointerY);
+    }
 
-      const before = idx < state.otherRows.length;
-      const targetRow = before ? state.otherRows[idx] : state.otherRows[state.otherRows.length - 1];
-      if (targetRow) positionIndicator(state, before, targetRow);
+    function handleScroll() {
+      if (!dragState?.dragStarted) return;
+      updateInsertion(dragState, dragState.pointerY);
     }
 
     function handleMouseUp() {
@@ -161,18 +179,32 @@ export function useTaskRowDrag(options: { onDrop: (newOrder: number[]) => void; 
       ];
 
       if (JSON.stringify(newOrder) !== JSON.stringify(state.originalOrder)) {
-        optionsRef.current.onDrop(newOrder);
+        const scrollX = window.scrollX;
+        const scrollY = window.scrollY;
+        const tableScrollLeft = state.scroller?.scrollLeft ?? 0;
+        const planningGrid = document.querySelector<HTMLElement>('[data-planning-grid]');
+        const restorePosition = () => {
+          if (!planningGrid?.isConnected) return;
+          window.scrollTo(scrollX, scrollY);
+          if (state.scroller?.isConnected) state.scroller.scrollLeft = tableScrollLeft;
+        };
+
+        Promise.resolve()
+          .then(() => optionsRef.current.onDrop(newOrder))
+          .then(restorePosition, restorePosition);
       }
     }
 
     document.addEventListener('mousedown', handleMouseDown);
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('scroll', handleScroll, true);
 
     return () => {
       document.removeEventListener('mousedown', handleMouseDown);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('scroll', handleScroll, true);
       if (dragState?.ghost) dragState.ghost.remove();
       if (dragState?.indicator) dragState.indicator.remove();
     };

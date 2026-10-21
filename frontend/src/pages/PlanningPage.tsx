@@ -112,7 +112,7 @@ export function PlanningPage() {
   const psiStatusMutation = useTaskPsiStatusMutation();
 
   useTaskRowDrag({
-    onDrop: (newOrder) => reorderMutation.mutate(newOrder),
+    onDrop: (newOrder) => reorderMutation.mutateAsync(newOrder),
     color: token.colorPrimary,
   });
 
