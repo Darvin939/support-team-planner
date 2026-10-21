@@ -37,6 +37,8 @@ describe('PlanningFiltersCard task statuses', () => {
         setAssignmentStatuses={vi.fn()}
         taskStatuses={[]}
         setTaskStatuses={vi.fn()}
+        psiStatuses={[]}
+        setPsiStatuses={vi.fn()}
         segments={[]}
         showCompleted={false}
         setShowCompleted={vi.fn()}
@@ -62,6 +64,8 @@ describe('PlanningFiltersCard task statuses', () => {
         setAssignmentStatuses={vi.fn()}
         taskStatuses={[]}
         setTaskStatuses={vi.fn()}
+        psiStatuses={[]}
+        setPsiStatuses={vi.fn()}
         segments={[]}
         showCompleted={false}
         setShowCompleted={vi.fn()}
@@ -69,7 +73,7 @@ describe('PlanningFiltersCard task statuses', () => {
     );
 
     const selects = screen.getAllByRole('combobox');
-    expect(selects.length).toBe(4);
+    expect(selects.length).toBe(5);
     fireEvent.mouseDown(selects[3]);
 
     expect(screen.getByText('Новый')).toBeTruthy();
@@ -77,6 +81,36 @@ describe('PlanningFiltersCard task statuses', () => {
     expect(screen.getByText('Отменено')).toBeTruthy();
     expect(screen.queryByText('К планированию')).toBeNull();
     expect(screen.queryByText('В работе')).toBeNull();
+  });
+
+  it('offers all PSI statuses', () => {
+    render(
+      <PlanningFiltersCard
+        isMobile={false}
+        range={[dayjs('2026-08-01'), dayjs('2026-08-31')]}
+        onRangeChange={vi.fn()}
+        search=""
+        setSearch={vi.fn()}
+        criticalities={[]}
+        setCriticalities={vi.fn()}
+        segmentIds={[]}
+        setSegmentIds={vi.fn()}
+        assignmentStatuses={[]}
+        setAssignmentStatuses={vi.fn()}
+        taskStatuses={[]}
+        setTaskStatuses={vi.fn()}
+        psiStatuses={[]}
+        setPsiStatuses={vi.fn()}
+        segments={[]}
+        showCompleted={false}
+        setShowCompleted={vi.fn()}
+      />,
+    );
+
+    fireEvent.mouseDown(screen.getAllByRole('combobox')[4]);
+    expect(screen.getByText('Не требуется')).toBeTruthy();
+    expect(screen.getByText('Требуется')).toBeTruthy();
+    expect(screen.getByText('Пройдено')).toBeTruthy();
   });
 
   it('shows planning date presets and applies a selected preset', () => {
@@ -96,6 +130,8 @@ describe('PlanningFiltersCard task statuses', () => {
         setAssignmentStatuses={vi.fn()}
         taskStatuses={[]}
         setTaskStatuses={vi.fn()}
+        psiStatuses={[]}
+        setPsiStatuses={vi.fn()}
         segments={[]}
         showCompleted={false}
         setShowCompleted={vi.fn()}

@@ -204,6 +204,7 @@ export function PlanningPage() {
     criticalities: critFilter, setCriticalities: setCritFilter,
     assignmentStatuses: statusFilter, setAssignmentStatuses: setStatusFilter,
     taskStatuses: taskStatusFilter, setTaskStatuses: setTaskStatusFilter,
+    psiStatuses: psiStatusFilter, setPsiStatuses: setPsiStatusFilter,
     segmentIds: segmentFilter, setSegmentIds: setSegmentFilter,
     filteredTasks,
   } = usePlanningFilters(taskData?.tasks, assignmentsByTask);
@@ -219,6 +220,7 @@ export function PlanningPage() {
     criticalities: critFilter,
     assignmentStatuses: statusFilter,
     taskStatuses: taskStatusFilter,
+    psiStatuses: psiStatusFilter,
     segmentIds: segmentFilter,
     taskIds,
   });
@@ -325,6 +327,8 @@ export function PlanningPage() {
         setAssignmentStatuses={setStatusFilter}
         taskStatuses={taskStatusFilter}
         setTaskStatuses={setTaskStatusFilter}
+        psiStatuses={psiStatusFilter}
+        setPsiStatuses={setPsiStatusFilter}
         segments={segments}
         showCompleted={showCompleted}
         setShowCompleted={setShowCompleted}

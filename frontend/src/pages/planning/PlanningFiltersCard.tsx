@@ -7,6 +7,8 @@ import {
   type AssignmentStatus,
   type Criticality,
   CRITICALITY_OPTIONS,
+  type PsiStatus,
+  PSI_STATUS_OPTIONS,
   type Segment,
   TASK_STATUS_OPTIONS,
   type TaskStatus
@@ -28,6 +30,8 @@ export function PlanningFiltersCard(props: {
   setAssignmentStatuses: Dispatch<SetStateAction<AssignmentStatus[]>>;
   taskStatuses: TaskStatus[];
   setTaskStatuses: Dispatch<SetStateAction<TaskStatus[]>>;
+  psiStatuses: PsiStatus[];
+  setPsiStatuses: Dispatch<SetStateAction<PsiStatus[]>>;
   segments: Segment[] | undefined;
   showCompleted: boolean;
   setShowCompleted: Dispatch<SetStateAction<boolean>>;
@@ -64,6 +68,10 @@ export function PlanningFiltersCard(props: {
         <FilterField label="СТАТУС РАБОТЫ" isMobile={props.isMobile}>
           <Select mode="multiple" style={{width}} placeholder="Все" value={props.taskStatuses}
             onChange={props.setTaskStatuses} options={TASK_STATUS_OPTIONS}/>
+        </FilterField>
+        <FilterField label="СТАТУС ПСИ" isMobile={props.isMobile}>
+          <Select mode="multiple" style={{width}} placeholder="Все" value={props.psiStatuses}
+            onChange={props.setPsiStatuses} options={PSI_STATUS_OPTIONS}/>
         </FilterField>
         <FilterField isMobile={props.isMobile} mobileSpan="full">
           <div style={{display: 'flex', alignItems: 'center', height: '100%'}}>
