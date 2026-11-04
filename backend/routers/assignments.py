@@ -215,11 +215,16 @@ def bulk_save_assignments_api(
             raise HTTPException(status_code=400, detail='Шаблон можно сохранить только для назначений одной работы')
         if not db.get_template_by_id(data.template_id):
             raise HTTPException(status_code=400, detail='Шаблон не найден')
-    with db.composite_transaction():
-        for assignment in data.assignments:
-            _save_assignment(request, current_user, assignment)
-        if data.template_id is not None:
-            db.set_task_completion_template(next(iter(task_ids)), data.template_id)
+    try:
+        with db.composite_transaction():
+            if data.template_id is not None:
+                task_id = next(iter(task_ids))
+                require_task_access(request, task_id)
+                db.validate_bulk_task_template(task_id, data.template_id)
+            for assignment in data.assignments:
+                _save_assignment(request, current_user, assignment)
+    except db.IntegrityConstraintError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {'success': True, 'saved': len(data.assignments)}
 
 

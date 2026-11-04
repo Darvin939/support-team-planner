@@ -60,6 +60,8 @@ class TaskOut(BaseModel):
     psi_status: PsiStatus
     segment_id: int
     segment_name: str
+    completion_template_id: Optional[int] = None
+    completion_template_name: Optional[str] = None
     completed_at: Optional[str] = None
     has_active_assignments: bool
     has_assignments: bool
@@ -202,6 +204,7 @@ class TaskIn(BaseModel):
     criticality: Criticality = "medium"
     psi_status: Optional[PsiStatus] = None
     segment_id: Optional[int] = None
+    completion_template_id: Optional[int] = None
     dependency_ids: Optional[List[int]] = None
 
 

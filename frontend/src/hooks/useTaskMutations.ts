@@ -13,6 +13,7 @@ export interface TaskPayload {
   criticality: Criticality;
   psi_status: PsiStatus;
   segment_id: number;
+  completion_template_id: number | null;
   dependency_ids: number[];
 }
 

@@ -35,5 +35,12 @@ export function invalidateTaskData(
 }
 
 export function invalidateSettingsData(queryClient: QueryClient, queryKey: QueryKey) {
-  return queryClient.invalidateQueries({queryKey});
+  return Promise.all([
+    queryClient.invalidateQueries({queryKey}),
+    ...(['block-templates', 'teams'].includes(String(queryKey[0])) ? [
+      queryClient.invalidateQueries({queryKey: ['team-templates']}),
+      queryClient.invalidateQueries({queryKey: ['team-blocks']}),
+      queryClient.invalidateQueries({queryKey: queryKeys.tasks.all}),
+    ] : []),
+  ]);
 }

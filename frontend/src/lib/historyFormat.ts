@@ -1,5 +1,6 @@
 export const HISTORY_FIELD_LABELS: Record<string, string> = {
   segment_id: 'Сегмент', team_id: 'Команда', task_id: 'Работа',
+  completion_template_id: 'Шаблон раскатки',
   name: 'Название', description: 'Описание', instruction_url: 'Ссылка на инструкцию',
   criticality: 'Критичность', priority: 'Приоритет', task_status: 'Статус',
   date: 'Дата', block: 'Блок', status: 'Статус',

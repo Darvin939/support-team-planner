@@ -1,6 +1,6 @@
-import {useEffect, useState} from 'react';
-import {Button, Checkbox, Form, Input, Modal, Popconfirm, Select, Space, Tabs, theme} from 'antd';
-import {useActiveTasksList, useTaskAssignmentTimeline} from '../../hooks/usePlanningData';
+import {type CSSProperties, useEffect, useState} from 'react';
+import {Button, Card, Checkbox, Form, Input, Modal, Popconfirm, Select, Space, Tabs, theme} from 'antd';
+import {useActiveTasksList, useTaskAssignmentTimeline, useTeamTemplates} from '../../hooks/usePlanningData';
 import {useMe} from '../../hooks/useMe';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import {useSegments} from '../../hooks/useSettingsData';
@@ -24,6 +24,7 @@ interface TaskFormValues {
   instruction_url: string;
   criticality: Criticality;
   segment_id: number;
+  completion_template_id: number | null;
   psi_required: boolean;
 }
 
@@ -52,6 +53,16 @@ export function TaskModal({
     isLoading: depsLoading
   } = useActiveTasksList(teamId, depSearch ? debouncedDepSearch : '', existingDepIds);
   const {data: segments} = useSegments();
+  const templatesQuery = useTeamTemplates(teamId);
+  const selectedSegment = Form.useWatch('segment_id', form);
+  const templates = templatesQuery.data?.filter((t) => t.segment_id === selectedSegment) ?? [];
+  const templateOptions = templates.map((t) => ({value: t.id, label: t.name}));
+  if (task?.completion_template_id && !templates.some((t) => t.id === task.completion_template_id)
+      && selectedSegment === task.segment_id) {
+    templateOptions.push({value: task.completion_template_id,
+      label: task.completion_template_name ?? `Шаблон #${task.completion_template_id}`});
+  }
+  const configurationLocked = !!task?.has_assignments;
   const isTerminal = task ? task.task_status === 'done' || task.task_status === 'cancelled' : false;
   const {data: me} = useMe();
   const isUser = me?.role === 'user';
@@ -59,21 +70,29 @@ export function TaskModal({
   const assignmentTimeline = useTaskAssignmentTimeline(task?.id ?? null, open && !!task);
   const isMobile = useIsMobile();
   const {token} = theme.useToken();
+  const parameterGridStyle: CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))',
+    columnGap: 16,
+    rowGap: isMobile ? 12 : 0,
+  };
 
   useEffect(() => {
     if (!open) return;
+    form.resetFields();
     form.setFieldsValue({
       name: task?.name ?? '',
       description: task?.description ?? '',
       instruction_url: task?.instruction_url ?? '',
       criticality: task?.criticality ?? 'medium',
-      segment_id: task?.segment_id ?? segments?.[0]?.id,
+      segment_id: task?.segment_id,
+      completion_template_id: task?.completion_template_id ?? null,
       psi_required: task?.psi_status === 'required' || task?.psi_status === 'passed',
     });
     setDepIds(new Set(existingDepIds));
     setDepSearch('');
     setActiveTab('main');
-  }, [open, task, existingDepIds, form, segments]);
+  }, [open, task, existingDepIds, form]);
 
   const saveMutation = useSaveTaskMutation(onClose);
   const deleteMutation = useDeleteTaskMutation(task?.id, onClose);
@@ -95,6 +114,7 @@ export function TaskModal({
       criticality: values.criticality,
       psi_status: psiStatus,
       segment_id: values.segment_id,
+      completion_template_id: values.completion_template_id ?? null,
       dependency_ids: [...depIds],
     });
   }
@@ -200,6 +220,7 @@ export function TaskModal({
               <div>
                 <strong>Сегмент:</strong> {task?.segment_name}
               </div>
+              <div><strong>Шаблон раскатки:</strong> {task?.completion_template_name ?? 'Не указан'}</div>
               <div>
                 <strong>ПСИ:</strong> {task ? PSI_STATUS_LABELS[task.psi_status] : ''}
               </div>
@@ -250,26 +271,46 @@ export function TaskModal({
                       >
                         <Input type="url" placeholder="https://example.com/instruction"/>
                       </Form.Item>
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))',
-                        columnGap: 16,
-                      }}>
-                        <Form.Item name="criticality" label="Критичность"
+                      <Card size="small" role="group" aria-label="Параметры работы"
+                            styles={{body: {padding: 8}}} style={{marginBottom: 8}}>
+                        <div style={parameterGridStyle}>
+                        <Form.Item name="criticality" label="Критичность" style={{marginBottom: 0}}
                                    rules={[{required: true, message: 'Выберите критичность'}]}>
                           <Select
                             options={CRITICALITY_OPTIONS}
                           />
                         </Form.Item>
-                        <Form.Item name="segment_id" label="Сегмент"
+                        <Form.Item name="psi_required" valuePropName="checked"
+                                   style={{marginBottom: 0, alignSelf: 'end'}}>
+                          <Checkbox disabled={task?.has_active_assignments} style={{minHeight: 32, alignItems: 'center'}}>
+                            Требуется ПСИ
+                          </Checkbox>
+                        </Form.Item>
+                        </div>
+                      </Card>
+                      <Card size="small" role="group" aria-label="Параметры раскатки"
+                            styles={{body: {padding: 8}}} style={{marginBottom: 16}}>
+                        <div style={parameterGridStyle}>
+                        <Form.Item name="segment_id" label="Сегмент" style={{marginBottom: 0}}
                                    rules={[{required: true, message: 'Выберите сегмент'}]}>
                           <Select placeholder="Выберите сегмент"
+                                  disabled={configurationLocked}
+                                  onChange={() => form.setFieldValue('completion_template_id', null)}
                                   options={segments?.map((s) => ({value: s.id, label: s.name}))}/>
                         </Form.Item>
-                        <Form.Item name="psi_required" valuePropName="checked">
-                          <Checkbox disabled={task?.has_active_assignments}>Требуется ПСИ</Checkbox>
+                        <Form.Item name="completion_template_id" label="Шаблон раскатки" style={{marginBottom: 0}}
+                                   rules={[{required: !task || !!task.completion_template_id
+                                     || selectedSegment !== task.segment_id, message: 'Выберите шаблон раскатки'}]}
+                                   extra={templatesQuery.isError ? 'Не удалось загрузить шаблоны. Повторите открытие формы.'
+                                     : !templatesQuery.isLoading && selectedSegment && templates.length === 0
+                                       ? 'Для команды в этом сегменте нет доступных шаблонов' : undefined}>
+                          <Select placeholder="Выберите шаблон раскатки" loading={templatesQuery.isLoading}
+                                  disabled={!selectedSegment || templatesQuery.isError
+                                    || (configurationLocked && !!task?.completion_template_id)}
+                                  options={templateOptions}/>
                         </Form.Item>
-                      </div>
+                        </div>
+                      </Card>
                       {task && (
                         <div>
                           <div style={{marginBottom: 8}}><strong>Назначения:</strong></div>

@@ -1,4 +1,4 @@
-import {type CSSProperties, useEffect, useMemo, useState} from 'react';
+import {type CSSProperties, useEffect, useState} from 'react';
 import {
   Alert,
   App as AntApp,
@@ -229,23 +229,23 @@ export function AssignmentModal({
   const [form] = Form.useForm<AssignmentFormValues>();
   const {modal} = AntApp.useApp();
   const isMobile = useIsMobile();
-  const {token} = theme.useToken();
   const {data: teamBlocks} = useTeamBlocks(teamId, task?.segment_id);
   const {data: users} = useTeamAssignees(teamId);
-  const {data: allTeamTemplates} = useTeamTemplates(teamId);
-  // Шаблоны команды сужаются до сегмента задачи — назначение/автопланирование должно предлагать
-  // только шаблоны, относящиеся к тому же сегменту работ, что и сама задача (см. design.md).
-  // useMemo сохраняет стабильную ссылку на массив между рендерами (иначе .filter() создавал бы
-  // новый массив каждый раз, что зациклило бы recomputeSchedule-эффект ниже через его deps).
-  const templates = useMemo(
-    () => allTeamTemplates?.filter((t) => t.segment_id === task?.segment_id),
-    [allTeamTemplates, task?.segment_id]
+  const templatesQuery = useTeamTemplates(teamId);
+  const selectedTemplate = templatesQuery.data?.find(
+    (t) => t.id === task?.completion_template_id && t.segment_id === task?.segment_id,
   );
+  const autoAssignUnavailable = templatesQuery.isLoading ? 'Загрузка шаблона раскатки…'
+    : templatesQuery.isError ? 'Не удалось загрузить шаблон раскатки'
+      : !task?.completion_template_id ? 'Укажите шаблон раскатки в работе для автоназначения'
+        : !selectedTemplate ? 'Шаблон работы недоступен команде или не соответствует сегменту'
+          : !selectedTemplate.blocks.length ? 'В шаблоне работы нет блоков' : null;
 
   const {
-    autoAssignEnabled, selectedTemplateId, autoAssignDates, autoAssignSelected, watchedDate,
-    setSelectedTemplateId, setAutoAssignDates, setAutoAssignSelected, recomputeSchedule, handleAutoAssignToggle,
-  } = useAssignmentModalState({open, assignment, date, teamBlocks, templates, freezeDays, form});
+    autoAssignEnabled, autoAssignDates, autoAssignSelected, watchedDate,
+    setAutoAssignDates, setAutoAssignSelected, handleAutoAssignToggle,
+  } = useAssignmentModalState({open, taskId: task?.id, assignment, date, teamBlocks,
+    template: selectedTemplate, freezeDays, form});
 
   const saveMutation = useSaveAssignmentMutation({
     includeTasks: true,
@@ -284,8 +284,8 @@ export function AssignmentModal({
 
   async function saveAutoAssignments(values: AssignmentFormValues) {
     if (!task) return;
-    if (!selectedTemplateId) return message.error('Выберите шаблон для автоназначения');
-    const blocks = templates?.find((template) => template.id === selectedTemplateId)?.blocks ?? [];
+    if (autoAssignUnavailable) return message.error(autoAssignUnavailable);
+    const blocks = selectedTemplate?.blocks ?? [];
     if (blocks.length === 0) return message.error('В выбранном шаблоне нет блоков');
 
     const groups: Record<string, string[]> = {};
@@ -326,7 +326,7 @@ export function AssignmentModal({
         time_spent: !timeSpent || timeSpent === '00:00' ? null : timeSpent,
       };
     });
-    autoSaveMutation.mutate({assignments, templateId: selectedTemplateId});
+    autoSaveMutation.mutate({assignments});
   }
 
   const deleteMutation = useDeleteAssignmentMutation({
@@ -334,7 +334,6 @@ export function AssignmentModal({
     onSuccess: onClose,
   });
 
-  const autoAssignMissingTemplate = autoAssignEnabled && !selectedTemplateId;
   const isTerminal = task ? task.task_status === 'done' || task.task_status === 'cancelled' : false;
   const psiBlocked = task?.psi_status === 'required';
   const {data: me} = useMe();
@@ -348,7 +347,7 @@ export function AssignmentModal({
     if (open) setActiveTab('assignment');
   }, [open, assignment?.id]);
   const isSaving = saveMutation.isPending || autoSaveMutation.isPending;
-  const selectedTemplateBlocks = templates?.find((t) => t.id === selectedTemplateId)?.blocks ?? [];
+  const selectedTemplateBlocks = selectedTemplate?.blocks ?? [];
 
   // Только пользователи с is_assignee могут быть исполнителями — но если у назначения уже стоит
   // пользователь, у которого этот флаг с тех пор сняли, оставляем его в списке, иначе выбор
@@ -385,8 +384,10 @@ export function AssignmentModal({
 
           <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16}}>
             <span>Автоназначение</span>
-            <Switch checked={autoAssignEnabled} onChange={handleAutoAssignToggle} disabled={psiPlanningBlocked}/>
+            <Switch aria-label="Автоназначение" checked={autoAssignEnabled} onChange={handleAutoAssignToggle}
+                    disabled={psiPlanningBlocked || !!autoAssignUnavailable}/>
           </div>
+          {autoAssignUnavailable && <Alert type="info" title={autoAssignUnavailable} style={{marginBottom: 16}}/>}
 
           {!autoAssignEnabled && (
             <Form.Item name="block_ids" label="Блок">
@@ -398,26 +399,7 @@ export function AssignmentModal({
 
           {autoAssignEnabled && (
             <div style={{marginBottom: 16}}>
-              <div style={{marginBottom: 8}}>
-                <div style={{fontSize: '0.8rem', marginBottom: 4}}>Автораспределение по графику</div>
-                <Select
-                  style={{width: '100%'}}
-                  status={autoAssignMissingTemplate ? 'error' : undefined}
-                  showSearch={{optionFilterProp: 'label'}}
-                  placeholder="— выберите шаблон —"
-                  value={selectedTemplateId ?? undefined}
-                  onChange={(v) => {
-                    setSelectedTemplateId(v);
-                    setAutoAssignSelected(null);
-                    recomputeSchedule(v, (watchedDate ?? dayjs()).format(API_DATE_FORMAT));
-                  }}
-                  options={templates?.map((t) => ({value: t.id, label: t.name}))}
-                />
-                {autoAssignMissingTemplate && (
-                  <div style={{color: token.colorError, fontSize: '0.75rem', marginTop: 4}}>Выберите график раскатки</div>
-                )}
-              </div>
-              {selectedTemplateId && watchedDate && (
+              {selectedTemplate && !autoAssignUnavailable && watchedDate && (
                 <>
                   <AutoScheduleGrid
                     templateBlocks={selectedTemplateBlocks}
@@ -477,7 +459,7 @@ export function AssignmentModal({
           )}
           {!readOnly && (
             <Button type="primary" onClick={() => form.submit()} loading={isSaving}
-                    disabled={autoAssignMissingTemplate}>
+                    disabled={autoAssignEnabled && !!autoAssignUnavailable}>
               {assignment ? 'Обновить' : 'Создать'}
             </Button>
           )}

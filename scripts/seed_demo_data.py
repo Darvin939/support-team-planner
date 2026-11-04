@@ -213,6 +213,7 @@ def create_tasks_and_assignments(team_ids, segment_ids, template_ids, users, ass
             if local_index == 0:
                 task_status = 'new'
                 psi_status = 'passed'
+            selected_template_id = random.choice(template_ids[segment_name])
             task_id = db.create_or_update_task(
                 None,
                 team_id,
@@ -221,6 +222,7 @@ def create_tasks_and_assignments(team_ids, segment_ids, template_ids, users, ass
                 criticality=random.choice(['high', 'medium', 'low']),
                 psi_status=psi_status,
                 segment_id=segment_ids[segment_name],
+                completion_template_id=selected_template_id,
                 changed_by=random.choice(changed_by_ids),
             )
             team_tasks.append(task_id)
@@ -228,10 +230,6 @@ def create_tasks_and_assignments(team_ids, segment_ids, template_ids, users, ass
 
             if task_status != 'new':
                 db.update_task_status(task_id, task_status, changed_by=random.choice(changed_by_ids))
-
-            selected_template_id = random.choice(template_ids[segment_name])
-            if local_index == 0 or global_task_number % 4 == 0:
-                db.set_task_completion_template(task_id, selected_template_id)
 
             # От нуля до восьми назначений, даты уникальны в пределах работы.
             if psi_status == 'required':

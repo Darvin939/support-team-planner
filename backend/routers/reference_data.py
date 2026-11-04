@@ -68,7 +68,10 @@ def update_template_api(template_id: int, data: BlockTemplateIn):
 
 @router.delete('/api/block-templates/{template_id}', dependencies=[Depends(require_editor)])
 def delete_template_api(template_id: int):
-    db.delete_template(template_id)
+    try:
+        db.delete_template(template_id)
+    except db.IntegrityConstraintError as exc:
+        return JSONResponse({'error': str(exc)}, status_code=400)
     return {'success': True}
 
 

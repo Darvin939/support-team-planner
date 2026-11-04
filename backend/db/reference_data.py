@@ -162,7 +162,11 @@ def create_template(conn, name, segment_id, entries=None):
 
 @with_db_connection()
 def update_template(conn, template_id, name, segment_id, entries=None):
-    """Обновить шаблон и его блоки"""
+    """Обновить шаблон и его блоки, сохраняя сегмент связанных работ."""
+    _backend.begin_write(conn)
+    existing = conn.execute('SELECT segment_id FROM block_templates WHERE id = ?', (template_id,)).fetchone()
+    if existing and existing['segment_id'] != segment_id:
+        _check_template_unused(conn, template_id)
     try:
         conn.execute(
             'UPDATE block_templates SET name = ?, segment_id = ? WHERE id = ?', (name.strip(), segment_id, template_id)
@@ -176,4 +180,11 @@ def update_template(conn, template_id, name, segment_id, entries=None):
 def delete_template(conn, template_id):
     """Удалить шаблон (записи template_blocks и team_templates удаляются каскадно — оба ON DELETE
     CASCADE на template_id, поэтому физически не может нарушить внешний ключ)"""
+    _backend.begin_write(conn)
+    _check_template_unused(conn, template_id)
     conn.execute('DELETE FROM block_templates WHERE id = ?', (template_id,))
+
+
+def _check_template_unused(conn, template_id):
+    if conn.execute('SELECT 1 FROM tasks WHERE completion_template_id = ? LIMIT 1', (template_id,)).fetchone():
+        raise IntegrityConstraintError('Шаблон используется работами: удаление и смена сегмента запрещены')

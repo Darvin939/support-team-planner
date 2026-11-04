@@ -163,6 +163,10 @@ export function PlanningPage() {
   });
   const {assignmentByKey, assignmentById, assignmentsByTask, depsByTask} =
     usePlanningLookups(assignments, deps);
+  const taskModalDepIds = useMemo(
+    () => (deps ?? []).filter((dep) => dep.task_id === taskModal.task?.id).map((dep) => dep.dep_id),
+    [deps, taskModal.task?.id],
+  );
   const {highlightedTaskId, highlightRevision, highlightTask} = useTaskRowHighlight();
 
   const {
@@ -383,8 +387,8 @@ export function PlanningPage() {
       <TaskModal
         open={taskModal.open}
         teamId={teamId}
-        task={taskModal.task}
-        existingDepIds={taskModal.task ? (depsByTask.get(taskModal.task.id) ?? []).map((d) => d.dep_id) : []}
+        task={taskData?.tasks.find((t) => t.id === taskModal.task?.id) ?? taskModal.task}
+        existingDepIds={taskModalDepIds}
         onClose={() => setTaskModal({open: false, task: null})}
       />
       <TaskArchiveModal open={archiveOpen} teamId={teamId} canRestore={!isUser}
@@ -392,7 +396,7 @@ export function PlanningPage() {
       <AssignmentModal
         open={assignmentModal.open}
         teamId={teamId}
-        task={assignmentModal.task}
+        task={taskData?.tasks.find((t) => t.id === assignmentModal.task?.id) ?? assignmentModal.task}
         date={assignmentModal.date}
         assignment={assignmentModal.assignment}
         taskAssignments={assignmentModal.task ? (assignmentsByTask.get(assignmentModal.task.id) ?? jumpAssignments ?? []) : []}

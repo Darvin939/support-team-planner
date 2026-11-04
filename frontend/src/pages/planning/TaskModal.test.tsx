@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import {afterEach, beforeAll, describe, expect, it, vi} from 'vitest';
-import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import type {Task} from '../../domain/types';
 import {TaskModal} from './TaskModal';
 
@@ -24,10 +24,13 @@ const mocks = vi.hoisted(() => ({
       task_status: 'new',
     },
   ],
-  segments: [{id: 10, name: 'Основной сегмент'}],
+  segments: [{id: 10, name: 'Основной сегмент'}, {id: 11, name: 'Второй сегмент'}],
+  templates: [{id: 20, name: 'Основная раскатка', segment_id: 10, blocks: []},
+    {id: 21, name: 'Другая раскатка', segment_id: 11, blocks: []}],
 }));
 
 vi.mock('../../hooks/usePlanningData', () => ({
+  useTeamTemplates: () => ({data: mocks.templates, isLoading: false, isError: false}),
   useActiveTasksList: () => ({
     data: mocks.activeTasks,
     isLoading: false,
@@ -90,6 +93,8 @@ const task: Task = {
   psi_status: 'not_required',
   segment_id: 10,
   segment_name: 'Основной сегмент',
+  completion_template_id: 20,
+  completion_template_name: 'Основная раскатка',
   completed_at: null,
   has_active_assignments: false,
   has_assignments: false,
@@ -102,6 +107,96 @@ function renderModal(existingDepIds = [2], modalTask: Task = task) {
 }
 
 describe('TaskModal', () => {
+  it('clears validation errors when reopening an untouched empty form and validates again on submit', async () => {
+    const dependencies: number[] = [];
+    const onClose = vi.fn();
+    const view = render(<TaskModal open teamId={7} task={null} existingDepIds={dependencies} onClose={onClose}/>);
+    fireEvent.click(screen.getByRole('button', {name: 'Создать'}));
+    expect(await screen.findByText('Введите имя', {selector: '.ant-form-item-explain-error'})).not.toBeNull();
+    expect(document.querySelectorAll('.ant-form-item-has-error').length).toBeGreaterThan(0);
+
+    view.rerender(<TaskModal open={false} teamId={7} task={null} existingDepIds={dependencies} onClose={onClose}/>);
+    view.rerender(<TaskModal open teamId={7} task={null} existingDepIds={dependencies} onClose={onClose}/>);
+    await waitFor(() => expect(document.querySelectorAll('.ant-form-item-has-error').length).toBe(0));
+    expect((screen.getByRole('textbox', {name: 'Имя'}) as HTMLInputElement).value).toBe('');
+    expect((screen.getByRole('combobox', {name: 'Сегмент'}) as HTMLInputElement).value).toBe('');
+    expect(mocks.save).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', {name: 'Создать'}));
+    expect(await screen.findByText('Введите имя', {selector: '.ant-form-item-explain-error'})).not.toBeNull();
+    expect(mocks.save).not.toHaveBeenCalled();
+  });
+
+  it('groups criticality with PSI and segment with template without extra headings', () => {
+    renderModal([]);
+    const parameters = screen.getByRole('group', {name: 'Параметры работы'});
+    const rollout = screen.getByRole('group', {name: 'Параметры раскатки'});
+    expect(within(parameters).getByRole('combobox', {name: 'Критичность'})).not.toBeNull();
+    expect(within(parameters).getByRole('checkbox', {name: 'Требуется ПСИ'})).not.toBeNull();
+    expect(within(parameters).queryByRole('combobox', {name: 'Сегмент'})).toBeNull();
+    expect(within(rollout).getByRole('combobox', {name: 'Сегмент'})).not.toBeNull();
+    expect(within(rollout).getByRole('combobox', {name: 'Шаблон раскатки'})).not.toBeNull();
+    expect(parameters.compareDocumentPosition(rollout) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(parameters).queryByRole('heading')).toBeNull();
+    expect(within(rollout).queryByRole('heading')).toBeNull();
+  });
+
+  it('clears the previous template when the segment changes and saves the new pair', async () => {
+    renderModal([]);
+    const segment = screen.getByRole('combobox', {name: 'Сегмент'});
+    fireEvent.mouseDown(segment.closest('.ant-select')!.querySelector('.ant-select-content')!);
+    fireEvent.click(await screen.findByText('Второй сегмент', {selector: '.ant-select-item-option-content'}));
+    fireEvent.click(screen.getByRole('button', {name: 'Обновить'}));
+    expect(await screen.findByText('Выберите шаблон раскатки', {selector: '.ant-form-item-explain-error'})).not.toBeNull();
+    expect(mocks.save).not.toHaveBeenCalled();
+    const template = screen.getByRole('combobox', {name: 'Шаблон раскатки'});
+    fireEvent.mouseDown(template.closest('.ant-select')!.querySelector('.ant-select-content')!);
+    fireEvent.click(await screen.findByText('Другая раскатка', {selector: '.ant-select-item-option-content'}));
+    fireEvent.click(screen.getByRole('button', {name: 'Обновить'}));
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({
+      segment_id: 11, completion_template_id: 21,
+    })));
+  });
+
+  it('requires an explicit segment and template for a new task and submits the selection', async () => {
+    render(<TaskModal open teamId={7} task={null} existingDepIds={[]} onClose={vi.fn()}/>);
+    const segment = screen.getByRole('combobox', {name: 'Сегмент'}) as HTMLInputElement;
+    const template = screen.getByRole('combobox', {name: 'Шаблон раскатки'}) as HTMLInputElement;
+    expect(segment.value).toBe('');
+    expect(template.disabled).toBe(true);
+    fireEvent.change(screen.getByRole('textbox', {name: 'Имя'}), {target: {value: 'Новая работа'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Создать'}));
+    expect(await screen.findByText('Выберите сегмент', {selector: '.ant-form-item-explain-error'})).not.toBeNull();
+    expect(mocks.save).not.toHaveBeenCalled();
+    fireEvent.mouseDown(segment.closest('.ant-select')!.querySelector('.ant-select-content')!);
+    fireEvent.click(await screen.findByText('Основной сегмент', {selector: '.ant-select-item-option-content'}));
+    await waitFor(() => expect(template.disabled).toBe(false));
+    fireEvent.mouseDown(template.closest('.ant-select')!.querySelector('.ant-select-content')!);
+    expect(screen.queryByText('Другая раскатка', {selector: '.ant-select-item-option-content'})).toBeNull();
+    fireEvent.click(await screen.findByText('Основная раскатка', {selector: '.ant-select-item-option-content'}));
+    fireEvent.click(screen.getByRole('button', {name: 'Создать'}));
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Новая работа', segment_id: 10, completion_template_id: 20,
+    })));
+  });
+
+  it('locks segment and template for any assignments and unlocks when none remain', async () => {
+    const view = renderModal([], {...task, has_assignments: true});
+    expect((screen.getByRole('combobox', {name: 'Сегмент'}) as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByRole('combobox', {name: 'Шаблон раскатки'}) as HTMLInputElement).disabled).toBe(true);
+    view.rerender(<TaskModal open teamId={7} task={task} existingDepIds={[]} onClose={vi.fn()}/>);
+    expect((screen.getByRole('combobox', {name: 'Сегмент'}) as HTMLInputElement).disabled).toBe(false);
+    await waitFor(() => expect((screen.getByRole('combobox', {name: 'Шаблон раскатки'}) as HTMLInputElement).disabled).toBe(false));
+  });
+
+  it('allows initial template selection for a legacy task with assignments and other edits without it', async () => {
+    renderModal([], {...task, completion_template_id: null, completion_template_name: null, has_assignments: true});
+    expect((screen.getByRole('combobox', {name: 'Сегмент'}) as HTMLInputElement).disabled).toBe(true);
+    await waitFor(() => expect((screen.getByRole('combobox', {name: 'Шаблон раскатки'}) as HTMLInputElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole('button', {name: 'Обновить'}));
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({completion_template_id: null})));
+  });
+
   it('shows the assignment timeline for an active task in the main tab', () => {
     mocks.timelineData = [{date: '2026-09-01', block: 'Анализ', status: 'success'}];
     renderModal();
@@ -167,6 +262,7 @@ describe('TaskModal', () => {
         criticality: 'medium',
         psi_status: 'not_required',
         segment_id: 10,
+        completion_template_id: 20,
         dependency_ids: [3],
       });
     });

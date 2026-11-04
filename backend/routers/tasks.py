@@ -48,6 +48,8 @@ def _task_json(task):
         'psi_status': task['psi_status'],
         'segment_id': task['segment_id'],
         'segment_name': task['segment_name'],
+        'completion_template_id': task['completion_template_id'],
+        'completion_template_name': task['completion_template_name'],
         'completed_at': task['completed_at'],
         'has_active_assignments': bool(task['has_active_assignments']),
         'has_assignments': bool(task['has_assignments']),
@@ -175,6 +177,9 @@ def save_task_api(request: Request, data: TaskIn, current_user: CurrentUser = De
             return psi_error
     try:
         with db.composite_transaction():
+            template_kwargs = {}
+            if not data.task_id or 'completion_template_id' in data.model_fields_set:
+                template_kwargs['completion_template_id'] = data.completion_template_id
             task_id = int(
                 db.create_or_update_task(
                     data.task_id,
@@ -186,6 +191,7 @@ def save_task_api(request: Request, data: TaskIn, current_user: CurrentUser = De
                     segment_id=data.segment_id,
                     changed_by=current_user.id,
                     instruction_url=instruction_url,
+                    **template_kwargs,
                 )
             )
             if data.dependency_ids is not None:
@@ -194,6 +200,8 @@ def save_task_api(request: Request, data: TaskIn, current_user: CurrentUser = De
                 db.set_task_dependencies(task_id, data.dependency_ids)
     except TaskDependencyCycleError:
         return JSONResponse({'error': 'Обнаружена циклическая зависимость'}, status_code=400)
+    except db.IntegrityConstraintError as error:
+        return JSONResponse({'error': str(error)}, status_code=400)
     return {'id': task_id, 'success': True}
 
 

@@ -75,8 +75,8 @@ export function useDeleteAssignmentMutation(options: MutationOptions = {}) {
 export function useBulkSaveAssignmentsMutation(options: MutationOptions<{saved: number}> = {}) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({assignments, templateId}: {assignments: AssignmentPayload[]; templateId?: number | null}) =>
-      apiMutate('/api/assignments/bulk', 'POST', {assignments, template_id: templateId})
+    mutationFn: ({assignments}: {assignments: AssignmentPayload[]}) =>
+      apiMutate('/api/assignments/bulk', 'POST', {assignments})
         .then(() => ({saved: assignments.length})),
     onSuccess: (result) => {
       invalidateAssignmentData(queryClient, options.includeTasks);

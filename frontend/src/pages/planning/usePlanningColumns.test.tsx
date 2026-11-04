@@ -56,6 +56,8 @@ const planningTask: Task = {
   psi_status: 'required',
   segment_id: 1,
   segment_name: 'Основной',
+  completion_template_id: null,
+  completion_template_name: null,
   completed_at: null,
   has_active_assignments: false,
   has_assignments: false,

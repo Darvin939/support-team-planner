@@ -9,17 +9,17 @@ const tasks: Task[] = [
   {
     id: 1, name: 'Не требуется', description: null, instruction_url: null, criticality: 'low',
     task_status: 'new', psi_status: 'not_required', segment_id: 1, segment_name: 'A', completed_at: null,
-    has_active_assignments: false, has_assignments: false,
+    has_active_assignments: false, has_assignments: false, completion_template_id: null, completion_template_name: null,
   },
   {
     id: 2, name: 'Требуется', description: null, instruction_url: null, criticality: 'low',
     task_status: 'new', psi_status: 'required', segment_id: 1, segment_name: 'A', completed_at: null,
-    has_active_assignments: false, has_assignments: false,
+    has_active_assignments: false, has_assignments: false, completion_template_id: null, completion_template_name: null,
   },
   {
     id: 3, name: 'Пройдено', description: null, instruction_url: null, criticality: 'low',
     task_status: 'new', psi_status: 'passed', segment_id: 1, segment_name: 'A', completed_at: null,
-    has_active_assignments: false, has_assignments: false,
+    has_active_assignments: false, has_assignments: false, completion_template_id: null, completion_template_name: null,
   },
 ];
 

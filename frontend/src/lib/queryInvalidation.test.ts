@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from 'vitest';
 import type {QueryClient} from '@tanstack/react-query';
-import {invalidateAssignmentData, invalidateTaskData, invalidateTaskDependencies} from './queryInvalidation';
+import {invalidateAssignmentData, invalidateSettingsData, invalidateTaskData, invalidateTaskDependencies} from './queryInvalidation';
 import {queryKeys} from './queryKeys';
 
 function client() {
@@ -8,6 +8,13 @@ function client() {
 }
 
 describe('query invalidation policies', () => {
+  it.each([queryKeys.blockTemplates, queryKeys.teams])('refreshes task configuration after directory changes %s', async (...key) => {
+    const queryClient = client();
+    await invalidateSettingsData(queryClient, key);
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({queryKey: ['team-templates']});
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({queryKey: ['team-blocks']});
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({queryKey: queryKeys.tasks.all});
+  });
   it('invalidates task roots and optional consumers', async () => {
     const queryClient = client();
     await invalidateTaskData(queryClient, {activeAssignments: true, dependencies: true});

@@ -42,6 +42,10 @@ def sqlite_migrations() -> tuple[Migration, ...]:
 
 class SQLiteBackend(DBBackend):
 
+    def begin_write(self, conn) -> None:
+        if not conn.in_transaction:
+            conn.execute('BEGIN IMMEDIATE')
+
     def connect(self):
         # check_same_thread=False: с request-scoped переиспользованием соединения (db_connection_
         # per_request в support_planner.py) одно и то же соединение открывается в потоке event loop

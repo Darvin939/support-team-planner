@@ -14,6 +14,8 @@ export interface Task {
   psi_status: PsiStatus;
   segment_id: number;
   segment_name: string;
+  completion_template_id: number | null;
+  completion_template_name: string | null;
   completed_at: string | null;
   has_active_assignments: boolean;
   has_assignments: boolean;

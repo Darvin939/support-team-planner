@@ -4,6 +4,10 @@ from abc import ABC, abstractmethod
 class DBBackend(ABC):
 
     @abstractmethod
+    def begin_write(self, conn) -> None:
+        """Начать транзакцию записи до чтения проверяемых ограничений."""
+
+    @abstractmethod
     def connect(self):
         """Вернуть новое соединение с БД."""
 

@@ -2,9 +2,11 @@ import json
 import uuid
 
 from backend.db.connection import backend as _backend, with_db_connection
+from backend.db.errors import IntegrityConstraintError
 from backend.task_rules import is_terminal_task_status, terminal_task_status_sql
 
 _PRIORITY_GAP = 1000
+_UNCHANGED = object()
 
 
 def _active_task_filter(qualified=False):
@@ -43,12 +45,14 @@ def get_tasks_by_team(conn, team_id, offset=0, limit=10, search=None):
         f'''SELECT tasks.id, tasks.name, tasks.description, tasks.instruction_url,
                    tasks.criticality, tasks.task_status, tasks.psi_status,
                    tasks.segment_id, segments.name AS segment_name, tasks.completed_at,
+                   tasks.completion_template_id, bt.name AS completion_template_name,
                    EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0)
                        AS has_assignments,
                    EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0
                           AND a.status NOT IN ('new', 'cancelled', 'unsuccessful')) AS has_active_assignments
             FROM tasks
             JOIN segments ON tasks.segment_id = segments.id
+            LEFT JOIN block_templates bt ON bt.id = tasks.completion_template_id
             WHERE tasks.team_id = ?
               AND tasks.is_deleted = 0
             {completed_clause}
@@ -86,11 +90,13 @@ def get_task_by_id(conn, task_id):
         '''SELECT tasks.id, tasks.team_id, tasks.name, tasks.description, tasks.instruction_url, tasks.criticality,
                   tasks.task_status, tasks.psi_status, tasks.segment_id, segments.name AS segment_name,
                   tasks.completed_at,
+                  tasks.completion_template_id, bt.name AS completion_template_name,
                   EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0)
                       AS has_assignments,
                   EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0
                          AND a.status NOT IN ('new', 'cancelled', 'unsuccessful')) AS has_active_assignments
              FROM tasks JOIN segments ON tasks.segment_id = segments.id
+             LEFT JOIN block_templates bt ON bt.id = tasks.completion_template_id
             WHERE tasks.id = ? AND tasks.is_deleted = 0''',
         (task_id,),
     ).fetchone()
@@ -121,11 +127,13 @@ def get_archived_tasks_by_team(conn, team_id, offset=0, limit=20, search=None,
         f'''SELECT tasks.id, tasks.name, tasks.description, tasks.instruction_url,
                    tasks.criticality, tasks.task_status, tasks.psi_status,
                    tasks.segment_id, segments.name AS segment_name, tasks.completed_at,
+                   tasks.completion_template_id, bt.name AS completion_template_name,
                    EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0)
                        AS has_assignments,
                    EXISTS(SELECT 1 FROM assignments a WHERE a.task_id = tasks.id AND a.is_deleted = 0
                           AND a.status NOT IN ('new', 'cancelled', 'unsuccessful')) AS has_active_assignments
               FROM tasks JOIN segments ON tasks.segment_id = segments.id
+              LEFT JOIN block_templates bt ON bt.id = tasks.completion_template_id
              WHERE tasks.team_id = ? AND tasks.is_deleted = 0 AND {filters}
              ORDER BY tasks.completed_at IS NULL, tasks.completed_at DESC, tasks.id DESC
              LIMIT ? OFFSET ?''',
@@ -201,23 +209,61 @@ def task_has_any_assignments(conn, task_id):
 
 @with_db_connection()
 def create_or_update_task(conn, task_id, team_id, name, description, criticality='medium', psi_status='not_required',
-                           segment_id=None, changed_by=None, instruction_url=None):
+                           segment_id=None, changed_by=None, instruction_url=None,
+                           completion_template_id=_UNCHANGED):
     """Создать или обновить задачу. priority этой функцией напрямую не редактируется — им
     управляют reorder_team_tasks/move_task_to_edge — за исключением одного случая: если на UPDATE
     меняется criticality, задача пересчитывается в конец списка НОВОГО уровня критичности (как
     новая задача), т.к. её старое числовое значение priority больше ничего не значит относительно
     задач другого уровня. На CREATE новая задача всегда уходит в конец списка своего уровня
     критичности (наименьший приоритет внутри него)."""
+    _backend.begin_write(conn)
     event_id = uuid.uuid4().hex
     existing = conn.execute(
-        'SELECT name, description, instruction_url, criticality, psi_status, priority, segment_id '
+        'SELECT name, description, instruction_url, criticality, psi_status, priority, segment_id, '
+        'completion_template_id, team_id, task_status, is_deleted '
         'FROM tasks WHERE id = ?',
                              (task_id,)).fetchone()
+    # Omission preserves existing values and permits trusted legacy data imports.
+    supplied_template = completion_template_id is not _UNCHANGED
+    if not supplied_template:
+        completion_template_id = existing['completion_template_id'] if existing else None
+    if existing:
+        if existing['is_deleted'] or is_terminal_task_status(existing['task_status']):
+            raise IntegrityConstraintError('Нельзя редактировать завершённую или отменённую работу')
+        if existing['team_id'] != team_id:
+            raise IntegrityConstraintError('Нельзя изменять команду работы')
+        has_assignments = conn.execute(
+            'SELECT 1 FROM assignments WHERE task_id = ? AND is_deleted = 0 LIMIT 1', (task_id,)
+        ).fetchone() is not None
+        if has_assignments and (
+            existing['segment_id'] != segment_id
+            or (existing['completion_template_id'] is not None
+                and existing['completion_template_id'] != completion_template_id)
+        ):
+            raise IntegrityConstraintError('Перед изменением сегмента или шаблона удалите все назначения работы')
+        if existing['completion_template_id'] is not None and completion_template_id is None:
+            raise IntegrityConstraintError('Шаблон раскатки обязателен')
+    elif supplied_template and completion_template_id is None:
+        raise IntegrityConstraintError('Выберите шаблон раскатки')
+    selection_changed = (not existing or existing['segment_id'] != segment_id
+                         or existing['completion_template_id'] != completion_template_id)
+    if selection_changed and completion_template_id is not None:
+        valid_template = conn.execute(
+            '''SELECT 1 FROM block_templates bt JOIN team_templates tt ON tt.template_id = bt.id
+               WHERE bt.id = ? AND bt.segment_id = ? AND tt.team_id = ?''',
+            (completion_template_id, segment_id, team_id),
+        ).fetchone()
+        if not valid_template:
+            raise IntegrityConstraintError('Выберите разрешённый команде шаблон указанного сегмента')
+    elif selection_changed and existing and existing['segment_id'] != segment_id:
+        raise IntegrityConstraintError('При изменении сегмента выберите шаблон раскатки')
     if existing:
         for field, new_val in (('name', name), ('description', description),
                                 ('instruction_url', instruction_url), ('criticality', criticality),
                                 ('psi_status', psi_status),
-                                ('segment_id', segment_id)):
+                                ('segment_id', segment_id),
+                                ('completion_template_id', completion_template_id)):
             old_val = existing[field]
             if old_val != new_val:
                 _record_task_history(conn, task_id, 'update', field_name=field,
@@ -237,23 +283,27 @@ def create_or_update_task(conn, task_id, team_id, name, description, criticality
                    criticality = ?,
                    psi_status  = ?,
                    segment_id  = ?,
+                   completion_template_id = ?,
                    priority    = ?
                WHERE id = ?''',
-            (name, description, instruction_url, criticality, psi_status, segment_id, new_priority, task_id)
+            (name, description, instruction_url, criticality, psi_status, segment_id,
+             completion_template_id, new_priority, task_id)
         )
     else:
         new_priority = _priority_at_tier_end(conn, team_id, criticality)
         cursor = conn.execute(
             'INSERT INTO tasks '
-            '(team_id, name, description, instruction_url, criticality, psi_status, segment_id, priority) '
-            'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            (team_id, name, description, instruction_url, criticality, psi_status, segment_id, new_priority)
+            '(team_id, name, description, instruction_url, criticality, psi_status, segment_id, priority, '
+            'completion_template_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            (team_id, name, description, instruction_url, criticality, psi_status, segment_id, new_priority,
+             completion_template_id)
         )
         task_id = _backend.last_insert_id(cursor)
         snapshot = json.dumps({'team_id': team_id, 'name': name, 'description': description,
                                 'instruction_url': instruction_url,
                                 'criticality': criticality, 'psi_status': psi_status,
-                                'segment_id': segment_id, 'priority': new_priority},
+                                'segment_id': segment_id, 'priority': new_priority,
+                                'completion_template_id': completion_template_id},
                                ensure_ascii=False)
         _record_task_history(conn, task_id, 'create', new_value=snapshot, changed_by=changed_by, event_id=event_id)
     return task_id
@@ -372,12 +422,14 @@ def get_task_status_by_assignment(conn, assignment_id):
     ).fetchone()
 
 
-@with_db_connection()
-def set_task_completion_template(conn, task_id, template_id):
-    conn.execute(
-        'UPDATE tasks SET completion_template_id = ? WHERE id = ?',
-        (template_id, task_id),
-    )
+@with_db_connection(commit_on_success=False)
+def validate_bulk_task_template(conn, task_id, template_id):
+    """Старые bulk-клиенты могут подтвердить, но не заменить шаблон работы."""
+    _backend.begin_write(conn)
+    task = conn.execute('SELECT completion_template_id FROM tasks WHERE id = ? AND is_deleted = 0',
+                        (task_id,)).fetchone()
+    if not task or task['completion_template_id'] != template_id:
+        raise IntegrityConstraintError('Шаблон выбирается в работе и не может быть изменён при автоназначении')
 
 
 @with_db_connection()

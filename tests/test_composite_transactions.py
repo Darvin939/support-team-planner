@@ -110,6 +110,7 @@ class CompositeTransactionApiTest(unittest.TestCase):
         conn.execute(
             'INSERT INTO template_blocks (template_id, block_id, schedule_offset) VALUES (1, 1, 0), (1, 2, 1), (2, 3, 0)'
         )
+        conn.execute('INSERT INTO team_templates (team_id, template_id) VALUES (1, 1), (1, 2), (1, 3)')
         conn.commit()
         conn.close()
 
@@ -135,6 +136,7 @@ class CompositeTransactionApiTest(unittest.TestCase):
             response = client.post('/api/task', json={
                 'team_id': 1,
                 'name': 'Rolled back task',
+                'completion_template_id': 1,
                 'criticality': 'high',
                 'segment_id': 1,
                 'dependency_ids': [],
@@ -185,6 +187,7 @@ class CompositeTransactionApiTest(unittest.TestCase):
             created = client.post('/api/task', json={
                 'team_id': 1,
                 'name': 'Instruction task',
+                'completion_template_id': 1,
                 'description': 'Description with https://example.test/inside-description',
                 'instruction_url': 'https://example.test/new-instruction',
                 'criticality': 'low',
@@ -341,7 +344,11 @@ class CompositeTransactionApiTest(unittest.TestCase):
         conn.commit()
         conn.close()
 
-    def test_bulk_auto_assignment_saves_replaces_and_rolls_back_template(self):
+    def test_bulk_auto_assignment_preserves_template_rejects_replacement_and_rolls_back(self):
+        conn = sqlite3.connect(self.path)
+        conn.execute('UPDATE tasks SET completion_template_id = 1 WHERE id = 10')
+        conn.commit()
+        conn.close()
         first_payload = {
             'template_id': 1,
             'assignments': [
@@ -364,7 +371,7 @@ class CompositeTransactionApiTest(unittest.TestCase):
                 'template_id': 2,
                 'assignments': [{'task_id': 10, 'date': '2026-08-22', 'block': 'Docs', 'status': 'new'}],
             })
-        self.assertEqual(200, response.status_code)
+        self.assertEqual(400, response.status_code)
 
         original = db.create_or_update_assignment
         calls = 0
@@ -390,7 +397,7 @@ class CompositeTransactionApiTest(unittest.TestCase):
         self.assertEqual(500, response.status_code)
 
         conn = sqlite3.connect(self.path)
-        self.assertEqual(2, conn.execute(
+        self.assertEqual(1, conn.execute(
             'SELECT completion_template_id FROM tasks WHERE id = 10'
         ).fetchone()[0])
         self.assertEqual(0, conn.execute(
