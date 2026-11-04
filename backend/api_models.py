@@ -36,9 +36,16 @@ class BulkAssignmentUpsertIn(BaseModel):
     template_id: Optional[int] = None
 
 
+class TaskCompletionSuggestion(BaseModel):
+    task_id: int
+    task_name: str
+
+
 class BulkAssignmentResult(BaseModel):
     success: bool
     saved: int
+    task_completion_suggestions: List[TaskCompletionSuggestion] = []
+    task_completion_suggestion: Optional[TaskCompletionSuggestion] = None
 
 
 class BulkAssignmentDeleteIn(BaseModel):
@@ -65,6 +72,7 @@ class TaskOut(BaseModel):
     completed_at: Optional[str] = None
     has_active_assignments: bool
     has_assignments: bool
+    completion_ready: bool = False
 
 
 class TasksPage(BaseModel):

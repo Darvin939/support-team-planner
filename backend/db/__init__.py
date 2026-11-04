@@ -1,4 +1,5 @@
 from backend.db.assignments import *
+from backend.db.task_completion import *
 from backend.db.connection import (
     backend as _backend,
     clear_request_connection,

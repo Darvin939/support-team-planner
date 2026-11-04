@@ -4,9 +4,11 @@ import {afterEach, beforeAll, describe, expect, it, vi} from 'vitest';
 import {cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import type {Task} from '../../domain/types';
 import {TaskModal} from './TaskModal';
+import type {ApiResult} from '../../lib/apiMutate';
 
 const mocks = vi.hoisted(() => ({
   save: vi.fn(),
+  saved: undefined as undefined | ((result: ApiResult) => void),
   remove: vi.fn(),
   timeline: vi.fn(),
   timelineData: [] as Array<{date: string; block: string; status: string}>,
@@ -48,7 +50,10 @@ vi.mock('../../hooks/useSettingsData', () => ({
 vi.mock('../../hooks/useDebouncedValue', () => ({useDebouncedValue: (value: string) => value}));
 vi.mock('../../hooks/useIsMobile', () => ({useIsMobile: () => false}));
 vi.mock('../../hooks/useTaskMutations', () => ({
-  useSaveTaskMutation: () => ({mutate: mocks.save, isPending: false}),
+  useSaveTaskMutation: (onSuccess: (result: ApiResult) => void) => {
+    mocks.saved = onSuccess;
+    return {mutate: mocks.save, isPending: false};
+  },
   useDeleteTaskMutation: () => ({mutate: mocks.remove, isPending: false}),
 }));
 vi.mock('./HistoryPanel', () => ({
@@ -107,6 +112,16 @@ function renderModal(existingDepIds = [2], modalTask: Task = task) {
 }
 
 describe('TaskModal', () => {
+  it('forwards completion after saving a template and closes the form', () => {
+    const receive = vi.fn();
+    const close = vi.fn();
+    render(<TaskModal open={false} teamId={7} task={task} existingDepIds={[]}
+      onClose={close} onTaskCompletionSuggested={receive}/>);
+    const response = {task_completion_suggestion: {task_id: 1, task_name: task.name}};
+    mocks.saved?.(response);
+    expect(receive).toHaveBeenCalledWith(response);
+    expect(close).toHaveBeenCalledOnce();
+  });
   it('clears validation errors when reopening an untouched empty form and validates again on submit', async () => {
     const dependencies: number[] = [];
     const onClose = vi.fn();

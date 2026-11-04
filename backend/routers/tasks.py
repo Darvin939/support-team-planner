@@ -12,6 +12,7 @@ from backend.api_models import (
     TaskStatusIn,
 )
 from backend.db.pagination import page_result
+from backend.task_completion import completion_result
 from backend.task_dependency_rules import TaskDependencyCycleError
 from backend.task_rules import VALID_TASK_TRANSITIONS, task_is_locked
 
@@ -37,7 +38,7 @@ def _validate_psi_status_change(task_id: int, task, psi_status: str):
     return None
 
 
-def _task_json(task):
+def _task_json(task, ready=False):
     return {
         'id': task['id'],
         'name': task['name'],
@@ -53,6 +54,7 @@ def _task_json(task):
         'completed_at': task['completed_at'],
         'has_active_assignments': bool(task['has_active_assignments']),
         'has_assignments': bool(task['has_assignments']),
+        'completion_ready': ready,
     }
 
 
@@ -76,7 +78,8 @@ def get_tasks_api(
         team_id,
         search=search_val,
     )
-    return page_result([_task_json(task) for task in tasks], total, 'tasks')
+    ready = db.get_task_completion_suggestions([task['id'] for task in tasks])
+    return page_result([_task_json(task, task['id'] in ready) for task in tasks], total, 'tasks')
 
 
 @router.get('/api/task/{task_id}', dependencies=[Depends(require_user)], response_model=TaskOut)
@@ -85,7 +88,7 @@ def get_task_api(request: Request, task_id: int):
     if not task:
         raise HTTPException(status_code=404, detail='Работа не найдена')
     require_team_access(request, task['team_id'])
-    return _task_json(task)
+    return _task_json(task, bool(db.get_task_completion_suggestion(task_id)))
 
 
 @router.get(
@@ -138,7 +141,8 @@ def get_tasks_archive_api(
     date_to = completed_to.isoformat() if completed_to else None
     tasks = db.get_archived_tasks_by_team(team_id, offset, limit, search_val, date_from, date_to)
     total = db.get_archived_tasks_count_by_team(team_id, search_val, date_from, date_to)
-    return page_result([_task_json(task) for task in tasks], total, 'tasks')
+    ready = db.get_task_completion_suggestions([task['id'] for task in tasks])
+    return page_result([_task_json(task, task['id'] in ready) for task in tasks], total, 'tasks')
 
 
 @router.post('/api/task')
@@ -177,6 +181,7 @@ def save_task_api(request: Request, data: TaskIn, current_user: CurrentUser = De
             return psi_error
     try:
         with db.composite_transaction():
+            before = db.get_task_completion_suggestions([data.task_id])
             template_kwargs = {}
             if not data.task_id or 'completion_template_id' in data.model_fields_set:
                 template_kwargs['completion_template_id'] = data.completion_template_id
@@ -198,11 +203,12 @@ def save_task_api(request: Request, data: TaskIn, current_user: CurrentUser = De
                 if data.dependency_ids and db.has_dependency_cycle(task_id, data.dependency_ids):
                     raise TaskDependencyCycleError
                 db.set_task_dependencies(task_id, data.dependency_ids)
+            completion = completion_result(before, [task_id], current_user.role)
     except TaskDependencyCycleError:
         return JSONResponse({'error': 'Обнаружена циклическая зависимость'}, status_code=400)
     except db.IntegrityConstraintError as error:
         return JSONResponse({'error': str(error)}, status_code=400)
-    return {'id': task_id, 'success': True}
+    return {'id': task_id, 'success': True, **completion}
 
 
 @router.delete('/api/task/{task_id}')

@@ -15,7 +15,7 @@ export function TaskCompletionSuggestionModal({
 }) {
   return (
     <Modal
-      title="Все назначения шаблона выполнены"
+      title="Все блоки шаблона выполнены"
       open={suggestion !== null}
       okText="Перевести в Выполнена"
       cancelText="Оставить без изменений"

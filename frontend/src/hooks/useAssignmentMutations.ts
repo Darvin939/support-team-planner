@@ -16,7 +16,6 @@ export interface AssignmentPayload {
 }
 
 interface MutationOptions<TResult = void> {
-  includeTasks?: boolean;
   successMessage?: string | ((result: TResult) => string);
   onSuccess?: (result: TResult) => void;
 }
@@ -50,8 +49,8 @@ export function useSaveAssignmentMutation(options: MutationOptions<ApiResult> = 
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: AssignmentPayload) => apiMutate('/api/assignment', 'POST', payload),
-    onSuccess: (result) => {
-      invalidateAssignmentData(queryClient, options.includeTasks);
+    onSuccess: async (result) => {
+      await invalidateAssignmentData(queryClient, true);
       showSuccess(options.successMessage, result);
       options.onSuccess?.(result);
     },
@@ -63,8 +62,8 @@ export function useDeleteAssignmentMutation(options: MutationOptions = {}) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (assignmentId: number) => apiMutate(`/api/assignment/${assignmentId}`, 'DELETE'),
-    onSuccess: () => {
-      invalidateAssignmentData(queryClient, options.includeTasks);
+    onSuccess: async () => {
+      await invalidateAssignmentData(queryClient, true);
       showSuccess(options.successMessage, undefined);
       options.onSuccess?.();
     },
@@ -72,14 +71,14 @@ export function useDeleteAssignmentMutation(options: MutationOptions = {}) {
   });
 }
 
-export function useBulkSaveAssignmentsMutation(options: MutationOptions<{saved: number}> = {}) {
+export function useBulkSaveAssignmentsMutation(options: MutationOptions<ApiResult & {saved: number}> = {}) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({assignments}: {assignments: AssignmentPayload[]}) =>
       apiMutate('/api/assignments/bulk', 'POST', {assignments})
-        .then(() => ({saved: assignments.length})),
-    onSuccess: (result) => {
-      invalidateAssignmentData(queryClient, options.includeTasks);
+        .then((result) => ({...result, saved: assignments.length})),
+    onSuccess: async (result) => {
+      await invalidateAssignmentData(queryClient, true);
       showSuccess(options.successMessage, result);
       options.onSuccess?.(result);
     },
@@ -93,8 +92,8 @@ export function useBulkDeleteAssignmentsMutation(options: MutationOptions<{delet
     mutationFn: (assignmentIds: number[]) =>
       apiMutate('/api/assignments/bulk-delete', 'POST', {assignment_ids: assignmentIds})
         .then(() => ({deleted: assignmentIds.length})),
-    onSuccess: (result) => {
-      invalidateAssignmentData(queryClient, options.includeTasks);
+    onSuccess: async (result) => {
+      await invalidateAssignmentData(queryClient, true);
       showSuccess(options.successMessage, result);
       options.onSuccess?.(result);
     },
@@ -114,13 +113,13 @@ export function useBulkRescheduleAssignmentsMutation(options: MutationOptions<{m
       apiMutate('/api/assignments/bulk-reschedule', 'POST', {
         moves: moves.map((move) => ({assignment_id: move.assignmentId, new_date: move.newDate})),
       }).then(() => ({moved: moves.length})),
-    onSuccess: (result) => {
-      invalidateAssignmentData(queryClient, options.includeTasks);
+    onSuccess: async (result) => {
+      await invalidateAssignmentData(queryClient, true);
       showSuccess(options.successMessage, result);
       options.onSuccess?.(result);
     },
     onError: (error: Error) => {
-      invalidateAssignmentData(queryClient, options.includeTasks);
+      invalidateAssignmentData(queryClient, true);
       message.error(error.message);
     },
   });

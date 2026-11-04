@@ -1,6 +1,6 @@
 import {message} from 'antd';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
-import {apiMutate} from '../lib/apiMutate';
+import {apiMutate, type ApiResult} from '../lib/apiMutate';
 import {invalidateTaskData} from '../lib/queryInvalidation';
 import {type Criticality, type PsiStatus, TASK_STATUS_LABELS, type TaskStatus} from '../domain/types';
 
@@ -22,14 +22,14 @@ function useTaskMutationInvalidation(options: {activeAssignments?: boolean; depe
   return () => invalidateTaskData(queryClient, options);
 }
 
-export function useSaveTaskMutation(onSuccess: () => void) {
+export function useSaveTaskMutation(onSuccess: (result: ApiResult) => void) {
   const invalidate = useTaskMutationInvalidation({dependencies: true});
   return useMutation({
     mutationFn: (payload: TaskPayload) => apiMutate('/api/task', 'POST', payload),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       await invalidate();
       message.success('Сохранено');
-      onSuccess();
+      onSuccess(result);
     },
     onError: (error: Error) => message.error(error.message),
   });

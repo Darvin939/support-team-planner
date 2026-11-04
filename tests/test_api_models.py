@@ -91,7 +91,7 @@ class ApiModelsContractTest(unittest.TestCase):
             {
                 'id', 'name', 'description', 'instruction_url', 'criticality', 'task_status', 'psi_status', 'segment_id',
                 'segment_name', 'completed_at', 'has_active_assignments', 'has_assignments',
-                'completion_template_id', 'completion_template_name',
+                'completion_template_id', 'completion_template_name', 'completion_ready',
             },
             set(self.schemas['TaskOut']['properties']),
         )

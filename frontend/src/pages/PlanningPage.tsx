@@ -9,9 +9,10 @@ import {useFreezeDays, useSegments} from '../hooks/useSettingsData';
 import {useDateRangeFilter} from '../hooks/useDateRangeFilter';
 import {useIsMobile} from '../hooks/useIsMobile';
 import {type DepBadgeEntry} from '../components/planningBadges';
+import {useTaskCompletionSuggestions} from './planning/useTaskCompletionSuggestions';
 import {TaskModal} from './planning/TaskModal';
 import {AssignmentModal} from './planning/AssignmentModal';
-import {type TaskCompletionSuggestion, TaskCompletionSuggestionModal,} from './planning/TaskCompletionSuggestionModal';
+import {TaskCompletionSuggestionModal,} from './planning/TaskCompletionSuggestionModal';
 import {TaskArchiveModal} from './planning/TaskArchiveModal';
 import {useAssignmentDrag} from './planning/useAssignmentDrag';
 import {useAssignmentSelection} from './planning/useAssignmentSelection';
@@ -91,7 +92,7 @@ export function PlanningPage() {
     date: null,
     assignment: null,
   });
-  const [completionSuggestion, setCompletionSuggestion] = useState<TaskCompletionSuggestion | null>(null);
+  const completion = useTaskCompletionSuggestions(teamId, me?.role === 'admin' || me?.role === 'editor');
   const {selectedAssignmentIds, setSelectedAssignmentIds} = usePlanningSelection({
     teamId, search: debouncedSearch, page, pageSize,
   });
@@ -181,7 +182,7 @@ export function PlanningPage() {
     assignments,
     tasks: taskData?.tasks,
     setSelectedAssignmentIds,
-    onTaskCompletionSuggested: setCompletionSuggestion,
+    onTaskCompletionSuggested: completion.receive,
   });
 
   const chipDragSuppressRef = useAssignmentDrag({
@@ -281,6 +282,7 @@ export function PlanningPage() {
     assignmentStatusMutation,
     deleteAssignmentMutation,
     setGraphModal,
+    onCompleteTask: (task) => completion.enqueue({task_id: task.id, task_name: task.name}),
     setTaskModal,
     setAssignmentModal,
     onDepNavigate: handleDepNavigate,
@@ -390,6 +392,7 @@ export function PlanningPage() {
         task={taskData?.tasks.find((t) => t.id === taskModal.task?.id) ?? taskModal.task}
         existingDepIds={taskModalDepIds}
         onClose={() => setTaskModal({open: false, task: null})}
+        onTaskCompletionSuggested={completion.receive}
       />
       <TaskArchiveModal open={archiveOpen} teamId={teamId} canRestore={!isUser}
                         onClose={() => setArchiveOpen(false)}/>
@@ -402,13 +405,13 @@ export function PlanningPage() {
         taskAssignments={assignmentModal.task ? (assignmentsByTask.get(assignmentModal.task.id) ?? jumpAssignments ?? []) : []}
         freezeDays={freezeDays}
         onClose={() => setAssignmentModal({open: false, task: null, date: null, assignment: null})}
-        onTaskCompletionSuggested={setCompletionSuggestion}
+        onTaskCompletionSuggested={completion.receive}
       />
       <TaskCompletionSuggestionModal
-        suggestion={completionSuggestion}
-        onCancel={() => setCompletionSuggestion(null)}
+        suggestion={completion.suggestion}
+        onCancel={completion.dismiss}
         onConfirm={(taskId) => {
-          setCompletionSuggestion(null);
+          completion.dismiss();
           statusMutation.mutate({taskId, status: 'done'});
         }}
       />

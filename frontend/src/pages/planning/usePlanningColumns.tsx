@@ -87,6 +87,7 @@ interface UsePlanningColumnsOptions {
   setAssignmentModal: Dispatch<
     SetStateAction<{ open: boolean; task: Task | null; date: string | null; assignment: Assignment | null }>
   >;
+  onCompleteTask?: (task: Task) => void;
   onDepNavigate: (dep: DepBadgeEntry) => void;
 }
 
@@ -118,6 +119,7 @@ export function usePlanningColumns({
                                      setTaskModal,
                                      setAssignmentModal,
                                      onDepNavigate,
+                                     onCompleteTask,
                                    }: UsePlanningColumnsOptions): TableColumnsType<Task> {
   const {message, modal} = AntApp.useApp();
   const [openContextMenu, setOpenContextMenu] = useState<string | null>(null);
@@ -308,6 +310,12 @@ export function usePlanningColumns({
           >
             <div title={isTerminal ? TASK_STATUS_LABELS[task.task_status] : undefined}
                  style={{maxWidth: NAME_COLUMN_WIDTH}}>
+              {task.completion_ready && !isUser && !isTerminal && (
+                <Button type="link" size="small" onClick={(event) => {
+                  event.stopPropagation();
+                  onCompleteTask?.(task);
+                }}>Завершить работу</Button>
+              )}
               <div style={{display: 'flex', alignItems: 'center', gap: 6}}>
                 <Button
                   type="text"
@@ -491,5 +499,5 @@ export function usePlanningColumns({
     });
 
     return [infoColumn, ...dateColumns];
-  }, [teamId, dates, assignmentByKey, depsByTask, today, token, freezeDays, isUser, selectedAssignmentIds, openContextMenu, message, modal, deleteAssignmentMutation]);
+  }, [teamId, dates, assignmentByKey, depsByTask, today, token, freezeDays, isUser, selectedAssignmentIds, openContextMenu, message, modal, deleteAssignmentMutation, onCompleteTask]);
 }

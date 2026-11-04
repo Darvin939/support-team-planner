@@ -66,9 +66,13 @@ const planningTask: Task = {
 function PlanningTaskCell({
   task,
   psiMutate,
+  isUser = true,
+  onCompleteTask = vi.fn(),
 }: {
   task: Task;
   psiMutate: (vars: {taskId: number; psiStatus: 'required' | 'passed'}) => void;
+  isUser?: boolean;
+  onCompleteTask?: (task: Task) => void;
 }) {
   const columns = usePlanningColumns({
     teamId: 1,
@@ -78,7 +82,8 @@ function PlanningTaskCell({
     today: '2026-08-22',
     token: {} as never,
     freezeDays: new Set(),
-    isUser: true,
+    isUser,
+    onCompleteTask,
     chipDragSuppressRef: {current: false},
     panSuppressRef: {current: false},
     selectSuppressRef: {current: false},
@@ -98,6 +103,27 @@ function PlanningTaskCell({
   const renderCell = columns[0].render as (_: unknown, task: Task, index: number) => ReactNode;
   return <>{renderCell(undefined, task, 0)}</>;
 }
+
+describe('completion action in task row', () => {
+  it('opens confirmation through the row action for editors', () => {
+    const onCompleteTask = vi.fn();
+    const task = {...planningTask, completion_ready: true};
+    render(<AntApp><PlanningTaskCell task={task} psiMutate={vi.fn()}
+      isUser={false} onCompleteTask={onCompleteTask}/></AntApp>);
+    fireEvent.click(screen.getByRole('button', {name: 'Завершить работу'}));
+    expect(onCompleteTask).toHaveBeenCalledWith(task);
+  });
+
+  it.each([
+    {ready: true, isUser: true, status: 'new' as const},
+    {ready: false, isUser: false, status: 'new' as const},
+    {ready: true, isUser: false, status: 'done' as const},
+  ])('hides unavailable completion: %j', ({ready, isUser, status}) => {
+    render(<AntApp><PlanningTaskCell task={{...planningTask, completion_ready: ready, task_status: status}}
+      psiMutate={vi.fn()} isUser={isUser}/></AntApp>);
+    expect(screen.queryByRole('button', {name: 'Завершить работу'})).toBeNull();
+  });
+});
 
 function PlanningAssignmentCell({
   task = {...planningTask, psi_status: 'not_required'},

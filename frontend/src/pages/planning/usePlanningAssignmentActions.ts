@@ -15,18 +15,15 @@ export function usePlanningAssignmentActions(options: {
   assignments: Assignment[] | undefined;
   tasks: Task[] | undefined;
   setSelectedAssignmentIds: Dispatch<SetStateAction<Set<number>>>;
-  onTaskCompletionSuggested: (suggestion: NonNullable<ApiResult['task_completion_suggestion']>) => void;
+  onTaskCompletionSuggested: (result: ApiResult) => void;
 }) {
   const saveRescheduledAssignment = useSaveAssignmentMutation({
     successMessage: 'Назначение перенесено',
   });
   const saveAssignmentStatus = useSaveAssignmentMutation({
-    includeTasks: true,
     successMessage: 'Статус назначения обновлён',
     onSuccess: (result) => {
-      if (result.task_completion_suggestion) {
-        options.onTaskCompletionSuggested(result.task_completion_suggestion);
-      }
+      options.onTaskCompletionSuggested(result);
     },
   });
   const bulkDeleteMutation = useBulkDeleteAssignmentsMutation({
@@ -34,7 +31,6 @@ export function usePlanningAssignmentActions(options: {
     onSuccess: () => options.setSelectedAssignmentIds(new Set()),
   });
   const deleteAssignmentMutation = useDeleteAssignmentMutation({
-    includeTasks: true,
     successMessage: 'Назначение удалено',
   });
   const bulkRescheduleMutation = useBulkRescheduleAssignmentsMutation({

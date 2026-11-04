@@ -28,7 +28,7 @@ from backend.api_models import (
     HistoryPage,
 )
 from backend.query_parsing import parse_int_csv
-from backend.task_rules import VALID_TASK_TRANSITIONS
+from backend.task_completion import completion_result
 from backend.task_rules import task_is_locked
 
 router = APIRouter()
@@ -146,14 +146,10 @@ def _save_assignment(request: Request, current_user: CurrentUser, data: Assignme
     if not db.task_exists(data.task_id):
         raise HTTPException(status_code=404, detail='Task not found')
     team_id = require_task_access(request, data.task_id)
-    previous_status = None
     existing_assignment = None
     if data.assignment_id:
         require_assignment_access(request, data.assignment_id)
-        existing_status = db.get_task_status_by_assignment(data.assignment_id)
         existing_assignment = db.get_assignment_by_id(data.assignment_id)
-        if existing_status:
-            previous_status = existing_status['assignment_status']
     if data.user_id is not None and not db.user_is_eligible_assignee(data.user_id, team_id):
         raise HTTPException(status_code=400, detail='Пользователь недоступен для назначения в этой команде')
     task = db.get_task_status(data.task_id)
@@ -182,26 +178,29 @@ def _save_assignment(request: Request, current_user: CurrentUser, data: Assignme
         data.assignment_id, data.task_id, data.date, block, data.status, data.user_id,
         comment, time_spent, changed_by=current_user.id,
     )
-    if data.status == 'success' and previous_status != 'success':
-        suggestion = db.get_task_completion_suggestion(data.task_id)
-        if suggestion and 'done' in VALID_TASK_TRANSITIONS.get(suggestion['task_status'], set()):
-            return {
-                'task_id': suggestion['task_id'],
-                'task_name': suggestion['task_name'],
-            }
-    return None
+
+
+def _affected_tasks(assignments):
+    task_ids = {item.task_id for item in assignments}
+    for item in assignments:
+        if item.assignment_id:
+            existing = db.get_assignment_by_id(item.assignment_id)
+            if existing:
+                task_ids.add(existing['task_id'])
+    return task_ids
 
 
 @router.post('/api/assignment')
 def save_assignment_api(request: Request, data: AssignmentIn, current_user: CurrentUser = Depends(require_user)):
-    suggestion = _save_assignment(request, current_user, data)
-    response = {'success': True}
-    if suggestion:
-        response['task_completion_suggestion'] = suggestion
-    return response
+    with db.composite_transaction():
+        task_ids = _affected_tasks([data])
+        before = db.get_task_completion_suggestions(task_ids)
+        _save_assignment(request, current_user, data)
+        completion = completion_result(before, task_ids, current_user.role)
+    return {'success': True, **completion}
 
 
-@router.post('/api/assignments/bulk', response_model=BulkAssignmentResult)
+@router.post('/api/assignments/bulk', response_model=BulkAssignmentResult, response_model_exclude_unset=True)
 def bulk_save_assignments_api(
     request: Request, data: BulkAssignmentUpsertIn, current_user: CurrentUser = Depends(require_user),
 ):
@@ -217,15 +216,18 @@ def bulk_save_assignments_api(
             raise HTTPException(status_code=400, detail='Шаблон не найден')
     try:
         with db.composite_transaction():
+            affected_ids = _affected_tasks(data.assignments)
+            before = db.get_task_completion_suggestions(affected_ids)
             if data.template_id is not None:
                 task_id = next(iter(task_ids))
                 require_task_access(request, task_id)
                 db.validate_bulk_task_template(task_id, data.template_id)
             for assignment in data.assignments:
                 _save_assignment(request, current_user, assignment)
+            completion = completion_result(before, affected_ids, current_user.role)
     except db.IntegrityConstraintError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {'success': True, 'saved': len(data.assignments)}
+    return {'success': True, 'saved': len(data.assignments), **completion}
 
 
 @router.post('/api/assignments/bulk-reschedule')

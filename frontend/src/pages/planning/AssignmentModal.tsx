@@ -224,7 +224,7 @@ export function AssignmentModal({
   taskAssignments: Assignment[];
   freezeDays: Set<string>;
   onClose: () => void;
-  onTaskCompletionSuggested: (suggestion: NonNullable<ApiResult['task_completion_suggestion']>) => void;
+  onTaskCompletionSuggested: (result: ApiResult) => void;
 }) {
   const [form] = Form.useForm<AssignmentFormValues>();
   const {modal} = AntApp.useApp();
@@ -248,19 +248,18 @@ export function AssignmentModal({
     template: selectedTemplate, freezeDays, form});
 
   const saveMutation = useSaveAssignmentMutation({
-    includeTasks: true,
     successMessage: 'Сохранено',
     onSuccess: (result) => {
-      if (result.task_completion_suggestion) {
-        onTaskCompletionSuggested(result.task_completion_suggestion);
-      }
+      onTaskCompletionSuggested(result);
       onClose();
     },
   });
   const autoSaveMutation = useBulkSaveAssignmentsMutation({
-    includeTasks: true,
     successMessage: 'Сохранено',
-    onSuccess: onClose,
+    onSuccess: (result) => {
+      onTaskCompletionSuggested(result);
+      onClose();
+    },
   });
 
   function saveAssignment(values: AssignmentFormValues) {

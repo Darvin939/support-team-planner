@@ -93,7 +93,7 @@ describe('AssignmentModal', () => {
     const suggestion = {task_id: 42, task_name: 'Release'};
     mocks.saveOptions?.onSuccess?.({task_completion_suggestion: suggestion});
 
-    expect(onTaskCompletionSuggested).toHaveBeenCalledWith(suggestion);
+    expect(onTaskCompletionSuggested).toHaveBeenCalledWith({task_completion_suggestion: suggestion});
     expect(onTaskCompletionSuggested.mock.invocationCallOrder[0]).toBeLessThan(onClose.mock.invocationCallOrder[0]);
   });
 });

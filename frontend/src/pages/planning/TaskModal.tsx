@@ -16,6 +16,7 @@ import {
 import {HistoryPanel} from './HistoryPanel';
 import {useIsMobile} from '../../hooks/useIsMobile';
 import {useDeleteTaskMutation, useSaveTaskMutation} from '../../hooks/useTaskMutations';
+import type {ApiResult} from '../../lib/apiMutate';
 import {AssignmentTimeline} from './assignmentTimeline';
 
 interface TaskFormValues {
@@ -36,12 +37,14 @@ export function TaskModal({
                             task,
                             existingDepIds,
                             onClose,
+                            onTaskCompletionSuggested,
                           }: {
   open: boolean;
   teamId: number;
   task: Task | null;
   existingDepIds: number[];
   onClose: () => void;
+  onTaskCompletionSuggested?: (result: ApiResult) => void;
 }) {
   const [form] = Form.useForm<TaskFormValues>();
   const [depIds, setDepIds] = useState<Set<number>>(new Set());
@@ -94,7 +97,10 @@ export function TaskModal({
     setActiveTab('main');
   }, [open, task, existingDepIds, form]);
 
-  const saveMutation = useSaveTaskMutation(onClose);
+  const saveMutation = useSaveTaskMutation((result) => {
+    onTaskCompletionSuggested?.(result);
+    onClose();
+  });
   const deleteMutation = useDeleteTaskMutation(task?.id, onClose);
 
   function saveTask(values: TaskFormValues) {

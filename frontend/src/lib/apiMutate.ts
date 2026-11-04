@@ -2,6 +2,7 @@ export interface ApiResult {
   success?: boolean;
   error?: string;
   id?: number;
+  task_completion_suggestions?: {task_id: number; task_name: string}[];
   task_completion_suggestion?: {
     task_id: number;
     task_name: string;
