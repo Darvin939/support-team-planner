@@ -52,6 +52,21 @@ function modal(currentTask: Task, open = true) {
 }
 
 describe('saved rollout template in AssignmentModal', () => {
+  it('shows the legend without changing manual selection or available blocks', async () => {
+    render(modal(task));
+    fireEvent.click(screen.getByRole('button', {name: 'Схема раскатки: Раскатка'}));
+    const legend = await screen.findByRole('region', {name: 'Схема раскатки: Раскатка'});
+    expect(legend.textContent).toContain('Шаблон работы');
+    expect(legend.textContent).toContain('Второй блок');
+    expect(legend.textContent).not.toContain('Первый блок');
+    fireEvent.click(screen.getByRole('button', {name: 'Схема раскатки: Раскатка'}));
+    fireEvent.mouseDown(screen.getByRole('combobox', {name: /Блок/}));
+    expect(await screen.findByText('Первый блок', {selector: '.ant-select-item-option-content'})).toBeTruthy();
+    fireEvent.click(screen.getByText('Первый блок', {selector: '.ant-select-item-option-content'}));
+    fireEvent.click(screen.getByRole('button', {name: 'Создать'}));
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({block: 'Первый блок'})));
+    expect(mocks.bulk).not.toHaveBeenCalled();
+  }, 15000);
   it('uses the saved template instead of the first allowed one and submits no template selection', async () => {
     render(modal(task));
     fireEvent.click(screen.getByRole('switch', {name: 'Автоназначение'}));

@@ -3,6 +3,7 @@ import {useLocation, useNavigate, useParams} from 'react-router-dom';
 import {Alert, Card, Empty, Select, Spin, Table, theme, Typography} from 'antd';
 import dayjs, {type Dayjs} from 'dayjs';
 import {useTeams} from '../hooks/useTeams';
+import {useTeamTemplates} from '../hooks/usePlanningData';
 import {useMe} from '../hooks/useMe';
 import {type Assignment, type Task,} from '../domain/types';
 import {useFreezeDays, useSegments} from '../hooks/useSettingsData';
@@ -255,7 +256,9 @@ export function PlanningPage() {
   const taskViewQueue = useNewTaskViewQueue();
   useAutoMarkVisibleTasks(filteredTasks.map((task) => task.id), taskViewQueue.enqueue, planningDataReady);
 
+  const rolloutTemplates = useTeamTemplates(teamId ?? 0);
   const columns = usePlanningColumns({
+    rolloutTemplates,
     teamId,
     dates,
     assignmentByKey,

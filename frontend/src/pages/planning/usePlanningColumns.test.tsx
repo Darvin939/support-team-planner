@@ -75,6 +75,9 @@ function PlanningTaskCell({
   onCompleteTask?: (task: Task) => void;
 }) {
   const columns = usePlanningColumns({
+    rolloutTemplates: {isLoading: false, isError: false, data: [
+      {id: 20, name: 'Шаблон строки', segment_id: 1, blocks: [{id: 1, name: 'Блок строки', shift_days: 0}]},
+    ]},
     teamId: 1,
     dates: [],
     assignmentByKey: new Map(),
@@ -105,6 +108,16 @@ function PlanningTaskCell({
 }
 
 describe('completion action in task row', () => {
+  it('opens the row legend for a completed task without activating the row', async () => {
+    const parent = vi.fn();
+    render(<AntApp><div onClick={parent}><PlanningTaskCell
+      task={{...planningTask, task_status: 'done', completion_template_id: 20}}
+      psiMutate={vi.fn()}/></div></AntApp>);
+    fireEvent.click(screen.getByRole('button', {name: 'Схема раскатки: Работа с ПСИ'}));
+    expect(await screen.findByText('Шаблон строки')).toBeTruthy();
+    expect(screen.getByText('Блок строки')).toBeTruthy();
+    expect(parent).not.toHaveBeenCalled();
+  });
   it('opens confirmation through the row action for editors', () => {
     const onCompleteTask = vi.fn();
     const task = {...planningTask, completion_ready: true};

@@ -40,6 +40,7 @@ import {AssignmentStatusField} from './AssignmentStatusField';
 import {isPsiPlanningBlocked} from './psiAssignmentPolicy';
 import {assignmentStatusForSave} from './assignmentStatusRolePolicy';
 import type {ApiResult} from '../../lib/apiMutate';
+import {RolloutLegend} from './RolloutLegend';
 
 export interface AssignmentFormValues {
   date: dayjs.Dayjs;
@@ -389,7 +390,7 @@ export function AssignmentModal({
           {autoAssignUnavailable && <Alert type="info" title={autoAssignUnavailable} style={{marginBottom: 16}}/>}
 
           {!autoAssignEnabled && (
-            <Form.Item name="block_ids" label="Блок">
+            <Form.Item name="block_ids" label={<span>Блок {task && <RolloutLegend task={task} templates={templatesQuery}/>}</span>}>
               <Select mode="multiple" showSearch={{optionFilterProp: "label"}} placeholder="Поиск блока..."
                       disabled={psiPlanningBlocked}
                       options={teamBlocks?.map((b) => ({value: b.id, label: b.name}))}/>

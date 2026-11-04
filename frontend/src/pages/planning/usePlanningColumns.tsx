@@ -42,6 +42,7 @@ import {canChangeAssignmentStatus} from './assignmentStatusRolePolicy';
 import {TaskNameWithCriticality} from './TaskNameWithCriticality';
 import {buildSuccessfulAssignmentsText, getSuccessfulAssignmentHistory} from './successfulAssignmentCopy';
 import {isPsiPlanningBlocked} from './psiAssignmentPolicy';
+import {RolloutLegend, type RolloutTemplatesState} from './RolloutLegend';
 
 // Единственный источник истины — frontend/src/data/taskTransitions.json, тот же файл читает и
 // support_planner.py (см. openspec/changes/shared-task-transitions-source).
@@ -63,6 +64,7 @@ interface MutateFn<TVars> {
 }
 
 interface UsePlanningColumnsOptions {
+  rolloutTemplates?: RolloutTemplatesState;
   teamId: number | undefined;
   dates: Dayjs[];
   assignmentByKey: Map<string, Assignment>;
@@ -96,6 +98,7 @@ interface UsePlanningColumnsOptions {
  * drag-and-drop, контекстное меню статуса назначения). Вынесено из PlanningPage.tsx как есть,
  * без изменения логики — см. openspec/changes/split-planning-page-columns. */
 export function usePlanningColumns({
+                                     rolloutTemplates,
                                      teamId,
                                      dates,
                                      assignmentByKey,
@@ -338,7 +341,10 @@ export function usePlanningColumns({
                   {isTerminal ? <InfoCircleOutlined/> : <EditOutlined/>}
                 </Button>
                 <div style={{minWidth: 0, flex: 1}}>
-                  <TaskNameWithCriticality name={task.name} criticality={task.criticality}/>
+                  <div style={{display: 'flex', alignItems: 'baseline', gap: 2}}>
+                    <TaskNameWithCriticality name={task.name} criticality={task.criticality}/>
+                    <RolloutLegend task={task} templates={rolloutTemplates ?? {isLoading: false, isError: false}}/>
+                  </div>
                   <div
                     data-task-row-segment
                     title={`Сегмент: ${task.segment_name}`}
@@ -499,5 +505,5 @@ export function usePlanningColumns({
     });
 
     return [infoColumn, ...dateColumns];
-  }, [teamId, dates, assignmentByKey, depsByTask, today, token, freezeDays, isUser, selectedAssignmentIds, openContextMenu, message, modal, deleteAssignmentMutation, onCompleteTask]);
+  }, [teamId, dates, assignmentByKey, depsByTask, today, token, freezeDays, isUser, selectedAssignmentIds, openContextMenu, message, modal, deleteAssignmentMutation, onCompleteTask, rolloutTemplates]);
 }
