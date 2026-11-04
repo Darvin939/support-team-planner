@@ -2,7 +2,7 @@ import {useEffect, useState} from 'react';
 import {Button, DatePicker, Input, Modal, Popconfirm, Space, Table, theme, Typography} from 'antd';
 import dayjs, {type Dayjs} from 'dayjs';
 import {AppPagination} from '../../components/AppPagination';
-import {TASK_STATUS_LABELS, type TaskStatus} from '../../domain/types';
+import {CRITICALITY_LABELS, PSI_STATUS_LABELS, TASK_STATUS_LABELS, type TaskStatus} from '../../domain/types';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import {type Task, useTaskArchive, useTaskAssignmentTimeline} from '../../hooks/usePlanningData';
 import {API_DATE_FORMAT, DISPLAY_DATE_FORMAT} from '../../lib/dateFormats';
@@ -10,6 +10,8 @@ import {tintedStyle} from '../../components/planningBadges';
 import {usePaginationState} from '../../hooks/usePaginationState';
 import {useRestoreTaskMutation} from '../../hooks/useTaskMutations';
 import {AssignmentTimeline} from './assignmentTimeline';
+import {TaskInstructionLink} from './TaskInstructionLink';
+import {linkify} from '../../lib/linkify';
 
 const PAGE_SIZE = 20;
 
@@ -54,6 +56,7 @@ export function TaskArchiveModal({open, teamId, canRestore, onClose}: {
       <Table<Task>
         rowKey="id"
         size="small"
+        scroll={{x: 600}}
         loading={archive.isPending}
         dataSource={archive.data?.tasks ?? []}
         pagination={false}
@@ -61,10 +64,26 @@ export function TaskArchiveModal({open, teamId, canRestore, onClose}: {
         expandable={{
           expandedRowKeys,
           onExpandedRowsChange: (keys) => setExpandedRowKeys(keys.map((key) => Number(key))),
-          expandedRowRender: (task) => <ArchiveAssignmentTimeline taskId={task.id}/>,
+          expandedRowRender: (task) => <div style={{width: 0, minWidth: '100%', maxWidth: '100%'}}>
+            <section aria-label="Информация о работе" style={{marginBottom: 16}}>
+              <Space wrap style={{marginBottom: 8}}>
+                <span><strong>Критичность:</strong> {CRITICALITY_LABELS[task.criticality]}</span>
+                <span><strong>ПСИ:</strong> {PSI_STATUS_LABELS[task.psi_status]}</span>
+              </Space>
+              <div><strong>Описание:</strong></div>
+              <div style={{maxHeight: 200, overflowY: 'auto', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere'}}>
+                {task.description ? linkify(task.description) : <Typography.Text type="secondary">—</Typography.Text>}
+              </div>
+            </section>
+            <ArchiveAssignmentTimeline taskId={task.id}/>
+          </div>,
         }}
         columns={[
-          {title: 'Работа', dataIndex: 'name', key: 'name'},
+          {title: 'Работа', dataIndex: 'name', key: 'name', render: (name: string, task: Task) =>
+            <div style={{overflowWrap: 'anywhere'}}>
+              <div>{name}</div>
+              <TaskInstructionLink url={task.instruction_url}/>
+            </div>},
           {title: 'Сегмент', dataIndex: 'segment_name', key: 'segment'},
           {title: 'Статус', dataIndex: 'task_status', key: 'status', render: (status: string) =>
             <span data-archive-task-status={status}
