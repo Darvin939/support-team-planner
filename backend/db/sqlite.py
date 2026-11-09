@@ -1,5 +1,6 @@
 import os
 import sqlite3
+from functools import partial
 
 from backend.db.backend import DBBackend
 from backend.db.sqlite_functions import register_sqlite_functions
@@ -10,7 +11,7 @@ from backend.db.sqlite_schema import create_current_schema
 DB_PATH = os.environ.get('SUPPORT_PLANNER_DB_PATH', 'database.db')
 
 
-def sqlite_migrations() -> tuple[Migration, ...]:
+def sqlite_migrations(bootstrap=True) -> tuple[Migration, ...]:
     steps = SQLiteMigrationSteps()
     return (
         Migration(
@@ -24,7 +25,7 @@ def sqlite_migrations() -> tuple[Migration, ...]:
         Migration(4, 'add-segments', steps.migrate_add_segment_columns),
         Migration(5, 'create-current-schema', create_current_schema),
         Migration(6, 'add-task-completed-at', steps.migrate_add_task_completed_at),
-        Migration(7, 'normalize-and-bootstrap', steps.normalize_and_bootstrap),
+        Migration(7, 'normalize-and-bootstrap', partial(steps.normalize_and_bootstrap, bootstrap=bootstrap)),
         Migration(8, 'add-task-completion-template', steps.migrate_add_task_completion_template),
         Migration(9, 'add-task-psi-status', steps.migrate_add_task_psi_status),
         Migration(10, 'add-task-instruction-url', steps.migrate_add_task_instruction_url),
@@ -42,6 +43,9 @@ def sqlite_migrations() -> tuple[Migration, ...]:
 
 class SQLiteBackend(DBBackend):
 
+    def __init__(self, path=None):
+        self.path = path
+
     def begin_write(self, conn) -> None:
         if not conn.in_transaction:
             conn.execute('BEGIN IMMEDIATE')
@@ -54,7 +58,7 @@ class SQLiteBackend(DBBackend):
         # умолчанию запрещает такое межпоточное использование одного объекта соединения. Безопасно
         # здесь, поскольку соединение никогда не используется из двух потоков ОДНОВРЕМЕННО — только
         # последовательно в рамках одного запроса (мидлварь -> FastAPI dependencies/роут -> мидлварь).
-        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        conn = sqlite3.connect(self.path or DB_PATH, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         return conn
 
@@ -79,6 +83,19 @@ class SQLiteBackend(DBBackend):
     @property
     def duplicate_error(self) -> type:
         return sqlite3.IntegrityError
+
+    @property
+    def integrity_error(self) -> type:
+        return sqlite3.IntegrityError
+
+    def is_unique(self, exc):
+        code = getattr(exc, 'sqlite_errorcode', None)
+        if code is not None:
+            return code in (1555, 2067)
+        return str(exc).startswith(('UNIQUE constraint failed', 'PRIMARY KEY constraint failed'))
+
+    def is_foreign_key(self, exc):
+        return getattr(exc, 'sqlite_errorcode', None) == 787 or str(exc) == 'FOREIGN KEY constraint failed'
 
     def init_schema(self, conn) -> None:
         run_migrations(conn, sqlite_migrations())

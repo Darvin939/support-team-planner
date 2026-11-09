@@ -1,4 +1,4 @@
-from backend.db.connection import with_db_connection
+from backend.db.connection import backend as _backend, with_db_connection
 from backend.task_rules import VALID_TASK_TRANSITIONS
 
 
@@ -12,7 +12,7 @@ def get_task_completion_suggestions(conn, task_ids):
     task_ids = sorted(set(task_ids) - {None})
     if not task_ids:
         return {}
-    placeholders = ','.join('?' for _ in task_ids)
+    placeholders = _backend.placeholders(len(task_ids))
     tasks = conn.execute(
         f'''SELECT id, name, task_status, completion_template_id FROM tasks
             WHERE id IN ({placeholders}) AND is_deleted = 0''', task_ids,

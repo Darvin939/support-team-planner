@@ -1,0 +1,96 @@
+# PostgreSQL 15 и сохранённый SQLite
+
+Приложение поддерживает Python 3.9. Без `SUPPORT_PLANNER_DATABASE_URL` используется SQLite (`SUPPORT_PLANNER_DB_PATH`, по умолчанию `database.db`). При заданном URL выбирается PostgreSQL; пустой или неверный URL является ошибкой. PostgreSQL не переключается на SQLite при недоступности. `.env` загружается до DAO без переопределения окружения. `postgresql://` и `postgres://` поддерживают параметры libpq, в том числе `sslmode` и TLS-сертификаты. Секреты передаются через окружение или закрытый `.env`, не через аргументы CLI и не через Git.
+
+```sh
+python -m pip install -r requirements.txt
+# Настроить SUPPORT_PLANNER_DATABASE_URL средствами окружения экземпляра.
+python -m scripts.migrate_database --postgresql
+python support_planner.py
+```
+
+Первичная подготовка новой установки создаёт `admin` / `q12345678`. Повторный мигратор не сбрасывает пароль, не восстанавливает удалённого пользователя и не повторяет bootstrap. Startup PostgreSQL только проверяет журнал, таблицы и ограничения, затем обновляет прикладные метаданные сборки. При отсутствующей или отстающей схеме требуется отдельный pre-deploy. SQLite продолжает автоматически обновляться при startup; `python -m scripts.migrate_database --database PATH` явно работает с SQLite независимо от runtime URL.
+
+## Роли и схема
+
+Инфраструктура предоставляет PostgreSQL 15, БД и две роли. Migration-роль владеет прикладными таблицами и identity-последовательностями в `public`, имеет права создания схемы/таблиц и TRUNCATE. Она применяется для pre-deploy, переноса и большого demo-генератора. Runtime-роль получает CONNECT к БД, USAGE схемы, SELECT журнала `public.schema_migrations`, SELECT/INSERT/UPDATE/DELETE только прикладных таблиц и USAGE/SELECT их последовательностей. Runtime не получает DDL, TRUNCATE или запись migration journal. Пароли, TLS, сети и резервное копирование настраивает инфраструктура.
+
+Прикладной manifest из 19 таблиц находится в `backend/db/schema_manifest.py`: teams, segments, blocks, users, block_templates, team_blocks, user_team_access, freeze_days, template_blocks, team_templates, tasks, assignments, task_dependencies, task_history, assignment_history, user_new_task_notification_state, user_new_task_notification_seen_events, application_metadata, user_release_change_log_seen. При выдаче GRANT перечисляйте эти таблицы; не выдавайте runtime запись во все таблицы общей схемы. Обычная роль PUBLIC также не должна давать runtime CREATE. Для новой миграции отдельно выдать необходимые runtime-права до запуска приложения.
+
+PostgreSQL имеет независимый `schema_migrations`. Baseline SQL неизменяем после выпуска: checksum определяется содержимым SQL, проверяются номера, имена и полный применённый префикс. Новое изменение схемы добавляет следующий шаг. Нельзя редактировать уже применённый baseline. Миграторы сериализуются session advisory lock; каждый шаг, postcondition и журнал фиксируются вместе. Порядок блокировок: migration lock → write transaction lock.
+
+## Независимые экземпляры
+
+До финального переключения SQLite — единственный источник рабочих данных. PostgreSQL содержит снимок и временные результаты тестирования. Автоматической или обратной синхронизации нет.
+
+Используйте отдельные каталоги дистрибутива, окружения, логи, service units/контейнеры и процессы перезапуска. Настройте разные hostname рабочего и тестового адресов, например адреса из своих внутренних DNS. Одного различия портов недостаточно: cookie не изолируется портом. У тестового экземпляра отдельный `SESSION_SECRET_KEY`. Его остановка и перезапуск не должны затрагивать SQLite. Приложение обслуживает 5093; внешние адреса и маршрутизацию предоставляет развёртывание. Локальные UI-прогоны выполняются последовательно на 127.0.0.1:5093.
+
+Тестовые пароли, настройки, роли, задачи, история и прочтения PostgreSQL исчезают при следующей замене. Всё необходимое для рабочей эксплуатации до переключения записывается в SQLite.
+
+## Перенос и повторная замена
+
+Команды получают migration URL через `SUPPORT_PLANNER_DATABASE_URL`. Сначала подготовьте пустую схему без администратора:
+
+```sh
+python -m scripts.migrate_database --postgresql --schema-only
+python -m scripts.import_sqlite_to_postgres --source /path/to/database.db --dry-run
+python -m scripts.import_sqlite_to_postgres --source /path/to/database.db
+```
+
+Без `--replace-target` принимается только пустое назначение. Обычный импорт может сам подготовить отсутствующую схему без bootstrap; при ошибке импорта подготовленная пустая схема может остаться. Уже заполненный bootstrap-администратор также означает непустое назначение.
+
+Каждый запуск, включая dry-run, создаёт рядом с источником уникальные исходный `.bak`, рабочую `.sqlite` и UTF-8 `.report.json`. Снимок получен SQLite backup API и включает committed WAL. Источник открывается без создания отсутствующего файла и не мигрируется на месте. Обновляется рабочая копия; исходный снимок сохраняется. Предыдущий снимок не используется повторно. Явный `--report PATH` не перезаписывает существующий отчёт.
+
+Для обновления тестового PostgreSQL остановите его приложение, автоперезапуск и всех остальных writers. Рабочий SQLite может продолжать обслуживать пользователей. Отдельно примените изменившийся PostgreSQL manifest, если он отстаёт. Затем:
+
+```sh
+python -m scripts.import_sqlite_to_postgres --source /path/to/database.db --replace-target --dry-run
+python -m scripts.import_sqlite_to_postgres --source /path/to/database.db --replace-target
+```
+
+`--replace-target` полностью удаляет результаты тестирования всех 19 прикладных таблиц и заменяет их новым источником, без слияния. Он требует актуальной подготовленной схемы и не применяет миграции автоматически. Dry-run ничего не меняет в PostgreSQL, включая схему и sequences; перечень заменяемых таблиц и counts находятся в отчёте. Повторные проверки выполняются после блокировок настоящего импорта.
+
+Очистка использует полный квалифицированный список `ONLY public.table`, `RESTART IDENTITY RESTRICT`, без CASCADE. Сохраняются журнал миграций и посторонние таблицы; внешние FK/наследование/пользовательские triggers препятствуют безопасной замене. TRUNCATE, загрузка, сверка всех колонок/ключей и транзакционный restart sequences выполняются одним commit. До commit сравниваются counts, хеши ключей и канонического содержимого всех таблиц. Неизвестные типы, NUL и значения вне диапазонов не исправляются молча. ID, хеши паролей, ACL, soft-delete, история и прочтения сохраняются. После переноса новые ID начинаются выше нового максимума, без высоких тестовых ID старого назначения.
+
+Отчёт содержит пути, времена, назначение без DSN/пароля, counts, hashes, длительность и commit status. `unknown` означает потерянное подтверждение commit: проверьте назначение перед любым повторением. Автоматического повтора очистки нет. При ошибке до commit предыдущие данные и sequences откатываются. После первого startup `application_metadata` закономерно обновится согласно запущенной сборке; сверка переноса относится к состоянию до startup.
+
+## Репетиция, backup и финальное переключение
+
+До рабочего переключения проведите два цикла на отдельной БД: первичный импорт, изменения в обеих СУБД, новый снимок и `--replace-target`. Проверьте добавления/изменения/удаления, пустые таблицы, высокие тестовые ID, приложение, широкие поиски и длительность. Сохраните отчёты. Сделайте PostgreSQL dump и проверьте restore на отдельном назначении после остановки тестового backend.
+
+Для штатных `pg_dump`/`pg_restore` задавайте libpq `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`/закрытый `.pgpass`, `PGDATABASE` и TLS-параметры через защищённое окружение. Не передавайте URI с паролем в командной строке. Пример с уже настроенным окружением:
+
+```sh
+pg_dump --format=custom --file /safe/path/planner-before.dump
+# Только на отдельном назначении восстановления с его libpq-окружением:
+pg_restore --clean --if-exists --exit-on-error --no-owner --dbname "$PGDATABASE" /safe/path/planner-before.dump
+```
+
+Перед финальным переносом оператор подтверждает адрес/роли назначения, отключение автоперезапусков и окно по измерениям репетиции. Остановите запись обоих экземпляров и тестовый доступ, создайте новый финальный SQLite backup и выполните замену со сверкой. Предыдущий тестовый снимок финальный backup не заменяет. Запустите PostgreSQL с прежним рабочим `SESSION_SECRET_KEY`, проверьте вход и основные разделы при закрытом рабочем доступе, затем переведите рабочий адрес/пользователей. Старый SQLite оставьте остановленным.
+
+До перевода рабочей эксплуатации можно вернуть исходный SQLite. После начала рабочей записи PostgreSQL используйте его исправление или восстановление: старый SQLite не содержит новых данных. `--replace-target` из устаревшего SQLite на рабочем PostgreSQL больше не выполняйте. Снимки и финальный backup сохраняются до приёмки.
+
+## Тестовые команды
+
+```sh
+python -m pip install -r requirements.txt pytest httpx playwright
+SUPPORT_PLANNER_TEST_BACKEND=sqlite python -m pytest -q
+# Только отдельная тестовая БД: её прикладные данные очищаются!
+SUPPORT_PLANNER_TEST_BACKEND=postgresql python -m pytest -q
+```
+
+PostgreSQL требует `SUPPORT_PLANNER_TEST_DATABASE_URL`. Для DDL/очистки можно отдельно задать `SUPPORT_PLANNER_TEST_MIGRATION_URL`; runtime URL остаётся ролью приложения. Рабочий `SUPPORT_PLANNER_DATABASE_URL` тесты не используют по умолчанию. Общие контракты находятся в `test_storage_contract.py`, PostgreSQL миграции/перенос/сбои — в `test_postgresql_integration.py`. Старые тесты, напрямую использующие sqlite3/DB_PATH, явно пропускаются в PostgreSQL-прогоне; они продолжают выполняться на SQLite. Это ограничение покрытия фиксируется в verification.md. Пропуски не являются успешной PostgreSQL-приёмкой.
+
+```sh
+cd frontend
+npm ci
+npm run build
+npm test
+cd ..
+PYTHONUTF8=1 PYTHONIOENCODING=utf-8 PYTHONPATH=. python tests/ui_storage_matrix.py
+# PostgreSQL UI: те же test URL и SUPPORT_PLANNER_TEST_BACKEND=postgresql.
+```
+
+Используйте Node, соответствующий engine установленного frontend (jsdom требует современный Node 22/24). UI-harness сам выполняет свежую production-сборку, реальный login на 5093 и гарантированную остановку только своего backend. SQLite сохраняется и восстанавливается через backup API с checkpoint и проверкой. PostgreSQL — через pg_dump/pg_restore и сверку после остановки backend; нужны штатные утилиты инфраструктуры. Исторические специализированные UI-скрипты остаются SQLite-сценариями; для общей матрицы используйте новый harness. Если используется уже установленный Chrome, задайте `SUPPORT_PLANNER_UI_BROWSER_CHANNEL=chrome`; по умолчанию используется Chromium Playwright. В дочерних тестовых процессах `SUPPORT_PLANNER_SKIP_DOTENV=1` исключает случайное повторное чтение рабочего `.env`.
+
+Чтение PostgreSQL использует READ COMMITTED. Отдельные запросы списка и total не обещают единого snapshot при конкурирующих изменениях. Поиск сначала читает ограниченных ACL/периодом кандидатов пакетами, применяет прежние Python casefold/fuzzy правила, затем передаёт совпавшие ID массивом до SQL count/pagination. Скрытого лимита кандидатов и PostgreSQL-расширений нет; широкий поиск требует сетевого чтения всех кандидатов. Все writers сериализованы общим transaction advisory lock; SQLite использует BEGIN IMMEDIATE. Внешние SQL-writers должны соблюдать эксплуатационный порядок.

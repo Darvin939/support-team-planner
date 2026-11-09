@@ -88,7 +88,7 @@ class SQLiteMigrationSteps:
         ''')
 
     @staticmethod
-    def normalize_and_bootstrap(conn) -> None:
+    def normalize_and_bootstrap(conn, bootstrap=True) -> None:
         # Промежуточные статусы задачи (ready/in_progress) упразднены — у задачи остаётся только
         # единое активное состояние (new) и терминальные (done/cancelled). Безусловно, при каждом
         # старте: это нормализация значений, а не разовый бэкфилл, повторный запуск безопасен.
@@ -117,7 +117,7 @@ class SQLiteMigrationSteps:
         # идемпотентности; эта уникальность больше не гарантируется (ФИО теперь не уникальны для
         # обычных пользователей), поэтому здесь явная проверка существования по login.
         existing_admin = conn.execute("SELECT id FROM users WHERE login = 'admin'").fetchone()
-        if not existing_admin:
+        if not existing_admin and bootstrap:
             # is_assignee=0 — учётная запись администратора по умолчанию не является исполнителем
             # назначений (это системная запись, а не сотрудник поддержки), и переключатель
             # is_assignee для неё скрыт в UI (см. isEditingProtected в UsersTab.tsx), так что

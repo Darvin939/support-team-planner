@@ -7,3 +7,4 @@ python-dotenv
 urllib3
 itsdangerous
 python-multipart
+psycopg[binary]>=3.2,<3.3

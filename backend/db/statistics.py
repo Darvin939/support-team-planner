@@ -1,25 +1,25 @@
-from backend.db.connection import with_db_connection
+from backend.db.connection import backend as _backend, with_db_connection
 from backend.task_rules import terminal_task_status_sql
 
 # === STATISTICS ===
 def _active_assignments_where(team_id, start_date, end_date, team_ids=None):
     """WHERE-условие + параметры, общие для выборки активных назначений и их агрегатов"""
     # @formatter:off
-    terminal_clause, terminal_params = terminal_task_status_sql('t.task_status', negated=True)
+    terminal_clause, terminal_params = terminal_task_status_sql('t.task_status', negated=True, placeholder=_backend.placeholder)
     where = f'''WHERE a.status IN ('new', 'planned')
                  AND a.is_deleted = 0
                  AND {terminal_clause}
                  AND t.is_deleted = 0
-                 AND a.date BETWEEN ? AND ?'''
+                 AND a.date BETWEEN {_backend.placeholder} AND {_backend.placeholder}'''
     # @formatter:on
     params = [*terminal_params, start_date, end_date]
 
     if team_ids:
-        placeholders = ','.join('?' * len(team_ids))
+        placeholders = _backend.placeholders(len(team_ids))
         where += f' AND t.team_id IN ({placeholders})'
         params.extend(team_ids)
     elif team_id:
-        where += ' AND t.team_id = ?'
+        where += f' AND t.team_id = {_backend.placeholder}'
         params.append(team_id)
 
     return where, params
@@ -46,10 +46,10 @@ def get_active_assignments_in_period(conn, team_id, start_date, end_date, team_i
                ''' + where + '''
                ORDER BY a.date,
                         CASE t.criticality WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 3 END,
-                        t.priority DESC, t.name'''
+                        t.priority DESC, t.name, t.id, a.id'''
     # @formatter:on
     if limit is not None:
-        query += ' LIMIT ? OFFSET ?'
+        query += f' LIMIT {_backend.placeholder} OFFSET {_backend.placeholder}'
         params = list(params) + [limit, offset]
     return conn.execute(query, tuple(params)).fetchall()
 

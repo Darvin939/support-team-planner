@@ -58,3 +58,7 @@ npm run build
 - `scripts/` — миграции и генераторы данных.
 - `tests/` — backend- и сквозные тесты.
 - `support_planner.py` — корневая точка запуска; `build-distribution.sh` — production-сборка.
+
+## PostgreSQL 15
+
+SQLite остаётся вариантом по умолчанию. Для PostgreSQL задайте `SUPPORT_PLANNER_DATABASE_URL`, примените `python -m scripts.migrate_database --postgresql`, затем запустите приложение. Зависимость Psycopg ограничена веткой 3.2 для Python 3.9. Полная инструкция по runtime/migration-ролям, двум независимым экземплярам, первичному переносу, `--replace-target`, тестовой матрице, backup/restore и финальному переключению: [POSTGRESQL.md](POSTGRESQL.md).

@@ -40,10 +40,16 @@ while (($#)); do
     esac
 done
 
+python_command="${PYTHON:-python3}"
+command -v "$python_command" >/dev/null 2>&1 || {
+    echo "Error: $python_command is required to build the distribution." >&2
+    exit 1
+}
+
 if [[ "$output_path" != /* ]]; then
     output_path="$script_dir/$output_path"
 fi
-output_path="$(realpath -m -- "$output_path")"
+output_path="$("$python_command" -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$output_path")"
 
 if [[ "$output_path" == "/" || "$output_path" == "$script_dir" ]]; then
     echo "Error: refusing unsafe output directory: $output_path" >&2
@@ -57,13 +63,20 @@ runtime_files=(
     "requirements.txt"
     "run.sh"
     "check.sh"
+    "README.md"
+    "POSTGRESQL.md"
+    "scripts/__init__.py"
+    "scripts/migrate_database.py"
+    "scripts/import_sqlite_to_postgres.py"
+    "scripts/seed_demo_data.py"
+    "scripts/seed_large_demo_data.py"
 )
 
 runtime_patterns=(
     "backend/*.py"
     "backend/db/*.py"
+    "backend/db/*.sql"
     "backend/routers/*.py"
-    "scripts/*.py"
 )
 
 for relative_path in "${runtime_files[@]}"; do

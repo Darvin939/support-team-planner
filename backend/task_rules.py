@@ -11,10 +11,10 @@ def is_terminal_task_status(status: Optional[str]) -> bool:
     return status in TERMINAL_TASK_STATUSES
 
 
-def terminal_task_status_sql(column: str, *, negated: bool = False) -> tuple[str, tuple[TaskStatus, ...]]:
+def terminal_task_status_sql(column: str, *, negated: bool = False, placeholder: str = '?') -> tuple[str, tuple[TaskStatus, ...]]:
     """Build an internal parameterized terminal-status predicate for a trusted SQL column expression."""
     values = tuple(sorted(TERMINAL_TASK_STATUSES))
-    placeholders = ', '.join('?' for _ in values)
+    placeholders = ', '.join(placeholder for _ in values)
     operator = 'NOT IN' if negated else 'IN'
     return f'{column} {operator} ({placeholders})', values
 

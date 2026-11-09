@@ -13,7 +13,7 @@ from backend.task_rules import is_terminal_task_status
 def get_assignment(conn, task_id, date_str):
     """Получить назначение на задачу на конкретную дату"""
     return conn.execute(
-        '''SELECT a.id,
+        f'''SELECT a.id,
                   a.task_id,
                   a.date,
                   a.block,
@@ -26,8 +26,8 @@ def get_assignment(conn, task_id, date_str):
                   u.middle_name as user_middle_name
            FROM assignments a
                     LEFT JOIN users u ON a.user_id = u.id
-           WHERE a.task_id = ?
-             AND a.date = ?
+           WHERE a.task_id = {_backend.placeholder}
+             AND a.date = {_backend.placeholder}
              AND a.is_deleted = 0''',
         (task_id, date_str)
     ).fetchone()
@@ -36,8 +36,8 @@ def get_assignment(conn, task_id, date_str):
 @with_db_connection(commit_on_success=False)
 def get_assignment_by_id(conn, assignment_id):
     return conn.execute(
-        '''SELECT id, task_id, date, block, status, user_id, comment, time_spent, is_deleted
-           FROM assignments WHERE id = ?''',
+        f'''SELECT id, task_id, date, block, status, user_id, comment, time_spent, is_deleted
+           FROM assignments WHERE id = {_backend.placeholder}''',
         (assignment_id,),
     ).fetchone()
 
@@ -48,7 +48,7 @@ def get_assignments_by_team_in_period(conn, team_id, start_date, end_date, task_
     if task_ids is not None and len(task_ids) == 0:
         return []
     # @formatter:off
-    query = '''SELECT a.id,
+    query = f'''SELECT a.id,
                       a.task_id,
                       a.date,
                       a.block,
@@ -62,13 +62,13 @@ def get_assignments_by_team_in_period(conn, team_id, start_date, end_date, task_
                FROM assignments a
                         JOIN tasks t ON a.task_id = t.id
                         LEFT JOIN users u ON a.user_id = u.id
-               WHERE t.team_id = ?
+               WHERE t.team_id = {_backend.placeholder}
                  AND a.is_deleted = 0
-                 AND a.date BETWEEN ? AND ?'''
+                 AND a.date BETWEEN {_backend.placeholder} AND {_backend.placeholder}'''
     # @formatter:on
     params = [team_id, start_date, end_date]
     if task_ids:
-        placeholders = ','.join('?' * len(task_ids))
+        placeholders = _backend.placeholders(len(task_ids))
         query += f' AND a.task_id IN ({placeholders})'
         params.extend(task_ids)
     query += ' ORDER BY a.date, t.id'
@@ -79,7 +79,7 @@ def get_assignments_by_team_in_period(conn, team_id, start_date, end_date, task_
 def get_successful_assignments_by_task(conn, task_id):
     """Получить всю неудалённую историю успешных назначений работы."""
     return conn.execute(
-        '''SELECT a.id,
+        f'''SELECT a.id,
                   a.task_id,
                   a.date,
                   a.block,
@@ -92,7 +92,7 @@ def get_successful_assignments_by_task(conn, task_id):
                   u.middle_name as user_middle_name
            FROM assignments a
                     LEFT JOIN users u ON a.user_id = u.id
-           WHERE a.task_id = ?
+           WHERE a.task_id = {_backend.placeholder}
              AND a.status = 'success'
              AND a.is_deleted = 0
            ORDER BY a.date, a.id''',
@@ -103,20 +103,20 @@ def get_successful_assignments_by_task(conn, task_id):
 @with_db_connection(commit_on_success=False)
 def get_assignment_timeline_by_task(conn, task_id):
     return conn.execute(
-        '''SELECT date, block, status
+        f'''SELECT date, block, status
              FROM assignments
-            WHERE task_id = ? AND is_deleted = 0
+            WHERE task_id = {_backend.placeholder} AND is_deleted = 0
             ORDER BY date, id''',
         (task_id,),
     ).fetchall()
 
 
-@with_db_connection()
+@with_db_connection(write=True)
 def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, status, user_id, comment,
                                  time_spent=None, changed_by=None):
     """Создать или обновить назначение"""
     event_id = uuid.uuid4().hex
-    existing = conn.execute('SELECT * FROM assignments WHERE id = ?', (assignment_id,)).fetchone()
+    existing = conn.execute(f'SELECT * FROM assignments WHERE id = {_backend.placeholder}', (assignment_id,)).fetchone()
 
     new_values = {'date': date_str, 'task_id': task_id, 'block': block, 'status': status,
                   'user_id': user_id, 'comment': comment, 'time_spent': time_spent}
@@ -129,30 +129,30 @@ def create_or_update_assignment(conn, assignment_id, task_id, date_str, block, s
                                             old_value=old_val, new_value=new_val, changed_by=changed_by,
                                             event_id=event_id)
         conn.execute(
-            '''UPDATE assignments
-               SET date        = ?,
-                   task_id     = ?,
-                   block       = ?,
-                   status      = ?,
-                   user_id     = ?,
-                   comment     = ?,
-                   time_spent  = ?
-               WHERE id = ?''',
+            f'''UPDATE assignments
+               SET date        = {_backend.placeholder},
+                   task_id     = {_backend.placeholder},
+                   block       = {_backend.placeholder},
+                   status      = {_backend.placeholder},
+                   user_id     = {_backend.placeholder},
+                   comment     = {_backend.placeholder},
+                   time_spent  = {_backend.placeholder}
+               WHERE id = {_backend.placeholder}''',
             (date_str, task_id, block, status, user_id, comment, time_spent, assignment_id)
         )
     else:
-        cursor = conn.execute(
-            '''INSERT INTO assignments (task_id, date, block, status, user_id, comment, time_spent)
-               VALUES (?, ?, ?, ?, ?, ?, ?)''',
+        cursor = _backend.insert_id(
+            conn, f'''INSERT INTO assignments (task_id, date, block, status, user_id, comment, time_spent)
+               VALUES ({_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder})''',
             (task_id, date_str, block, status, user_id, comment, time_spent)
         )
-        new_assignment_id = _backend.last_insert_id(cursor)
+        new_assignment_id = cursor
         snapshot = json.dumps(new_values, ensure_ascii=False, default=str)
         _record_assignment_history(conn, new_assignment_id, task_id, date_str, 'create',
                                     new_value=snapshot, changed_by=changed_by, event_id=event_id)
 
 
-@with_db_connection()
+@with_db_connection(write=True)
 def bulk_reschedule_assignments(conn, moves, role, changed_by=None):
     """Атомарно перенести назначения на новые даты с проверкой итоговой раскладки."""
     if not moves:
@@ -164,7 +164,7 @@ def bulk_reschedule_assignments(conn, moves, role, changed_by=None):
     if len(set(assignment_ids)) != len(assignment_ids):
         raise BulkAssignmentRescheduleError('Список содержит повторяющиеся назначения')
 
-    placeholders = ','.join('?' * len(assignment_ids))
+    placeholders = _backend.placeholders(len(assignment_ids))
     rows = conn.execute(
         f'''SELECT a.id, a.task_id, a.date, a.status, a.is_deleted, t.task_status, t.psi_status,
                    t.is_deleted AS task_is_deleted
@@ -211,8 +211,8 @@ def bulk_reschedule_assignments(conn, moves, role, changed_by=None):
 
     for task_id, new_date in final_keys:
         occupant = conn.execute(
-            '''SELECT id FROM assignments
-               WHERE task_id = ? AND date = ? AND is_deleted = 0''',
+            f'''SELECT id FROM assignments
+               WHERE task_id = {_backend.placeholder} AND date = {_backend.placeholder} AND is_deleted = 0''',
             (task_id, new_date)
         ).fetchone()
         if occupant and occupant['id'] not in rows_by_id:
@@ -222,10 +222,10 @@ def bulk_reschedule_assignments(conn, moves, role, changed_by=None):
     operation_token = uuid.uuid4().hex
     for row, _new_date in changed_moves:
         staged_date = f'__bulk_reschedule__{operation_token}_{row["id"]}'
-        conn.execute('UPDATE assignments SET date = ? WHERE id = ?', (staged_date, row['id']))
+        conn.execute(f'UPDATE assignments SET date = {_backend.placeholder} WHERE id = {_backend.placeholder}', (staged_date, row['id']))
 
     for row, new_date in changed_moves:
-        conn.execute('UPDATE assignments SET date = ? WHERE id = ?', (new_date, row['id']))
+        conn.execute(f'UPDATE assignments SET date = {_backend.placeholder} WHERE id = {_backend.placeholder}', (new_date, row['id']))
         _record_assignment_history(
             conn, row['id'], row['task_id'], new_date, 'update', field_name='date',
             old_value=row['date'], new_value=new_date, changed_by=changed_by
@@ -234,14 +234,14 @@ def bulk_reschedule_assignments(conn, moves, role, changed_by=None):
     return len(changed_moves)
 
 
-@with_db_connection()
+@with_db_connection(write=True)
 def delete_assignment(conn, assignment_id, changed_by=None):
     """Мягко удалить назначение (is_deleted=1, без физического DELETE)"""
     row = conn.execute(
-        'SELECT task_id, date, is_deleted FROM assignments WHERE id = ?', (assignment_id,)
+        f'SELECT task_id, date, is_deleted FROM assignments WHERE id = {_backend.placeholder}', (assignment_id,)
     ).fetchone()
     if not row or row['is_deleted']:
         return  # не существует или уже удалено — идемпотентно
     _record_assignment_history(conn, assignment_id, row['task_id'], row['date'], 'update', field_name='is_deleted',
                                 old_value='0', new_value='1', changed_by=changed_by)
-    conn.execute('UPDATE assignments SET is_deleted = 1 WHERE id = ?', (assignment_id,))
+    conn.execute(f'UPDATE assignments SET is_deleted = 1 WHERE id = {_backend.placeholder}', (assignment_id,))

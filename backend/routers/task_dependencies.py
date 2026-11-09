@@ -67,26 +67,28 @@ def _validate_or_error(data: TaskDependencyIn):
 
 @router.post('/api/task-dependency', dependencies=[Depends(require_user)])
 def add_task_dependency_api(request: Request, data: TaskDependencyIn):
-    require_task_access(request, data.task_id)
-    require_task_access(request, data.depends_on_task_id)
-    error = _validate_or_error(data)
-    if error:
-        return error
-    if db.has_dependency_cycle(data.task_id, [data.depends_on_task_id]):
-        return JSONResponse({'error': 'Обнаружена циклическая зависимость'}, status_code=400)
-    db.add_task_dependency(data.task_id, data.depends_on_task_id)
-    return {'success': True}
+    with db.composite_transaction():
+        require_task_access(request, data.task_id)
+        require_task_access(request, data.depends_on_task_id)
+        error = _validate_or_error(data)
+        if error:
+            return error
+        if db.has_dependency_cycle(data.task_id, [data.depends_on_task_id]):
+            return JSONResponse({'error': 'Обнаружена циклическая зависимость'}, status_code=400)
+        db.add_task_dependency(data.task_id, data.depends_on_task_id)
+        return {'success': True}
 
 
 @router.delete('/api/task-dependency', dependencies=[Depends(require_user)])
 def remove_task_dependency_api(request: Request, data: TaskDependencyIn):
-    require_task_access(request, data.task_id)
-    require_task_access(request, data.depends_on_task_id)
-    error = _validate_or_error(data)
-    if error:
-        return error
-    db.remove_task_dependency(data.task_id, data.depends_on_task_id)
-    return {'success': True}
+    with db.composite_transaction():
+        require_task_access(request, data.task_id)
+        require_task_access(request, data.depends_on_task_id)
+        error = _validate_or_error(data)
+        if error:
+            return error
+        db.remove_task_dependency(data.task_id, data.depends_on_task_id)
+        return {'success': True}
 
 
 @router.get('/api/tasks/{team_id}/active-list', dependencies=[Depends(require_user)])

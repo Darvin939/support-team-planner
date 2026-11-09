@@ -9,6 +9,8 @@ from fastapi.exception_handlers import http_exception_handler, request_validatio
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.concurrency import run_in_threadpool
+from anyio import CancelScope
 
 from backend import db
 from backend.app_metadata import load_application_metadata
@@ -36,9 +38,9 @@ def _is_debug_log_poll_access(record, rendered: str) -> bool:
 
 @asynccontextmanager
 async def _application_lifespan(_app):
-    db.init_db()
+    await run_in_threadpool(db.init_db)
     metadata = load_application_metadata()
-    db.upsert_application_metadata(metadata['release_version'], metadata['build_id'])
+    await run_in_threadpool(db.upsert_application_metadata, metadata['release_version'], metadata['build_id'])
     yield
 
 
@@ -121,13 +123,14 @@ if not _SESSION_SECRET_KEY:
 async def db_connection_per_request(request: Request, call_next):
     if request.url.path.startswith('/react-assets/'):
         return await call_next(request)
-    conn = db.get_db_connection()
+    conn = await run_in_threadpool(db.get_db_connection)
     token = db.set_request_connection(conn)
     try:
         return await call_next(request)
     finally:
         db.clear_request_connection(token)
-        conn.close()
+        with CancelScope(shield=True):
+            await run_in_threadpool(db._backend.close, conn)
 
 
 app.add_middleware(

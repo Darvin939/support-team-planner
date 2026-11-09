@@ -289,11 +289,8 @@ def create_freeze_days():
 def main():
     # random.seed(RANDOM_SEED)
     print(f'Сегодня: {TODAY.isoformat()}; seed: {RANDOM_SEED}')
-    # create_user намеренно не коммитит самостоятельно (HTTP-запрос коммитится
-    # middleware). Скрипту также нужно общее соединение на весь запуск.
-    conn = db.get_db_connection()
-    token = db.set_request_connection(conn)
-    try:
+    db.init_db()
+    with db.composite_transaction():
         segment_ids, block_ids, template_ids = create_segments_and_templates()
         team_ids = create_teams(template_ids)
         users, assignees_by_team = create_users(team_ids)
@@ -301,13 +298,6 @@ def main():
         tasks, assignments, dependencies = create_tasks_and_assignments(
             team_ids, segment_ids, template_ids, users, assignees_by_team,
         )
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        db.clear_request_connection(token)
-        conn.close()
 
     roles = {role: sum(u['role'] == role for u in users) for role in ('user', 'editor', 'admin')}
     print(f'Сегменты: {len(segment_ids)}, блоки: {len(block_ids)}, шаблоны: {sum(map(len, template_ids.values()))}')

@@ -32,7 +32,7 @@ def create_user_api(data: UserIn):
             last_name, first_name, middle_name, password_hash, data.role, login, data.is_assignee, data.team_ids,
         )
         return {'id': user_id, 'success': True}
-    except db.DuplicateEntityError as exc:
+    except (db.DuplicateEntityError, db.IntegrityConstraintError) as exc:
         return JSONResponse({'error': str(exc)}, status_code=400)
 
 
@@ -51,7 +51,7 @@ def update_user_api(user_id: int, data: UserIn):
             data.is_assignee, data.team_ids,
         )
         return {'success': True}
-    except db.DuplicateEntityError as exc:
+    except (db.DuplicateEntityError, db.IntegrityConstraintError) as exc:
         return JSONResponse({'error': str(exc)}, status_code=400)
     except db.EntityNotFoundError as exc:
         return JSONResponse({'error': str(exc)}, status_code=404)

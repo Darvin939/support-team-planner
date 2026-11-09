@@ -37,6 +37,9 @@ logs/
 *.bak
 *.tmp
 *.temp
+.tmp/
+*.dump
+*.transfer-*.json
 
 # IDE and editor state
 .idea/

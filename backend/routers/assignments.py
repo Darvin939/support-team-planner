@@ -212,10 +212,10 @@ def bulk_save_assignments_api(
     if data.template_id is not None:
         if len(task_ids) != 1 or None in task_ids:
             raise HTTPException(status_code=400, detail='Шаблон можно сохранить только для назначений одной работы')
-        if not db.get_template_by_id(data.template_id):
-            raise HTTPException(status_code=400, detail='Шаблон не найден')
     try:
         with db.composite_transaction():
+            if data.template_id is not None and not db.get_template_by_id(data.template_id):
+                raise HTTPException(status_code=400, detail='Шаблон не найден')
             affected_ids = _affected_tasks(data.assignments)
             before = db.get_task_completion_suggestions(affected_ids)
             if data.template_id is not None:
@@ -234,16 +234,19 @@ def bulk_save_assignments_api(
 def bulk_reschedule_assignments_api(
     request: Request, data: BulkAssignmentRescheduleIn, current_user: CurrentUser = Depends(require_user),
 ):
-    for move in data.moves:
-        require_assignment_access(request, move.assignment_id)
     try:
-        moved = db.bulk_reschedule_assignments(
-            [move.model_dump() for move in data.moves],
-            role=current_user.role,
-            changed_by=current_user.id,
-        )
+        with db.composite_transaction():
+            for move in data.moves:
+                require_assignment_access(request, move.assignment_id)
+            moved = db.bulk_reschedule_assignments(
+                [move.model_dump() for move in data.moves],
+                role=current_user.role,
+                changed_by=current_user.id,
+            )
     except db.BulkAssignmentRescheduleError as exc:
         return JSONResponse({'error': str(exc)}, status_code=exc.status_code)
+    except HTTPException:
+        raise
     except Exception:
         return JSONResponse({'error': 'Не удалось перенести назначения'}, status_code=500)
     return {'success': True, 'moved': moved}
@@ -267,9 +270,10 @@ def _validate_assignment_delete(request: Request, current_user: CurrentUser, ass
 def delete_assignment_api(
     request: Request, assignment_id: int, current_user: CurrentUser = Depends(require_user),
 ):
-    _validate_assignment_delete(request, current_user, assignment_id)
-    db.delete_assignment(assignment_id, changed_by=current_user.id)
-    return {'success': True}
+    with db.composite_transaction():
+        _validate_assignment_delete(request, current_user, assignment_id)
+        db.delete_assignment(assignment_id, changed_by=current_user.id)
+        return {'success': True}
 
 
 @router.post('/api/assignments/bulk-delete', response_model=BulkAssignmentDeleteResult)
@@ -284,9 +288,9 @@ def bulk_delete_assignments_api(
     if len(set(assignment_ids)) != len(assignment_ids):
         raise HTTPException(status_code=400, detail='Список содержит повторяющиеся назначения')
 
-    for assignment_id in assignment_ids:
-        _validate_assignment_delete(request, current_user, assignment_id)
     with db.composite_transaction():
+        for assignment_id in assignment_ids:
+            _validate_assignment_delete(request, current_user, assignment_id)
         for assignment_id in assignment_ids:
             db.delete_assignment(assignment_id, changed_by=current_user.id)
     return {'success': True, 'deleted': len(assignment_ids)}

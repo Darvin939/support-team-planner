@@ -161,26 +161,26 @@ def save_task_api(request: Request, data: TaskIn, current_user: CurrentUser = De
             or not parsed_instruction_url.hostname
         ):
             return JSONResponse({'error': 'Некорректная ссылка на инструкцию'}, status_code=400)
-    if not data.segment_id or not any(segment['id'] == data.segment_id for segment in db.get_all_segments()):
-        return JSONResponse({'error': 'Указан несуществующий сегмент'}, status_code=400)
-    psi_status = data.psi_status or 'not_required'
-    if data.task_id:
-        if not db.task_exists(data.task_id):
-            return JSONResponse({'error': 'Задача не найдена'}, status_code=404)
-        require_task_access(request, int(data.task_id))
-        task = db.get_task_status(data.task_id)
-        if task and task_is_locked(task):
-            return JSONResponse(
-                {'error': 'Нельзя редактировать завершённую или отменённую задачу'},
-                status_code=400,
-            )
-        if data.psi_status is None:
-            psi_status = task['psi_status']
-        psi_error = _validate_psi_status_change(int(data.task_id), task, psi_status)
-        if psi_error:
-            return psi_error
     try:
         with db.composite_transaction():
+            if not data.segment_id or not any(segment['id'] == data.segment_id for segment in db.get_all_segments()):
+                return JSONResponse({'error': 'Указан несуществующий сегмент'}, status_code=400)
+            psi_status = data.psi_status or 'not_required'
+            if data.task_id:
+                if not db.task_exists(data.task_id):
+                    return JSONResponse({'error': 'Задача не найдена'}, status_code=404)
+                require_task_access(request, int(data.task_id))
+                task = db.get_task_status(data.task_id)
+                if task and task_is_locked(task):
+                    return JSONResponse(
+                        {'error': 'Нельзя редактировать завершённую или отменённую задачу'},
+                        status_code=400,
+                    )
+                if data.psi_status is None:
+                    psi_status = task['psi_status']
+                psi_error = _validate_psi_status_change(int(data.task_id), task, psi_status)
+                if psi_error:
+                    return psi_error
             before = db.get_task_completion_suggestions([data.task_id])
             template_kwargs = {}
             if not data.task_id or 'completion_template_id' in data.model_fields_set:
@@ -213,61 +213,64 @@ def save_task_api(request: Request, data: TaskIn, current_user: CurrentUser = De
 
 @router.delete('/api/task/{task_id}')
 def delete_task_api(request: Request, task_id: int, current_user: CurrentUser = Depends(require_user)):
-    require_task_access(request, task_id)
-    task = db.get_task_status(task_id)
-    if task and task_is_locked(task):
-        return JSONResponse(
-            {'error': 'Нельзя удалить завершённую или отменённую задачу'},
-            status_code=400,
-        )
-    if current_user.role == 'user' and db.task_has_active_assignments(task_id):
-        return JSONResponse(
-            {
-                'error': 'Недостаточно прав: нельзя удалить работу, у которой есть назначения в статусе, отличном от «Новый»'
-            },
-            status_code=403,
-        )
-    db.delete_task(task_id, changed_by=current_user.id)
-    return {'success': True}
+    with db.composite_transaction():
+        require_task_access(request, task_id)
+        task = db.get_task_status(task_id)
+        if task and task_is_locked(task):
+            return JSONResponse(
+                {'error': 'Нельзя удалить завершённую или отменённую задачу'},
+                status_code=400,
+            )
+        if current_user.role == 'user' and db.task_has_active_assignments(task_id):
+            return JSONResponse(
+                {
+                    'error': 'Недостаточно прав: нельзя удалить работу, у которой есть назначения в статусе, отличном от «Новый»'
+                },
+                status_code=403,
+            )
+        db.delete_task(task_id, changed_by=current_user.id)
+        return {'success': True}
 
 
 @router.patch('/api/tasks/{task_id}/status')
 def update_task_status_api(
     request: Request, task_id: int, data: TaskStatusIn, current_user: CurrentUser = Depends(require_editor),
 ):
-    require_task_access(request, task_id)
-    task = db.get_task_status(task_id)
-    if not task:
-        return JSONResponse({'error': 'Task not found'}, status_code=404)
-    current_status = task['task_status']
-    allowed = VALID_TASK_TRANSITIONS.get(current_status, set())
-    if data.status not in allowed:
-        return JSONResponse(
-            {'error': f'Недопустимый переход: {current_status} → {data.status}'},
-            status_code=400,
-        )
-    db.update_task_status(task_id, data.status, changed_by=current_user.id)
-    return {'success': True}
+    with db.composite_transaction():
+        require_task_access(request, task_id)
+        task = db.get_task_status(task_id)
+        if not task:
+            return JSONResponse({'error': 'Task not found'}, status_code=404)
+        current_status = task['task_status']
+        allowed = VALID_TASK_TRANSITIONS.get(current_status, set())
+        if data.status not in allowed:
+            return JSONResponse(
+                {'error': f'Недопустимый переход: {current_status} → {data.status}'},
+                status_code=400,
+            )
+        db.update_task_status(task_id, data.status, changed_by=current_user.id)
+        return {'success': True}
 
 
 @router.patch('/api/tasks/{task_id}/psi-status')
 def update_task_psi_status_api(
     request: Request, task_id: int, data: TaskPsiStatusIn, current_user: CurrentUser = Depends(require_user),
 ):
-    require_task_access(request, task_id)
-    task = db.get_task_status(task_id)
-    if not task or task['is_deleted']:
-        return JSONResponse({'error': 'Работа не найдена'}, status_code=404)
-    if task['psi_status'] not in ('required', 'passed'):
-        return JSONResponse(
-            {'error': 'Результат ПСИ можно изменить только для работы, которой требуется ПСИ'},
-            status_code=400,
-        )
-    psi_error = _validate_psi_status_change(task_id, task, data.psi_status)
-    if psi_error:
-        return psi_error
-    db.update_task_psi_status(task_id, data.psi_status, changed_by=current_user.id)
-    return {'success': True}
+    with db.composite_transaction():
+        require_task_access(request, task_id)
+        task = db.get_task_status(task_id)
+        if not task or task['is_deleted']:
+            return JSONResponse({'error': 'Работа не найдена'}, status_code=404)
+        if task['psi_status'] not in ('required', 'passed'):
+            return JSONResponse(
+                {'error': 'Результат ПСИ можно изменить только для работы, которой требуется ПСИ'},
+                status_code=400,
+            )
+        psi_error = _validate_psi_status_change(task_id, task, data.psi_status)
+        if psi_error:
+            return psi_error
+        db.update_task_psi_status(task_id, data.psi_status, changed_by=current_user.id)
+        return {'success': True}
 
 
 @router.patch('/api/tasks/{team_id}/reorder')

@@ -18,13 +18,13 @@ Examples:
 from __future__ import annotations
 
 import argparse
-import sqlite3
 import sys
 import time
 from datetime import date, timedelta
 from pathlib import Path
 
 from backend import auth
+from backend.db.connection import backend as _backend
 from backend.db.sqlite import SQLiteBackend
 
 TEAM_PREFIX = "LOADTEST"
@@ -64,7 +64,7 @@ def parse_args() -> argparse.Namespace:
         default=2,
         help="assignments per task (0..730, each uses a unique date)",
     )
-    parser.add_argument("--batch-size", type=positive_int, default=10_000, help="tasks per committed batch")
+    parser.add_argument("--batch-size", type=positive_int, default=10_000, help="tasks per batch in one write transaction")
     parser.add_argument(
         "--dependency-every",
         type=non_negative_int,
@@ -87,46 +87,41 @@ def format_count(value: int) -> str:
     return f"{value:,}".replace(",", " ")
 
 
-def connect_database(path: Path) -> sqlite3.Connection:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA journal_mode = WAL")
-    conn.execute("PRAGMA synchronous = NORMAL")
-    conn.execute("PRAGMA temp_store = MEMORY")
-    conn.execute("PRAGMA cache_size = -200000")
-    SQLiteBackend().init_schema(conn)
-    conn.commit()
+def connect_database(path: Path):
+    backend = _backend if _backend.name == 'postgresql' else SQLiteBackend(str(path))
+    conn = backend.connect()
+    backend.setup_connection(conn)
+    backend.init_schema(conn)
+    backend.begin_write(conn)
     return conn
 
 
-def existing_seed_team_count(conn: sqlite3.Connection) -> int:
-    return conn.execute("SELECT COUNT(*) FROM teams WHERE name LIKE ?", (f"{TEAM_PREFIX} team %",)).fetchone()[0]
+
+def existing_seed_team_count(conn) -> int:
+    return conn.execute(f"SELECT COUNT(*) FROM teams WHERE name LIKE {_backend.placeholder}", (f"{TEAM_PREFIX} team %",)).fetchone()[0]
 
 
-def remove_existing_seed(conn: sqlite3.Connection) -> None:
+def remove_existing_seed(conn) -> None:
     started = time.monotonic()
     team_count = existing_seed_team_count(conn)
     if not team_count:
         return
     print(f"Deleting the previous large seed ({team_count} teams and their dependent rows)...")
-    conn.execute("DELETE FROM teams WHERE name LIKE ?", (f"{TEAM_PREFIX} team %",))
-    conn.commit()
-    conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    conn.execute(f"DELETE FROM teams WHERE name LIKE {_backend.placeholder}", (f"{TEAM_PREFIX} team %",))
     print(f"Previous seed deleted in {time.monotonic() - started:.1f}s")
 
 
-def ensure_reference_data(conn: sqlite3.Connection) -> tuple[list[int], list[int], list[int]]:
+def ensure_reference_data(conn) -> tuple[list[int], list[int], list[int]]:
     for name in SEGMENTS:
-        conn.execute("INSERT OR IGNORE INTO segments(name) VALUES (?)", (name,))
+        conn.execute(f"INSERT INTO segments(name) VALUES ({_backend.placeholder}){_backend.conflict_ignore(('name',))}", (name,))
     segment_ids = [
-        conn.execute("SELECT id FROM segments WHERE name = ?", (name,)).fetchone()[0]
+        conn.execute(f"SELECT id FROM segments WHERE name = {_backend.placeholder}", (name,)).fetchone()[0]
         for name in SEGMENTS
     ]
     for name in BLOCKS:
-        conn.execute("INSERT OR IGNORE INTO blocks(name) VALUES (?)", (name,))
+        conn.execute(f"INSERT INTO blocks(name) VALUES ({_backend.placeholder}){_backend.conflict_ignore(('name',))}", (name,))
     block_ids = {
-        name: conn.execute("SELECT id FROM blocks WHERE name = ?", (name,)).fetchone()[0]
+        name: conn.execute(f"SELECT id FROM blocks WHERE name = {_backend.placeholder}", (name,)).fetchone()[0]
         for name in BLOCKS
     }
 
@@ -135,16 +130,16 @@ def ensure_reference_data(conn: sqlite3.Connection) -> tuple[list[int], list[int
         for suffix in TEMPLATE_SUFFIXES:
             template_name = f"{TEAM_PREFIX} {segment_name.removeprefix('LOADTEST ')} {suffix}"
             conn.execute(
-                "INSERT OR IGNORE INTO block_templates(name, segment_id) VALUES (?, ?)",
+                f"INSERT INTO block_templates(name, segment_id) VALUES ({_backend.placeholder}, {_backend.placeholder}){_backend.conflict_ignore(('name',))}",
                 (template_name, segment_id),
             )
             template_id = conn.execute(
-                "SELECT id FROM block_templates WHERE name = ?", (template_name,)
+                f"SELECT id FROM block_templates WHERE name = {_backend.placeholder}", (template_name,)
             ).fetchone()[0]
             template_ids.append(template_id)
             names = BLOCKS[:2] if suffix == "fast" else BLOCKS
             conn.executemany(
-                "INSERT OR IGNORE INTO template_blocks(template_id, block_id, schedule_offset) VALUES (?, ?, ?)",
+                f"INSERT INTO template_blocks(template_id, block_id, schedule_offset) VALUES ({_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}){_backend.conflict_ignore(('template_id', 'block_id'))}",
                 ((template_id, block_ids[name], index) for index, name in enumerate(names)),
             )
 
@@ -157,9 +152,9 @@ def ensure_reference_data(conn: sqlite3.Connection) -> tuple[list[int], list[int
     )
     for last_name, first_name, role, login, is_assignee in user_specs:
         conn.execute(
-            """INSERT INTO users
+            f"""INSERT INTO users
                (last_name, first_name, password_hash, role, login, is_assignee)
-               VALUES (?, ?, ?, ?, ?, ?)
+               VALUES ({_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder})
                ON CONFLICT(login) DO UPDATE SET
                    last_name = excluded.last_name,
                    first_name = excluded.first_name,
@@ -169,54 +164,51 @@ def ensure_reference_data(conn: sqlite3.Connection) -> tuple[list[int], list[int
             (last_name, first_name, password_hash, role, login, is_assignee),
         )
     user_ids = [
-        conn.execute("SELECT id FROM users WHERE login = ?", (spec[3],)).fetchone()[0]
+        conn.execute(f"SELECT id FROM users WHERE login = {_backend.placeholder}", (spec[3],)).fetchone()[0]
         for spec in user_specs
     ]
-    conn.commit()
     return segment_ids, template_ids, user_ids
 
 
-def create_teams(conn: sqlite3.Connection, count: int) -> list[int]:
+def create_teams(conn, count: int) -> list[int]:
     conn.executemany(
-        "INSERT INTO teams(name) VALUES (?)",
+        f"INSERT INTO teams(name) VALUES ({_backend.placeholder})",
         ((f"{TEAM_PREFIX} team {number:04d}",) for number in range(1, count + 1)),
     )
-    conn.commit()
     return [
         row[0]
         for row in conn.execute(
-            "SELECT id FROM teams WHERE name LIKE ? ORDER BY name",
+            f"SELECT id FROM teams WHERE name LIKE {_backend.placeholder} ORDER BY name",
             (f"{TEAM_PREFIX} team %",),
         )
     ]
 
 
 def configure_teams_and_users(
-    conn: sqlite3.Connection, team_ids: list[int], template_ids: list[int], user_ids: list[int]
+    conn, team_ids: list[int], template_ids: list[int], user_ids: list[int]
 ) -> None:
     conn.executemany(
-        "INSERT OR IGNORE INTO team_templates(team_id, template_id) VALUES (?, ?)",
+        f"INSERT INTO team_templates(team_id, template_id) VALUES ({_backend.placeholder}, {_backend.placeholder}){_backend.conflict_ignore(('team_id', 'template_id'))}",
         ((team_id, template_id) for team_id in team_ids for template_id in template_ids),
     )
     conn.executemany(
-        "INSERT OR IGNORE INTO team_blocks(team_id, block_name, schedule_offset) VALUES (?, ?, ?)",
+        f"INSERT INTO team_blocks(team_id, block_name, schedule_offset) VALUES ({_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder})",
         ((team_id, block, index) for team_id in team_ids for index, block in enumerate(BLOCKS)),
     )
     # Admin has global access. Editor and executor see all teams, observer sees
     # only half of them and cannot be selected as assignee.
     editor_id, executor_id, observer_id = user_ids[1:]
     conn.executemany(
-        "INSERT OR IGNORE INTO user_team_access(user_id, team_id) VALUES (?, ?)",
+        f"INSERT INTO user_team_access(user_id, team_id) VALUES ({_backend.placeholder}, {_backend.placeholder}){_backend.conflict_ignore(('user_id', 'team_id'))}",
         [(editor_id, team_id) for team_id in team_ids]
         + [(executor_id, team_id) for team_id in team_ids]
         + [(observer_id, team_id) for team_id in team_ids[1::2]],
     )
     for offset in (-7, -1, 0, 1, 7, 30):
         conn.execute(
-            "INSERT OR IGNORE INTO freeze_days(date) VALUES (?)",
+            f"INSERT INTO freeze_days(date) VALUES ({_backend.placeholder}){_backend.conflict_ignore(('date',))}",
             ((date.today() + timedelta(days=offset)).isoformat(),),
         )
-    conn.commit()
 
 
 def task_row(task_id: int, team_id: int, segment_id: int, template_id: int, team_position: int) -> tuple:
@@ -275,7 +267,7 @@ def assignment_rows(
 
 
 def seed_rows(
-    conn: sqlite3.Connection,
+    conn,
     team_ids: list[int],
     segment_ids: list[int],
     template_ids: list[int],
@@ -314,22 +306,21 @@ def seed_rows(
                 dependencies.append((task_id, previous_task))
             previous_task_by_team[team_id] = task_id
 
-        conn.execute("BEGIN")
         try:
             conn.executemany(
-                """
+                f"""
                 INSERT INTO tasks
                     (id, team_id, segment_id, name, description, criticality, priority, task_status,
                      psi_status, completed_at, completion_template_id, is_deleted)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES ({_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder})
                 """,
                 tasks,
             )
             if assignments_per_task:
                 conn.executemany(
-                    """
+                    f"""
                     INSERT INTO assignments(id, task_id, date, block, status, user_id, comment, is_psi, time_spent, is_deleted)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES ({_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder}, {_backend.placeholder})
                     """,
                     assignment_rows(
                         next_assignment_id + inserted_assignments,
@@ -342,14 +333,14 @@ def seed_rows(
                 inserted_assignments += current_size * assignments_per_task
             if dependencies:
                 conn.executemany(
-                    "INSERT INTO task_dependencies(task_id, depends_on_task_id) VALUES (?, ?)",
+                    f"INSERT INTO task_dependencies(task_id, depends_on_task_id) VALUES ({_backend.placeholder}, {_backend.placeholder})",
                     dependencies,
                 )
                 inserted_dependencies += len(dependencies)
             conn.executemany(
-                """INSERT INTO task_history
+                f"""INSERT INTO task_history
                    (task_id, action, field_name, old_value, new_value, changed_by_user_id)
-                   VALUES (?, 'create', NULL, NULL, ?, ?)""",
+                   VALUES ({_backend.placeholder}, 'create', NULL, NULL, {_backend.placeholder}, {_backend.placeholder})""",
                 ((task_id, f'{TEAM_PREFIX} seeded task', user_ids[1]) for task_id in batch_task_ids if task_id % 100 == 0),
             )
             if assignments_per_task:
@@ -357,12 +348,11 @@ def seed_rows(
                 last_id = next_assignment_id + inserted_assignments
                 history_ids = range(first_id, last_id, 250)
                 conn.executemany(
-                    """INSERT INTO assignment_history
+                    f"""INSERT INTO assignment_history
                        (assignment_id, task_id, date, action, new_value, changed_by_user_id)
-                       SELECT id, task_id, date, 'create', ?, ? FROM assignments WHERE id = ?""",
+                       SELECT id, task_id, date, 'create', {_backend.placeholder}, {_backend.placeholder} FROM assignments WHERE id = {_backend.placeholder}""",
                     ((f'{TEAM_PREFIX} seeded assignment', user_ids[1], assignment_id) for assignment_id in history_ids),
                 )
-            conn.commit()
         except Exception:
             conn.rollback()
             raise
@@ -423,10 +413,13 @@ def main() -> int:
             args.dependency_every,
             args.batch_size,
         )
-        conn.execute("PRAGMA optimize")
-        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        if _backend.name == "postgresql":
+            from scripts.import_sqlite_to_postgres import restart_sequences
+            restart_sequences(conn)
+        conn.commit()
     except Exception:
-        print("Large seed stopped. Already committed batches can be removed with --replace.", file=sys.stderr)
+        conn.rollback()
+        print("Large seed stopped. The operation was rolled back.", file=sys.stderr)
         raise
     finally:
         conn.close()

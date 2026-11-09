@@ -13,15 +13,19 @@ class DatabaseModuleBoundaryTest(unittest.TestCase):
             list(inspect.signature(db.get_tasks_by_team).parameters),
         )
 
-    def test_sqlite_backend_is_selected_only_at_connection_boundary(self):
+    def test_backends_are_selected_only_at_connection_boundary(self):
         source = inspect.getsource(db.connection)
         self.assertIn('from backend.db.sqlite import SQLiteBackend', source)
+        self.assertIn('from backend.db.postgresql import PostgreSQLBackend', source)
         for module_name in (
             'assignments', 'freeze_days', 'history', 'reference_data', 'statistics',
             'task_dependencies', 'tasks', 'teams', 'users',
         ):
             module = __import__(f'backend.db.{module_name}', fromlist=['*'])
             self.assertNotIn('db.sqlite', inspect.getsource(module))
+            self.assertNotIn('db.postgresql', inspect.getsource(module))
+            for driver_api in ('lastrowid', 'total_changes', 'rowid', 'INSERT OR IGNORE'):
+                self.assertNotIn(driver_api, inspect.getsource(module))
 
     def test_sqlite_backend_does_not_contain_schema_or_migration_sql(self):
         source = inspect.getsource(db.sqlite)

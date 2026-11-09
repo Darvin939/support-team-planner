@@ -1,4 +1,4 @@
-from backend.db.connection import with_db_connection
+from backend.db.connection import backend as _backend, with_db_connection
 from backend.db.tasks import _fuzzy_search_clause
 from backend.task_rules import terminal_task_status_sql
 
@@ -10,7 +10,7 @@ def get_all_deps_for_team(conn, team_id, task_ids=None):
     if task_ids is not None and len(task_ids) == 0:
         return []
     # @formatter:off
-    query = '''SELECT td.task_id, td.depends_on_task_id AS dep_id,
+    query = f'''SELECT td.task_id, td.depends_on_task_id AS dep_id,
                       dep.name AS dep_name, dep.task_status AS dep_status, dep.is_deleted AS dep_is_deleted,
                       dep.criticality AS dep_criticality, dep.segment_id AS dep_segment_id,
                       seg.name AS dep_segment_name
@@ -18,39 +18,39 @@ def get_all_deps_for_team(conn, team_id, task_ids=None):
                JOIN tasks src ON td.task_id            = src.id
                JOIN tasks dep ON td.depends_on_task_id = dep.id
                JOIN segments seg ON dep.segment_id     = seg.id
-               WHERE src.team_id = ?'''
+               WHERE src.team_id = {_backend.placeholder}'''
     # @formatter:on
     params = [team_id]
     if task_ids:
-        placeholders = ','.join('?' * len(task_ids))
+        placeholders = _backend.placeholders(len(task_ids))
         query += f' AND td.task_id IN ({placeholders})'
         params.extend(task_ids)
     return conn.execute(query, tuple(params)).fetchall()
 
 
-@with_db_connection()
+@with_db_connection(write=True)
 def set_task_dependencies(conn, task_id, dep_ids):
-    conn.execute('DELETE FROM task_dependencies WHERE task_id = ?', (task_id,))
+    conn.execute(f'DELETE FROM task_dependencies WHERE task_id = {_backend.placeholder}', (task_id,))
     for dep_id in dep_ids:
         _add_task_dependency(conn, task_id, dep_id)
 
 
 def _add_task_dependency(conn, task_id, depends_on_task_id):
     conn.execute(
-        'INSERT OR IGNORE INTO task_dependencies (task_id, depends_on_task_id) VALUES (?, ?)',
+        f'INSERT INTO task_dependencies (task_id, depends_on_task_id) VALUES ({_backend.placeholder}, {_backend.placeholder}){_backend.conflict_ignore(("task_id", "depends_on_task_id"))}',
         (task_id, depends_on_task_id)
     )
 
 
-@with_db_connection()
+@with_db_connection(write=True)
 def add_task_dependency(conn, task_id, depends_on_task_id):
     _add_task_dependency(conn, task_id, depends_on_task_id)
 
 
-@with_db_connection()
+@with_db_connection(write=True)
 def remove_task_dependency(conn, task_id, depends_on_task_id):
     conn.execute(
-        'DELETE FROM task_dependencies WHERE task_id = ? AND depends_on_task_id = ?',
+        f'DELETE FROM task_dependencies WHERE task_id = {_backend.placeholder} AND depends_on_task_id = {_backend.placeholder}',
         (task_id, depends_on_task_id)
     )
 
@@ -61,7 +61,7 @@ def get_tasks_for_dependency_edit(conn, task_id, depends_on_task_id):
     эндпоинтами добавления/удаления одной связи, чтобы проверить принадлежность одной команде
     и терминальный статус зависящей задачи перед мутацией."""
     rows = conn.execute(
-        'SELECT id, team_id, task_status, is_deleted FROM tasks WHERE id IN (?, ?)',
+        f'SELECT id, team_id, task_status, is_deleted FROM tasks WHERE id IN ({_backend.placeholder}, {_backend.placeholder})',
         (task_id, depends_on_task_id)
     ).fetchall()
     by_id = {r['id']: r for r in rows}
@@ -82,7 +82,7 @@ def has_dependency_cycle(conn, task_id, new_dep_ids):
             continue
         visited.add(current)
         rows = conn.execute(
-            'SELECT depends_on_task_id FROM task_dependencies WHERE task_id = ?',
+            f'SELECT depends_on_task_id FROM task_dependencies WHERE task_id = {_backend.placeholder}',
             (current,)
         ).fetchall()
         queue.extend(r['depends_on_task_id'] for r in rows)
@@ -99,10 +99,10 @@ def _dependency_component_ids(conn, task_id):
     while queue:
         current = queue.pop()
         ancestor_rows = conn.execute(
-            'SELECT depends_on_task_id FROM task_dependencies WHERE task_id = ?', (current,)
+            f'SELECT depends_on_task_id FROM task_dependencies WHERE task_id = {_backend.placeholder}', (current,)
         ).fetchall()
         descendant_rows = conn.execute(
-            'SELECT task_id FROM task_dependencies WHERE depends_on_task_id = ?', (current,)
+            f'SELECT task_id FROM task_dependencies WHERE depends_on_task_id = {_backend.placeholder}', (current,)
         ).fetchall()
         for row in ancestor_rows:
             neighbor = row['depends_on_task_id']
@@ -134,19 +134,19 @@ def get_dependency_graph_for_team(conn, team_id, task_id=None):
     (done/cancelled), не возвращается — обе стороны завершены, и такая связь не несёт полезной
     информации для текущего планирования."""
     # @formatter:off
-    src_terminal_clause, terminal_params = terminal_task_status_sql('src.task_status')
-    dep_terminal_clause, dep_terminal_params = terminal_task_status_sql('dep.task_status')
+    src_terminal_clause, terminal_params = terminal_task_status_sql('src.task_status', placeholder=_backend.placeholder)
+    dep_terminal_clause, dep_terminal_params = terminal_task_status_sql('dep.task_status', placeholder=_backend.placeholder)
     terminal_edge_filter = f'NOT ({src_terminal_clause} AND {dep_terminal_clause})'
     if task_id is not None:
         component_ids = _dependency_component_ids(conn, task_id)
-        placeholders = ','.join('?' * len(component_ids))
+        placeholders = _backend.placeholders(len(component_ids))
         params = tuple(component_ids)
         nodes = conn.execute(
             f'''SELECT t.id, t.name, t.description, t.task_status, t.criticality,
                        t.segment_id, seg.name AS segment_name
                 FROM tasks t
                 JOIN segments seg ON t.segment_id = seg.id
-                WHERE t.team_id = ? AND t.is_deleted = 0 AND t.id IN ({placeholders})''',
+                WHERE t.team_id = {_backend.placeholder} AND t.is_deleted = 0 AND t.id IN ({placeholders})''',
             (team_id, *params)
         ).fetchall()
         edges = conn.execute(
@@ -154,7 +154,7 @@ def get_dependency_graph_for_team(conn, team_id, task_id=None):
                 FROM task_dependencies td
                 JOIN tasks src ON td.task_id            = src.id
                 JOIN tasks dep ON td.depends_on_task_id = dep.id
-                WHERE src.team_id = ? AND src.is_deleted = 0 AND dep.is_deleted = 0
+                WHERE src.team_id = {_backend.placeholder} AND src.is_deleted = 0 AND dep.is_deleted = 0
                   AND td.task_id IN ({placeholders}) AND td.depends_on_task_id IN ({placeholders})
                   AND {terminal_edge_filter}''',
             (team_id, *params, *params, *terminal_params, *dep_terminal_params)
@@ -165,18 +165,18 @@ def get_dependency_graph_for_team(conn, team_id, task_id=None):
                 FROM task_dependencies td
                 JOIN tasks src ON td.task_id            = src.id
                 JOIN tasks dep ON td.depends_on_task_id = dep.id
-                WHERE src.team_id = ? AND src.is_deleted = 0 AND dep.is_deleted = 0
+                WHERE src.team_id = {_backend.placeholder} AND src.is_deleted = 0 AND dep.is_deleted = 0
                   AND {terminal_edge_filter}''',
             (team_id, *terminal_params, *dep_terminal_params)
         ).fetchall()
         node_ids = {e['task_id'] for e in edges} | {e['dep_id'] for e in edges}
-        placeholders = ','.join('?' * len(node_ids)) if node_ids else 'NULL'
+        placeholders = _backend.placeholders(len(node_ids)) if node_ids else 'NULL'
         nodes = conn.execute(
             f'''SELECT t.id, t.name, t.description, t.task_status, t.criticality,
                       t.segment_id, seg.name AS segment_name
                FROM tasks t
                JOIN segments seg ON t.segment_id = seg.id
-               WHERE t.team_id = ? AND t.is_deleted = 0 AND t.id IN ({placeholders})''',
+               WHERE t.team_id = {_backend.placeholder} AND t.is_deleted = 0 AND t.id IN ({placeholders})''',
             (team_id, *node_ids)
         ).fetchall() if node_ids else []
     # @formatter:on
@@ -185,20 +185,24 @@ def get_dependency_graph_for_team(conn, team_id, task_id=None):
 
 @with_db_connection(commit_on_success=False)
 def get_active_tasks_flat(conn, team_id, search=None, limit=50, include_ids=None):
-    active_clause, terminal_params = terminal_task_status_sql('task_status', negated=True)
+    active_clause, terminal_params = terminal_task_status_sql('task_status', negated=True, placeholder=_backend.placeholder)
     params = [team_id, *terminal_params]
-    search_clause, search_params = _fuzzy_search_clause(search)
+    search_clause, search_params = _fuzzy_search_clause(
+        search, conn=conn,
+        candidate_where=f'team_id = {_backend.placeholder} AND is_deleted = 0 AND {active_clause}',
+        candidate_params=params,
+    )
     params += search_params
     params.append(limit)
 
     include_clause = ""
     if include_ids:
-        placeholders = ','.join('?' * len(include_ids))
+        placeholders = _backend.placeholders(len(include_ids))
         include_clause = f'''
             UNION
             SELECT id, name, task_status, criticality
             FROM tasks
-            WHERE team_id = ? AND is_deleted = 0 AND id IN ({placeholders})
+            WHERE team_id = {_backend.placeholder} AND is_deleted = 0 AND id IN ({placeholders})
         '''
         params.append(team_id)
         params += list(include_ids)
@@ -208,15 +212,15 @@ def get_active_tasks_flat(conn, team_id, search=None, limit=50, include_ids=None
         SELECT id, name, task_status, criticality FROM (
             SELECT id, name, task_status, criticality
             FROM tasks
-            WHERE team_id = ?
+            WHERE team_id = {_backend.placeholder}
               AND is_deleted = 0
               AND {active_clause}
               {search_clause}
-            ORDER BY name
-            LIMIT ?
-        )
+            ORDER BY name, id
+            LIMIT {_backend.placeholder}
+        ) candidates
         {include_clause}
-        ORDER BY name
+        ORDER BY name, id
     '''
     # @formatter:on
     return conn.execute(query, params).fetchall()
