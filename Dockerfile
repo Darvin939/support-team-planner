@@ -1,4 +1,4 @@
-FROM docker-dev.registry-ci.delta.mysecure_57117ba4eem0.ru/ubi8/python-312:latest
+FROM my-docker-registry/ubi8/python-312:latest
 
 USER 0
 WORKDIR /app
