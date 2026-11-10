@@ -61,6 +61,8 @@ runtime_files=(
     "application_version.json"
     "changelog.json"
     "requirements.txt"
+    "Dockerfile"
+    ".dockerignore"
     "run.sh"
     "check.sh"
     "README.md"

@@ -51,6 +51,61 @@ npm run build
 
 В дистрибутиве `run.sh` запускает приложение, `check.sh` проверяет его состояние. `application_version.json` задаёт версию релиза, `changelog.json` — заметки к релизам; сборка генерирует `app_build_metadata.json` с ID билда.
 
+## Контейнерный образ
+
+Образ собирается из готового дистрибутива на базе `docker-dev.registry-ci.delta.mysecure_57117ba4eem0.ru/ubi8/python-312:latest`. Подготовка дистрибутива и Docker-сборка могут выполняться в разных job. Конфигурацию второй job предоставляет инфраструктура.
+
+### Подготовка артефакта
+
+В первой job нужны Python 3.9+, Node.js, npm и zip. Для установки полного набора frontend-зависимостей используйте Node.js 24. Из корня репозитория выполните:
+
+```bash
+npm --prefix frontend ci
+./build-distribution.sh
+```
+
+Скрипт сам выполняет `npm run build`: дополнительно собирать frontend перед ним не требуется. Результат — каталог `build/support-team-planner` и архив `build/support-team-planner.zip`. Параметр `--output PATH` меняет каталог и путь архива на `PATH.zip`.
+
+В архив входят Dockerfile, `.dockerignore`, backend, готовый `frontend/dist`, миграторы и метаданные сборки. Внешний каталог-обёртка внутри ZIP отсутствует. Docker и `pip.conf` для этого этапа не нужны; локальный `pip.conf` сборочный скрипт не читает и не включает в артефакт. Для ID из CI можно задать `BUILD_ID` при вызове скрипта; Docker-сборка сохранит полученный `app_build_metadata.json`.
+
+### Сборка из архива
+
+На машине с Docker и доступом к корпоративному registry распакуйте переданный архив в новый каталог:
+
+```bash
+mkdir image-context
+unzip support-team-planner.zip -d image-context
+```
+
+Поместите свой `pip.conf` в `image-context/pip.conf`, затем выполните:
+
+```bash
+docker build -t support-team-planner:local image-context
+```
+
+Dockerfile копирует `pip.conf` в `/app/pip.conf` и использует `PIP_CONFIG_FILE=./pip.conf` при обновлении pip и установке `requirements.txt`. Этот файл остаётся в образе; его содержимое проект не создаёт и источник пакетов не подменяет. Node.js в образ не устанавливается. Отсутствие `pip.conf`, `frontend/dist/index.html` или `frontend/dist/taskTransitions.json` приводит к ошибке сборки.
+
+### Запуск с внешним PostgreSQL
+
+Образ использует `python support_planner.py`, рабочий каталог `/app`, порт `5093` и пользователя `1001:0`. Предоставьте запись в `/app` для создания и ротации `application.log`, а также в `/tmp` для временных TLS-файлов. Существующее файловое логирование сохраняется: `PYTHONUNBUFFERED=1` не перенаправляет эти логи в stdout. При замене контейнера его локальные логи теряются.
+
+Для Kubernetes явно задайте `SUPPORT_PLANNER_DATABASE_URL` и постоянный `SESSION_SECRET_KEY` через окружение экземпляра; пароль PostgreSQL можно передать отдельно через `PGPASSWORD`. Если URL не задан, сохраняется SQLite-default приложения. Подключение, роли и TLS описаны в [POSTGRESQL.md](POSTGRESQL.md).
+
+До первого запуска и после обновления схемы отдельно выполните мигратор из того же образа. Например, подготовьте вне контекста сборки закрытые файлы окружения `/secure/planner-migration.env` и `/secure/planner-runtime.env`: первый содержит подключение migration-роли, второй — runtime-роли и `SESSION_SECRET_KEY`.
+
+```bash
+docker run --rm --env-file /secure/planner-migration.env \
+  support-team-planner:local python -m scripts.migrate_database --postgresql
+
+docker run --rm --name support-team-planner \
+  --env-file /secure/planner-runtime.env -p 5093:5093 \
+  support-team-planner:local
+```
+
+Если PostgreSQL требует файл CA или клиентские сертификаты, смонтируйте их в оба контейнера с правом чтения для UID 1001 и укажите соответствующие пути через параметры libpq, например `PGSSLROOTCERT`. Адрес PostgreSQL должен быть доступен из контейнера; `localhost` внутри него относится к самому контейнеру.
+
+При обычном HTTP-запуске интерфейс доступен на `http://127.0.0.1:5093`. Существующий режим TLS через Vault сохраняется при соответствующей настройке окружения. Docker-сборка и стандартная команда запуска не применяют PostgreSQL-миграции автоматически; при неподготовленной схеме startup завершается с ошибкой.
+
 ## Структура
 
 - `backend/` — приложение FastAPI, бизнес-логика, доступ к SQLite (`db/`) и API-маршруты (`routers/`).
