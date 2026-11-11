@@ -24,7 +24,7 @@ def main(argv=None):
             conn = backend.connect()
             backend.setup_connection(conn)
             run_migrations(conn, backend, schema_only=args.schema_only)
-            version = conn.execute('SELECT MAX(version) FROM public.schema_migrations').fetchone()[0]
+            version = conn.execute('SELECT MAX(version) FROM %s' % conn.qualified_name('schema_migrations')).fetchone()[0]
         else:
             # This CLI flag explicitly selects SQLite, even in a PostgreSQL instance environment.
             os.environ.pop('SUPPORT_PLANNER_DATABASE_URL', None)

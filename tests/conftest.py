@@ -65,7 +65,7 @@ def storage(tmp_path, monkeypatch):
             run_migrations(conn, migration, schema_only=True)
             with migration.migration_lock(conn):
                 migration.begin_write(conn)
-                conn.execute('TRUNCATE TABLE ' + ', '.join('ONLY public."%s"' % table for table in TABLES) + ' RESTART IDENTITY RESTRICT')
+                conn.execute('TRUNCATE TABLE ' + ', '.join('ONLY %s' % conn.qualified_name(table) for table in TABLES) + ' RESTART IDENTITY RESTRICT')
                 conn.commit()
         finally:
             migration.close(conn)

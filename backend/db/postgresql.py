@@ -1,6 +1,7 @@
 """Psycopg boundary: native SQL parameters, compatible rows and safe diagnostics."""
 
 from contextlib import contextmanager
+import os
 from urllib.parse import urlsplit
 from uuid import uuid4
 
@@ -12,6 +13,10 @@ MIGRATION_LOCK = 734918527102
 
 class StorageError(Exception):
     pass
+
+
+class SchemaConfigurationError(StorageError):
+    """Safe configuration diagnostics suitable for CLI reports."""
 
 
 class StorageIntegrityError(StorageError):
@@ -113,9 +118,16 @@ class Cursor:
 
 
 class Connection:
-    def __init__(self, raw):
+    def __init__(self, raw, schema):
         self.raw = raw
+        self.schema = schema
         self.write_locked = False
+
+    def qualified_name(self, name, parameters=False):
+        """Quoted SQL/regclass name; escape % when composing a parameterized query."""
+        from psycopg import sql
+        quoted = sql.Identifier(self.schema, name).as_string(self.raw)
+        return quoted.replace('%', '%%') if parameters else quoted
 
     def cursor(self, name=None):
         return Cursor(self.raw.cursor(name=name) if name else self.raw.cursor())
@@ -164,6 +176,16 @@ def validate_url(url):
     return url
 
 
+def validate_schema(schema):
+    try:
+        valid = isinstance(schema, str) and bool(schema.strip()) and '\x00' not in schema and len(schema.encode('utf-8')) <= 63
+    except UnicodeError:
+        valid = False
+    if not valid:
+        raise SchemaConfigurationError('Invalid SUPPORT_PLANNER_DATABASE_SCHEMA: expected a nonempty PostgreSQL schema name of at most 63 UTF-8 bytes')
+    return schema
+
+
 def database_identity(conn):
     """Identify a configured test destination without including credentials."""
     row = conn.execute('SELECT current_database(), inet_server_addr()::text, inet_server_port()').fetchone()
@@ -178,20 +200,29 @@ class PostgreSQLBackend(DBBackend):
     duplicate_error = UniqueConstraintError
     integrity_error = StorageIntegrityError
 
-    def __init__(self, url):
+    def __init__(self, url, schema=None):
         self.url = validate_url(url)
+        self.schema = validate_schema(os.environ.get('SUPPORT_PLANNER_DATABASE_SCHEMA', 'planner') if schema is None else schema)
 
     def connect(self):
         import psycopg
         try:
             raw = psycopg.connect(self.url, row_factory=row_factory, connect_timeout=10)
             raw.isolation_level = psycopg.IsolationLevel.READ_COMMITTED
-            return Connection(raw)
+            return Connection(raw, self.schema)
         except (psycopg.Error, ValueError) as exc:
             raise driver_error(exc) from None
 
     def setup_connection(self, conn):
-        conn.execute("SET search_path TO public")
+        from psycopg import sql
+        access = conn.execute("SELECT has_schema_privilege(oid, 'USAGE') FROM pg_namespace WHERE nspname = %s", (conn.schema,)).fetchone()
+        if access is None:
+            raise SchemaConfigurationError('PostgreSQL schema %r does not exist; ask the database administrator to create it' % conn.schema)
+        if not access[0]:
+            raise SchemaConfigurationError('PostgreSQL schema %r requires USAGE permission; contact the database administrator' % conn.schema)
+        conn.execute(sql.SQL('SET search_path TO {}').format(sql.Identifier(conn.schema)))
+        if conn.execute('SELECT current_schema()').fetchone()[0] != conn.schema:
+            raise SchemaConfigurationError('PostgreSQL schema %r cannot be selected as the application schema' % conn.schema)
         conn.execute("SET TIME ZONE 'UTC'")
         conn.commit()
 

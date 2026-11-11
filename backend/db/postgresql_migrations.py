@@ -1,5 +1,6 @@
 """Independent PostgreSQL migrations: startup validates, only the CLI runs DDL."""
 import hashlib
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
@@ -13,6 +14,7 @@ class Migration:
     name: str
     sql: str
     postcondition: Optional[Callable] = None
+    render: Optional[Callable] = None
 
     @property
     def checksum(self):
@@ -20,7 +22,17 @@ class Migration:
 
 
 def migrations():
-    return (Migration(1, 'sqlite-v15-baseline', Path(__file__).with_name('postgresql_baseline.sql').read_text(encoding='utf-8'), validate_tables),)
+    return (Migration(1, 'sqlite-v15-baseline', Path(__file__).with_name('postgresql_baseline.sql').read_text(encoding='utf-8'), validate_tables, render_baseline),)
+
+
+def render_baseline(statement, conn):
+    """Adapt only the published baseline's object references, not its checksum."""
+    def qualify(match):
+        table = match.group(2)
+        if table not in TABLES:
+            raise RuntimeError('Unknown PostgreSQL baseline table: %s' % table)
+        return match.group(1) + ' ' + conn.qualified_name(table)
+    return re.sub(r'\b(CREATE TABLE|ON|REFERENCES) public\."([a-z_]+)"', qualify, statement)
 
 
 def validate_manifest(manifest):
@@ -32,7 +44,7 @@ def validate_manifest(manifest):
 
 
 def journal_exists(conn):
-    return conn.execute("SELECT to_regclass('public.schema_migrations')").fetchone()[0] is not None
+    return conn.execute('SELECT to_regclass(%s)', (conn.qualified_name('schema_migrations'),)).fetchone()[0] is not None
 
 
 def validate_journal(conn, manifest, require_current=False):
@@ -41,7 +53,7 @@ def validate_journal(conn, manifest, require_current=False):
         if require_current:
             raise RuntimeError('PostgreSQL schema missing; run scripts.migrate_database --postgresql')
         return 0
-    rows = conn.execute('SELECT version, name, checksum FROM public.schema_migrations ORDER BY version').fetchall()
+    rows = conn.execute('SELECT version, name, checksum FROM %s ORDER BY version' % conn.qualified_name('schema_migrations')).fetchall()
     if len(rows) > len(manifest):
         raise RuntimeError('Unknown newer PostgreSQL schema version')
     for expected, row in zip(manifest, rows):
@@ -56,8 +68,8 @@ def validate_tables(conn):
     for table, spec in TABLES.items():
         rows = conn.execute('''SELECT column_name, data_type, is_nullable, collation_name, is_identity
                               FROM information_schema.columns
-                              WHERE table_schema = 'public' AND table_name = %s
-                              ORDER BY ordinal_position''', (table,)).fetchall()
+                              WHERE table_schema = %s AND table_name = %s
+                              ORDER BY ordinal_position''', (conn.schema, table)).fetchall()
         actual = [(r[0], r[1], r[2] == 'NO') for r in rows]
         if actual != list(spec['columns']):
             raise RuntimeError('PostgreSQL table columns mismatch: %s' % table)
@@ -69,18 +81,19 @@ def validate_tables(conn):
             SELECT a.attname FROM unnest(c.conkey) WITH ORDINALITY k(attnum, ordinal)
             JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=k.attnum ORDER BY k.ordinal)
             FROM pg_constraint c WHERE c.conrelid=%s::regclass AND c.contype='p' ''',
-                               ('public.' + table,)).fetchone()
+                               (conn.qualified_name(table),)).fetchone()
         if not primary or list(primary[0]) != list(spec['key']):
             raise RuntimeError('PostgreSQL primary key mismatch: %s' % table)
-        foreign_keys = conn.execute('''SELECT a.attname, parent.relname, pa.attname, c.confdeltype
+        foreign_keys = conn.execute('''SELECT a.attname, parent.relname, pa.attname, c.confdeltype, n.nspname
             FROM pg_constraint c
             JOIN pg_class parent ON parent.oid = c.confrelid
+            JOIN pg_namespace n ON n.oid = parent.relnamespace
             JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
             JOIN pg_attribute pa ON pa.attrelid = c.confrelid AND pa.attnum = c.confkey[1]
-            WHERE c.conrelid = %s::regclass AND c.contype = 'f' ''', ('public.' + table,)).fetchall()
+            WHERE c.conrelid = %s::regclass AND c.contype = 'f' ''', (conn.qualified_name(table),)).fetchall()
         actions = {'a': 'NO ACTION', 'r': 'RESTRICT', 'c': 'CASCADE', 'n': 'SET NULL', 'd': 'SET DEFAULT'}
         actual_fks = sorted((r[0], r[1], r[2], actions[r[3]]) for r in foreign_keys)
-        if actual_fks != sorted(spec['foreign_keys']):
+        if actual_fks != sorted(spec['foreign_keys']) or any(r[4] != conn.schema for r in foreign_keys):
             raise RuntimeError('PostgreSQL foreign keys mismatch: %s' % table)
         for name, columns, unique, partial in spec['indexes']:
             index = conn.execute('''SELECT i.indisunique, i.indisvalid, i.indisready,
@@ -90,19 +103,19 @@ def validate_tables(conn):
                           ORDER BY k.position)
                 FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid
                 JOIN pg_namespace n ON n.oid=c.relnamespace
-                WHERE n.nspname='public' AND c.relname=%s AND i.indrelid=%s::regclass''',
-                                 (name, 'public.' + table)).fetchone()
+                WHERE n.nspname=%s AND c.relname=%s AND i.indrelid=%s::regclass''',
+                                 (conn.schema, name, conn.qualified_name(table))).fetchone()
             if (not index or index[0] != unique or not index[1] or not index[2]
                     or bool(index[3]) != partial or list(index[4]) != list(columns)):
                 raise RuntimeError('PostgreSQL index mismatch: %s' % name)
             if partial and index[3].replace(' ', '').strip('()') != 'is_deleted=0':
                 raise RuntimeError('PostgreSQL partial index predicate mismatch: %s' % name)
-        conn.execute('SELECT 1 FROM public."%s" LIMIT 0' % table)
-    tables = ['public.' + name for name in TABLES]
+        conn.execute('SELECT 1 FROM %s LIMIT 0' % conn.qualified_name(table))
+    tables = [conn.qualified_name(name) for name in TABLES]
     bad = conn.execute('''SELECT c.conrelid::regclass::text FROM pg_constraint c
                           JOIN pg_namespace n ON n.oid = c.connamespace
-                          WHERE n.nspname = 'public' AND c.contype = 'f'
-                            AND c.conrelid = ANY(%s::regclass[]) AND NOT c.convalidated''', (tables,)).fetchone()
+                          WHERE n.nspname = %s AND c.contype = 'f'
+                            AND c.conrelid = ANY(%s::regclass[]) AND NOT c.convalidated''', (conn.schema, tables)).fetchone()
     if bad:
         raise RuntimeError('Unvalidated PostgreSQL foreign key: %s' % bad[0])
     disabled = conn.execute('''SELECT tgrelid::regclass::text FROM pg_trigger
@@ -130,17 +143,17 @@ def run_migrations(conn, backend, manifest=None, schema_only=False):
         for migration in manifest[applied:]:
             try:
                 backend.begin_write(conn)
-                conn.execute('''CREATE TABLE IF NOT EXISTS public.schema_migrations (
+                conn.execute('''CREATE TABLE IF NOT EXISTS %s (
                     version BIGINT PRIMARY KEY,
                     name TEXT COLLATE "C" NOT NULL UNIQUE,
                     checksum TEXT COLLATE "C" NOT NULL,
                     applied_at TEXT COLLATE "C" NOT NULL DEFAULT
                         to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')
-                )''')
-                conn.execute(migration.sql)
+                )''' % conn.qualified_name('schema_migrations'))
+                conn.execute(migration.render(migration.sql, conn) if migration.render else migration.sql)
                 if migration.postcondition:
                     migration.postcondition(conn)
-                conn.execute('INSERT INTO public.schema_migrations (version, name, checksum) VALUES (%s, %s, %s)',
+                conn.execute('INSERT INTO {} (version, name, checksum) VALUES (%s, %s, %s)'.format(conn.qualified_name('schema_migrations', parameters=True)),
                              (migration.version, migration.name, migration.checksum))
                 if fresh and not schema_only and migration.version == len(manifest):
                     bootstrap(conn)
@@ -154,8 +167,8 @@ def run_migrations(conn, backend, manifest=None, schema_only=False):
 
 def bootstrap(conn):
     from backend.auth import hash_password
-    if any(conn.execute('SELECT 1 FROM public."%s" LIMIT 1' % table).fetchone() for table in TABLES):
+    if any(conn.execute('SELECT 1 FROM %s LIMIT 1' % conn.qualified_name(table)).fetchone() for table in TABLES):
         raise RuntimeError('Bootstrap requires a new empty PostgreSQL installation')
-    conn.execute('''INSERT INTO public.users (last_name, first_name, role, login, password_hash, is_assignee)
-                    VALUES (%s, %s, 'admin', 'admin', %s, 0)''',
+    conn.execute('''INSERT INTO {} (last_name, first_name, role, login, password_hash, is_assignee)
+                    VALUES (%s, %s, 'admin', 'admin', %s, 0)'''.format(conn.qualified_name('users', parameters=True)),
                  (None, 'Администратор', hash_password('q12345678')))

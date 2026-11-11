@@ -64,11 +64,11 @@ def pg_tool(command, url):
         raise RuntimeError('%s failed; inspect the isolated test database configuration' % command[0])
 
 
-def pg_digest(url):
+def pg_digest(url, schema=None):
     from backend.db.postgresql import PostgreSQLBackend
     from backend.db.schema_manifest import TABLES
     from scripts.import_sqlite_to_postgres import table_digest
-    backend = PostgreSQLBackend(url)
+    backend = PostgreSQLBackend(url, schema=schema)
     conn = backend.connect()
     try:
         backend.setup_connection(conn)
@@ -102,10 +102,12 @@ def production_backend():
                 raise RuntimeError('PostgreSQL UI requires SUPPORT_PLANNER_TEST_DATABASE_URL')
             env['SUPPORT_PLANNER_DATABASE_URL'] = url
             tool_url = env.get('SUPPORT_PLANNER_TEST_MIGRATION_URL', url)
+            schema = env.get('SUPPORT_PLANNER_DATABASE_SCHEMA', 'planner')
+            env['SUPPORT_PLANNER_DATABASE_SCHEMA'] = schema
             from backend.db.postgresql import PostgreSQLBackend, database_identity
             identities = []
             for selected_url in (url, tool_url):
-                selected = PostgreSQLBackend(selected_url)
+                selected = PostgreSQLBackend(selected_url, schema=schema)
                 connection = selected.connect()
                 try:
                     selected.setup_connection(connection)
@@ -115,7 +117,7 @@ def production_backend():
             if identities[0] != identities[1]:
                 raise RuntimeError('UI runtime and migration URLs identify different databases; no restore will run')
             backup = output / 'before.dump'
-            original = pg_digest(url)
+            original = pg_digest(url, schema)
             pg_tool(['pg_dump', '--format=custom', '--file', str(backup)], tool_url)
         elif mode == 'sqlite':
             env.pop('SUPPORT_PLANNER_DATABASE_URL', None)
@@ -156,7 +158,7 @@ def production_backend():
             if restore_needed:
                 if mode == 'postgresql':
                     pg_tool(['pg_restore', '--clean', '--if-exists', '--exit-on-error', '--no-owner', str(backup)], tool_url)
-                    if pg_digest(env['SUPPORT_PLANNER_TEST_DATABASE_URL']) != original:
+                    if pg_digest(env['SUPPORT_PLANNER_TEST_DATABASE_URL'], schema) != original:
                         raise RuntimeError('PostgreSQL restored data differs from backup')
                 else:
                     sqlite_backup(backup, path)

@@ -51,6 +51,7 @@ def test_selection_default_priority_and_failed_connection(tmp_path):
 def test_explicit_sqlite_cli_ignores_postgresql_settings(tmp_path):
     env = subprocess_env()
     env['SUPPORT_PLANNER_DATABASE_URL'] = 'invalid-secret-password'
+    env['SUPPORT_PLANNER_DATABASE_SCHEMA'] = ''
     result = subprocess.run([sys.executable, '-m', 'scripts.migrate_database', '--database', str(tmp_path / 'explicit.db')], cwd=ROOT, env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert 'user_version=15' in result.stdout

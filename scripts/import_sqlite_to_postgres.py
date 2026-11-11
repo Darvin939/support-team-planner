@@ -126,7 +126,8 @@ def validate_source(conn):
 def table_digest(conn, table, spec, postgres=False):
     columns = ','.join('"%s"' % item[0] for item in spec['columns'])
     keys = ','.join('"%s"' % item for item in spec['key'])
-    query = 'SELECT %s FROM %s"%s" ORDER BY %s' % (columns, 'public.' if postgres else '', table, keys)
+    relation = conn.qualified_name(table) if postgres else '"%s"' % table
+    query = 'SELECT %s FROM %s ORDER BY %s' % (columns, relation, keys)
     if postgres:
         cursor = conn.cursor(name='sp_verify_' + uuid4().hex).execute(query)
     else:
@@ -154,20 +155,20 @@ def target_counts(conn, allow_missing=False):
     from backend.db.schema_manifest import TABLES
     counts = {}
     for table in TABLES:
-        exists = conn.execute('SELECT to_regclass(%s)', ('public.' + table,)).fetchone()[0]
+        exists = conn.execute('SELECT to_regclass(%s)', (conn.qualified_name(table),)).fetchone()[0]
         if not exists:
             if not allow_missing:
                 raise TransferError('Missing PostgreSQL table: %s' % table)
             counts[table] = 0
         else:
-            counts[table] = conn.execute('SELECT COUNT(*) FROM public."%s"' % table).fetchone()[0]
+            counts[table] = conn.execute('SELECT COUNT(*) FROM %s' % conn.qualified_name(table)).fetchone()[0]
     return counts
 
 
 def validate_target_scope(conn):
     """Refuse inherited tables, user triggers and incoming FKs outside the manifest."""
     from backend.db.schema_manifest import TABLES
-    names = ['public.' + table for table in TABLES]
+    names = [conn.qualified_name(table) for table in TABLES]
     external = conn.execute('''SELECT 1 FROM pg_constraint
         WHERE contype = 'f' AND confrelid = ANY(%s::regclass[])
           AND NOT (conrelid = ANY(%s::regclass[])) LIMIT 1''', (names, names)).fetchone()
@@ -181,7 +182,7 @@ def validate_target_scope(conn):
 
 def load_table(source, target, backend, table, spec):
     columns = ','.join('"%s"' % item[0] for item in spec['columns'])
-    query = 'INSERT INTO public."%s" (%s) VALUES (%s)' % (table, columns, backend.placeholders(len(spec['columns'])))
+    query = 'INSERT INTO %s (%s) VALUES (%s)' % (target.qualified_name(table, parameters=True), columns, backend.placeholders(len(spec['columns'])))
     cursor = source.execute('SELECT %s FROM "%s" ORDER BY %s' % (columns, table, ','.join('"%s"' % key for key in spec['key'])))
     try:
         while True:
@@ -219,10 +220,10 @@ def restart_sequences(conn):
             continue
         row = conn.execute('''SELECT n.nspname, c.relname FROM pg_class c
             JOIN pg_namespace n ON n.oid = c.relnamespace
-            WHERE c.oid = pg_get_serial_sequence(%s, 'id')::regclass''', ('public.' + table,)).fetchone()
+            WHERE c.oid = pg_get_serial_sequence(%s, 'id')::regclass''', (conn.qualified_name(table),)).fetchone()
         if not row:
             raise TransferError('Missing identity sequence: %s' % table)
-        maximum = conn.execute('SELECT MAX(id) FROM public."%s"' % table).fetchone()[0]
+        maximum = conn.execute('SELECT MAX(id) FROM %s' % conn.qualified_name(table)).fetchone()[0]
         next_id = max(1, (maximum or 0) + 1)
         conn.execute(sql.SQL('ALTER SEQUENCE {} RESTART WITH {}').format(sql.Identifier(row[0], row[1]), sql.Literal(next_id)))
 
@@ -248,7 +249,7 @@ def transfer(source_path, replace=False, dry_run=False, report=None):
         exists = journal_exists(target)
         if exists or replace:
             check_schema(target)
-        elif target.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name = ANY(%s)", (list(TABLES),)).fetchone()[0]:
+        elif target.execute('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=%s AND table_name = ANY(%s)', (target.schema, list(TABLES))).fetchone()[0]:
             raise TransferError('Target has application tables without a compatible migration journal')
         before = target_counts(target, allow_missing=not exists and not replace)
         result['before_counts'] = before
@@ -265,7 +266,7 @@ def transfer(source_path, replace=False, dry_run=False, report=None):
             run_migrations(target, backend, schema_only=True)
         with backend.migration_lock(target):
             backend.begin_write(target)
-            table_list = ', '.join('ONLY public."%s"' % table for table in TABLES)
+            table_list = ', '.join('ONLY %s' % target.qualified_name(table) for table in TABLES)
             target.execute('LOCK TABLE %s IN ACCESS EXCLUSIVE MODE' % table_list)
             check_schema(target)
             before = target_counts(target)
@@ -322,13 +323,16 @@ def main(argv=None):
     try:
         transfer(args.source, args.replace_target, args.dry_run, report)
     except Exception as exc:
-        report['error'] = str(exc) if isinstance(exc, TransferError) else 'Transfer failed (%s); inspect source integrity and target configuration' % type(exc).__name__
+        from backend.db.postgresql import SchemaConfigurationError
+        report['error'] = str(exc) if isinstance(exc, (TransferError, SchemaConfigurationError)) else 'Transfer failed (%s); inspect source integrity and target configuration' % type(exc).__name__
         if report.get('commit') == 'unknown':
             report['error'] = 'Commit outcome unknown: inspect PostgreSQL before any retry. No automatic retry was attempted.'
         code = 1
     finally:
         report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     print('Transfer %s; report: %s' % (report.get('commit', 'failed'), report_path))
+    if code:
+        print(report['error'], file=sys.stderr)
     return code
 
 

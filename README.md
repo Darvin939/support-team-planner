@@ -89,9 +89,9 @@ Dockerfile копирует `pip.conf` в `/app/pip.conf` и используе�
 
 Образ использует `python support_planner.py`, рабочий каталог `/app`, порт `5093` и пользователя `1001:0`. Предоставьте запись в `/app` для создания и ротации `application.log`, а также в `/tmp` для временных TLS-файлов. Существующее файловое логирование сохраняется: `PYTHONUNBUFFERED=1` не перенаправляет эти логи в stdout. При замене контейнера его локальные логи теряются.
 
-Для Kubernetes явно задайте `SUPPORT_PLANNER_DATABASE_URL` и постоянный `SESSION_SECRET_KEY` через окружение экземпляра; пароль PostgreSQL можно передать отдельно через `PGPASSWORD`. Если URL не задан, сохраняется SQLite-default приложения. Подключение, роли и TLS описаны в [POSTGRESQL.md](POSTGRESQL.md).
+Для Kubernetes явно задайте `SUPPORT_PLANNER_DATABASE_URL` и постоянный `SESSION_SECRET_KEY` через окружение экземпляра; пароль PostgreSQL можно передать отдельно через `PGPASSWORD`. Схема задаётся `SUPPORT_PLANNER_DATABASE_SCHEMA`, по умолчанию `planner`; её заранее создаёт администратор БД. Если URL не задан, сохраняется SQLite-default приложения. Подключение, роли и TLS описаны в [POSTGRESQL.md](POSTGRESQL.md).
 
-До первого запуска и после обновления схемы отдельно выполните мигратор из того же образа. Например, подготовьте вне контекста сборки закрытые файлы окружения `/secure/planner-migration.env` и `/secure/planner-runtime.env`: первый содержит подключение migration-роли, второй — runtime-роли и `SESSION_SECRET_KEY`.
+До первого запуска и после обновления схемы отдельно выполните мигратор из того же образа. Например, подготовьте вне контекста сборки закрытые файлы окружения `/secure/planner-migration.env` и `/secure/planner-runtime.env`: первый содержит подключение migration-роли, второй — runtime-роли и `SESSION_SECRET_KEY`. Значение `SUPPORT_PLANNER_DATABASE_SCHEMA` должно совпадать в обоих файлах и при импорте SQLite. Значение по умолчанию задаётся приложением и одинаково для контейнера и локального запуска.
 
 ```bash
 docker run --rm --env-file /secure/planner-migration.env \
@@ -116,4 +116,4 @@ docker run --rm --name support-team-planner \
 
 ## PostgreSQL 15
 
-SQLite остаётся вариантом по умолчанию. Для PostgreSQL задайте `SUPPORT_PLANNER_DATABASE_URL`, примените `python -m scripts.migrate_database --postgresql`, затем запустите приложение. Зависимость Psycopg ограничена веткой 3.2 для Python 3.9. Полная инструкция по runtime/migration-ролям, двум независимым экземплярам, первичному переносу, `--replace-target`, тестовой матрице, backup/restore и финальному переключению: [POSTGRESQL.md](POSTGRESQL.md).
+SQLite остаётся вариантом по умолчанию. Для PostgreSQL задайте `SUPPORT_PLANNER_DATABASE_URL` и при необходимости `SUPPORT_PLANNER_DATABASE_SCHEMA` (по умолчанию `planner`). Администратор заранее создаёт схему, затем выполняется `python -m scripts.migrate_database --postgresql` и запускается приложение. Для переноса из SQLite используйте подготовку `--schema-only` и импорт с тем же параметром схемы. Зависимость Psycopg ограничена веткой 3.2 для Python 3.9. Полная инструкция по runtime/migration-ролям, двум независимым экземплярам, первичному переносу, `--replace-target`, тестовой матрице, backup/restore и финальному переключению: [POSTGRESQL.md](POSTGRESQL.md).

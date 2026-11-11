@@ -2,9 +2,15 @@
 
 Приложение поддерживает Python 3.9. Без `SUPPORT_PLANNER_DATABASE_URL` используется SQLite (`SUPPORT_PLANNER_DB_PATH`, по умолчанию `database.db`). При заданном URL выбирается PostgreSQL; пустой или неверный URL является ошибкой. PostgreSQL не переключается на SQLite при недоступности. `.env` загружается до DAO без переопределения окружения. `postgresql://` и `postgres://` поддерживают параметры libpq, в том числе `sslmode` и TLS-сертификаты. Секреты передаются через окружение или закрытый `.env`, не через аргументы CLI и не через Git.
 
+`SUPPORT_PLANNER_DATABASE_SCHEMA` задаёт одну схему PostgreSQL для приложения, мигратора и импорта SQLite. Без переменной используется `planner`. Параметр доступен через окружение или `.env`; окружение имеет приоритет. Схему заранее создаёт администратор БД: продуктовые команды её автоматически не создают. Пустое/пробельное имя, NUL или имя длиннее 63 UTF-8 байт — ошибка. Регистр и допустимые специальные символы сохраняются. SQLite этот параметр игнорирует.
+
+Для уже подготовленной `public` явно задайте `SUPPORT_PLANNER_DATABASE_SCHEMA=public`. Смена параметра выбирает другую схему и не перемещает таблицы или данные. Автоматического поиска таблиц в `public` при выборе другой схемы нет.
+
 ```sh
 python -m pip install -r requirements.txt
 # Настроить SUPPORT_PLANNER_DATABASE_URL средствами окружения экземпляра.
+# Администратор предварительно создаёт схему (см. ниже).
+export SUPPORT_PLANNER_DATABASE_SCHEMA=planner
 python -m scripts.migrate_database --postgresql
 python support_planner.py
 ```
@@ -13,7 +19,16 @@ python support_planner.py
 
 ## Роли и схема
 
-Инфраструктура предоставляет PostgreSQL 15, БД и две роли. Migration-роль владеет прикладными таблицами и identity-последовательностями в `public`, имеет права создания схемы/таблиц и TRUNCATE. Она применяется для pre-deploy, переноса и большого demo-генератора. Runtime-роль получает CONNECT к БД, USAGE схемы, SELECT журнала `public.schema_migrations`, SELECT/INSERT/UPDATE/DELETE только прикладных таблиц и USAGE/SELECT их последовательностей. Runtime не получает DDL, TRUNCATE или запись migration journal. Пароли, TLS, сети и резервное копирование настраивает инфраструктура.
+Инфраструктура предоставляет PostgreSQL 15, БД и две роли. Администратор создаёт выбранную схему; migration-роль владеет прикладными таблицами и identity-последовательностями в ней, имеет USAGE/CREATE на схему и права TRUNCATE таблиц. Она применяется для pre-deploy, переноса и большого demo-генератора. Runtime-роль получает CONNECT к БД, USAGE схемы, SELECT журнала `planner.schema_migrations`, SELECT/INSERT/UPDATE/DELETE только прикладных таблиц и USAGE/SELECT их последовательностей. Runtime не получает DDL, TRUNCATE или запись migration journal. Пароли, TLS, сети и резервное копирование настраивает инфраструктура.
+
+Пример предварительной подготовки администратором при уже существующих ролях (для другого имени замените `planner` и задайте тот же параметр всем процессам):
+
+```sql
+CREATE SCHEMA planner AUTHORIZATION planner_migration;
+GRANT USAGE ON SCHEMA planner TO planner_runtime;
+```
+
+Затем migration-роль применяет миграции таблиц, а администратор выдаёт runtime-права на созданные объекты. Отсутствие самой схемы или USAGE приводит к ошибке до прикладных изменений; отсутствие таблиц внутри существующей схемы требует pre-deploy команды. Даже мигратору не нужно право создания новых схем в БД.
 
 Прикладной manifest из 19 таблиц находится в `backend/db/schema_manifest.py`: teams, segments, blocks, users, block_templates, team_blocks, user_team_access, freeze_days, template_blocks, team_templates, tasks, assignments, task_dependencies, task_history, assignment_history, user_new_task_notification_state, user_new_task_notification_seen_events, application_metadata, user_release_change_log_seen. При выдаче GRANT перечисляйте эти таблицы; не выдавайте runtime запись во все таблицы общей схемы. Обычная роль PUBLIC также не должна давать runtime CREATE. Для новой миграции отдельно выдать необходимые runtime-права до запуска приложения.
 
@@ -29,7 +44,7 @@ PostgreSQL имеет независимый `schema_migrations`. Baseline SQL �
 
 ## Перенос и повторная замена
 
-Команды получают migration URL через `SUPPORT_PLANNER_DATABASE_URL`. Сначала подготовьте пустую схему без администратора:
+Команды получают migration URL через `SUPPORT_PLANNER_DATABASE_URL` и то же имя схемы через `SUPPORT_PLANNER_DATABASE_SCHEMA` (default `planner`). После создания схемы администратором подготовьте в ней прикладные таблицы без bootstrap-пользователя:
 
 ```sh
 python -m scripts.migrate_database --postgresql --schema-only
@@ -37,7 +52,7 @@ python -m scripts.import_sqlite_to_postgres --source /path/to/database.db --dry-
 python -m scripts.import_sqlite_to_postgres --source /path/to/database.db
 ```
 
-Без `--replace-target` принимается только пустое назначение. Обычный импорт может сам подготовить отсутствующую схему без bootstrap; при ошибке импорта подготовленная пустая схема может остаться. Уже заполненный bootstrap-администратор также означает непустое назначение.
+Без `--replace-target` принимается только пустое назначение. Обычный импорт может сам подготовить отсутствующие прикладные таблицы без bootstrap внутри заранее созданной схемы; при ошибке импорта эти пустые таблицы могут остаться. Уже заполненный bootstrap-администратор также означает непустое назначение. Пользователи, пароли, ID, связи и все остальные прикладные данные переносятся из SQLite в выбранную схему.
 
 Каждый запуск, включая dry-run, создаёт рядом с источником уникальные исходный `.bak`, рабочую `.sqlite` и UTF-8 `.report.json`. Снимок получен SQLite backup API и включает committed WAL. Источник открывается без создания отсутствующего файла и не мигрируется на месте. Обновляется рабочая копия; исходный снимок сохраняется. Предыдущий снимок не используется повторно. Явный `--report PATH` не перезаписывает существующий отчёт.
 
@@ -50,9 +65,9 @@ python -m scripts.import_sqlite_to_postgres --source /path/to/database.db --repl
 
 `--replace-target` полностью удаляет результаты тестирования всех 19 прикладных таблиц и заменяет их новым источником, без слияния. Он требует актуальной подготовленной схемы и не применяет миграции автоматически. Dry-run ничего не меняет в PostgreSQL, включая схему и sequences; перечень заменяемых таблиц и counts находятся в отчёте. Повторные проверки выполняются после блокировок настоящего импорта.
 
-Очистка использует полный квалифицированный список `ONLY public.table`, `RESTART IDENTITY RESTRICT`, без CASCADE. Сохраняются журнал миграций и посторонние таблицы; внешние FK/наследование/пользовательские triggers препятствуют безопасной замене. TRUNCATE, загрузка, сверка всех колонок/ключей и транзакционный restart sequences выполняются одним commit. До commit сравниваются counts, хеши ключей и канонического содержимого всех таблиц. Неизвестные типы, NUL и значения вне диапазонов не исправляются молча. ID, хеши паролей, ACL, soft-delete, история и прочтения сохраняются. После переноса новые ID начинаются выше нового максимума, без высоких тестовых ID старого назначения.
+Очистка использует полный квалифицированный список `ONLY "выбранная_схема"."таблица"`, `RESTART IDENTITY RESTRICT`, без CASCADE. Сохраняются журнал миграций, посторонние таблицы и другие схемы; внешние FK/наследование/пользовательские triggers препятствуют безопасной замене. TRUNCATE, загрузка, сверка всех колонок/ключей и транзакционный restart sequences выполняются одним commit. До commit сравниваются counts, хеши ключей и канонического содержимого всех таблиц. Неизвестные типы, NUL и значения вне диапазонов не исправляются молча. ID, хеши паролей, ACL, soft-delete, история и прочтения сохраняются. После переноса новые ID начинаются выше нового максимума, без высоких тестовых ID старого назначения.
 
-Отчёт содержит пути, времена, назначение без DSN/пароля, counts, hashes, длительность и commit status. `unknown` означает потерянное подтверждение commit: проверьте назначение перед любым повторением. Автоматического повтора очистки нет. При ошибке до commit предыдущие данные и sequences откатываются. После первого startup `application_metadata` закономерно обновится согласно запущенной сборке; сверка переноса относится к состоянию до startup.
+Отчёт содержит пути, времена, назначение с фактическим именем схемы без DSN/пароля, counts, hashes, длительность и commit status. `unknown` означает потерянное подтверждение commit: проверьте назначение перед любым повторением. Автоматического повтора очистки нет. При ошибке до commit предыдущие данные и sequences откатываются. После первого startup `application_metadata` закономерно обновится согласно запущенной сборке; сверка переноса относится к состоянию до startup.
 
 ## Репетиция, backup и финальное переключение
 
@@ -79,7 +94,7 @@ SUPPORT_PLANNER_TEST_BACKEND=sqlite python -m pytest -q
 SUPPORT_PLANNER_TEST_BACKEND=postgresql python -m pytest -q
 ```
 
-PostgreSQL требует `SUPPORT_PLANNER_TEST_DATABASE_URL`. Для DDL/очистки можно отдельно задать `SUPPORT_PLANNER_TEST_MIGRATION_URL`; runtime URL остаётся ролью приложения. Рабочий `SUPPORT_PLANNER_DATABASE_URL` тесты не используют по умолчанию. Общие контракты находятся в `test_storage_contract.py`, PostgreSQL миграции/перенос/сбои — в `test_postgresql_integration.py`. Старые тесты, напрямую использующие sqlite3/DB_PATH, явно пропускаются в PostgreSQL-прогоне; они продолжают выполняться на SQLite. Это ограничение покрытия фиксируется в verification.md. Пропуски не являются успешной PostgreSQL-приёмкой.
+PostgreSQL требует `SUPPORT_PLANNER_TEST_DATABASE_URL`. Для DDL/очистки можно отдельно задать `SUPPORT_PLANNER_TEST_MIGRATION_URL`; runtime URL остаётся ролью приложения. Рабочий `SUPPORT_PLANNER_DATABASE_URL` тесты не используют по умолчанию. В отдельной тестовой БД администратор заранее создаёт схему из `SUPPORT_PLANNER_DATABASE_SCHEMA` (default `planner`) и выдаёт обеим ролям нужные права. Общие контракты находятся в `test_storage_contract.py`, PostgreSQL миграции/перенос/сбои — в `test_postgresql_integration.py`. Последние также создают и удаляют собственные временные схемы для проверки изоляции, поэтому только тестовой migration-роли необходимо право CREATE в тестовой БД. Проверка runtime-прав требует отдельную роль без superuser и DDL. Прогоны с `planner`, другой схемой и явным `public` выполняются отдельными процессами с одинаковым параметром схемы у runtime/migration. Старые тесты, напрямую использующие sqlite3/DB_PATH, явно пропускаются в PostgreSQL-прогоне; они продолжают выполняться на SQLite. Это ограничение покрытия фиксируется в verification.md. Пропуски не являются успешной PostgreSQL-приёмкой.
 
 ```sh
 cd frontend
