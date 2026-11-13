@@ -147,8 +147,10 @@ def main():
 
     cert, key = get_cert()
     if cert and key:
+        logging.getLogger(__name__).info('Starting HTTPS on 0.0.0.0:5093')
         uvicorn.run(app, port=5093, host='0.0.0.0', ssl_keyfile=key, ssl_certfile=cert, log_config=None)
     else:
+        logging.getLogger(__name__).warning('Starting HTTP on 0.0.0.0:5093: no TLS certificate available')
         uvicorn.run(app, port=5093, host='0.0.0.0', log_config=None)
 
 

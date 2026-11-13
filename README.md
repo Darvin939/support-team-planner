@@ -104,7 +104,7 @@ docker run --rm --name support-team-planner \
 
 Если PostgreSQL требует файл CA или клиентские сертификаты, смонтируйте их в оба контейнера с правом чтения для UID 1001 и укажите соответствующие пути через параметры libpq, например `PGSSLROOTCERT`. Адрес PostgreSQL должен быть доступен из контейнера; `localhost` внутри него относится к самому контейнеру.
 
-При обычном HTTP-запуске интерфейс доступен на `http://127.0.0.1:5093`. Существующий режим TLS через Vault сохраняется при соответствующей настройке окружения. Docker-сборка и стандартная команда запуска не применяют PostgreSQL-миграции автоматически; при неподготовленной схеме startup завершается с ошибкой.
+При обычном HTTP-запуске интерфейс доступен на `http://127.0.0.1:5093`. При рабочей TLS-паре приложение использует HTTPS на том же порту; источники описаны ниже. Docker-сборка и стандартная команда запуска не применяют PostgreSQL-миграции автоматически; при неподготовленной схеме startup завершается с ошибкой.
 
 ### Vault Agent Injector (KV v1)
 
@@ -150,6 +150,58 @@ args: ["python", "-m", "scripts.migrate_database", "--postgresql"]
 ```
 
 Приложение и CLI используют общий загрузчик `backend/settings.py`. После обновления файла перезапустите процесс: dotenv читается при запуске. Секреты подключаются во время работы контейнера и не упаковываются в дистрибутив или образ. Запись пути только в самом dotenv-файле не выбирает этот файл: `SUPPORT_PLANNER_ENV_FILE` задаётся внешним окружением до запуска.
+
+### Сертификат HTTPS из Vault Agent
+
+Задайте `SUPPORT_PLANNER_TLS_CERT_FILE` и `SUPPORT_PLANNER_TLS_KEY_FILE` в окружении приложения, `.env` или выбранном dotenv-файле. Сертификат — PEM-цепочка, приватный ключ — соответствующий PEM-ключ без пароля. Python читает смонтированные файлы напрямую, не копирует и не удаляет их. Команду запуска контейнера переопределять не нужно.
+
+Порядок при `python support_planner.py`:
+
+1. Если оба пути заданы и файлы доступны, приложение проверяет пару и запускает HTTPS на `0.0.0.0:5093` без прямых запросов к Vault.
+2. Если пути не заданы, пусты, заданы неполностью или хотя бы один файл отсутствует, используется прежний Vault AppRole: `VAULT_ADDR`, `VAULT_TENANT`, `VAULT_KV_PATH`, `ROLE_ID`, `SECRET_ID`, поля секрета `portal_chain` и `portal_key`.
+3. Если резервный способ не дал рабочую пару, сохраняется HTTP на `0.0.0.0:5093`. Выбранный источник и протокол записываются в журнал без содержимого секретов.
+
+Найденная, но нечитаемая, некорректная или несовместимая смонтированная пара останавливает запуск. Каталог вместо файла также является ошибкой. Для найденной некорректной пары перехода на Vault или HTTP нет. Если уже выбранные файлы изменились до загрузки TLS-сервера, ошибка также прерывает запуск. Сертификат выбирается при старте: после его обновления Vault Agent нужен перезапуск приложения.
+
+Следующий фрагмент дополняет Deployment из предыдущего примера. KV v1 секрет `secret/planner/tls` содержит PEM-значения `portal_chain` и `portal_key`. В шаблонах выводится само PEM-содержимое, без dotenv-кавычек и `export`:
+
+```yaml
+spec:
+  template:
+    metadata:
+      annotations:
+        vault.hashicorp.com/agent-pre-populate: "true"
+        vault.hashicorp.com/agent-run-as-user: "1001"
+        vault.hashicorp.com/agent-run-as-group: "0"
+        vault.hashicorp.com/agent-inject-secret-cert: "secret/planner/tls"
+        vault.hashicorp.com/agent-inject-file-cert: "tls.crt"
+        vault.hashicorp.com/secret-volume-path-cert: "/config/secret/planner-tls"
+        vault.hashicorp.com/agent-inject-perms-cert: "0400"
+        vault.hashicorp.com/agent-inject-template-cert: |
+          {{- with secret "secret/planner/tls" -}}
+          {{ .Data.portal_chain }}
+          {{- end }}
+        vault.hashicorp.com/agent-inject-secret-key: "secret/planner/tls"
+        vault.hashicorp.com/agent-inject-file-key: "tls.key"
+        vault.hashicorp.com/secret-volume-path-key: "/config/secret/planner-tls"
+        vault.hashicorp.com/agent-inject-perms-key: "0400"
+        vault.hashicorp.com/agent-inject-template-key: |
+          {{- with secret "secret/planner/tls" -}}
+          {{ .Data.portal_key }}
+          {{- end }}
+    spec:
+      containers:
+        - name: planner
+          env:
+            - name: SUPPORT_PLANNER_TLS_CERT_FILE
+              value: "/config/secret/planner-tls/tls.crt"
+            - name: SUPPORT_PLANNER_TLS_KEY_FILE
+              value: "/config/secret/planner-tls/tls.key"
+```
+
+Объедините аннотации и `env` с предыдущим примером, сохранив `agent-inject`, Vault-роль, service account и `SUPPORT_PLANNER_ENV_FILE`. В примере Agent пишет файлы от UID 1001, совпадающего с пользователем текущего образа, и права `0400` дают ему чтение. Если Deployment меняет UID приложения, согласуйте владельца и права файлов. Настройки имени файла, каталога, прав и пользователя описаны в [аннотациях HashiCorp](https://developer.hashicorp.com/vault/docs/deploy/kubernetes/injector/annotations).
+
+При смонтированной рабочей паре используйте `https://<адрес>:5093` и HTTPS в проверках Service/Ingress. Локальный запуск без сертификатов и доступного Vault продолжает работать по HTTP; существующий dev-прокси рассчитан на этот режим.
 
 ## Структура
 
