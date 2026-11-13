@@ -6,7 +6,6 @@ from json import loads as json_load
 
 import requests
 import urllib3
-from dotenv import load_dotenv
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -78,6 +77,3 @@ def get_secret(url, tenant, token, path):
     if response.status_code != 200:
         raise requests.ConnectionError(f'response code: {response.status_code}\ncontent: {response.content}')
     return json_load(response.content)['data']
-
-
-load_dotenv()

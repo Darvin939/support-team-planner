@@ -38,6 +38,7 @@ def test_settings_load_schema_from_dotenv_without_overriding_environment(tmp_pat
     else:
         monkeypatch.setenv('SUPPORT_PLANNER_DATABASE_SCHEMA', override)
     monkeypatch.delenv('SUPPORT_PLANNER_SKIP_DOTENV', raising=False)
+    monkeypatch.delenv('SUPPORT_PLANNER_ENV_FILE', raising=False)
     load_dotenv = dotenv.load_dotenv
     monkeypatch.setattr(dotenv, 'load_dotenv', lambda **kwargs: load_dotenv(path, **kwargs))
     runpy.run_path(str(ROOT / 'backend/settings.py'))

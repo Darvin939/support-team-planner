@@ -106,6 +106,51 @@ docker run --rm --name support-team-planner \
 
 При обычном HTTP-запуске интерфейс доступен на `http://127.0.0.1:5093`. Существующий режим TLS через Vault сохраняется при соответствующей настройке окружения. Docker-сборка и стандартная команда запуска не применяют PostgreSQL-миграции автоматически; при неподготовленной схеме startup завершается с ошибкой.
 
+### Vault Agent Injector (KV v1)
+
+Приложение и CLI читают один UTF-8 dotenv-файл по пути `SUPPORT_PLANNER_ENV_FILE`, заданному в окружении до запуска Python. Файл содержит строки `KEY=value`; `export` не требуется. Окружение процесса имеет приоритет, а `${...}` в выбранном файле сохраняется буквально. Явный путь заменяет автоматический поиск `.env`. Ошибка чтения, включая пустой путь и некорректный UTF-8, останавливает запуск. Без переменной сохраняется обычный поиск `.env`; `SUPPORT_PLANNER_SKIP_DOTENV=1` отключает оба режима.
+
+Пример фрагмента Deployment для KV v1. Замените Vault-роль, service account, образ и путь секрета на свои. Пример предполагает, что секрет содержит четыре одноимённых поля: URL включает пользователя и БД, пароль хранится как `PGPASSWORD`. TLS-параметры подключения задаются в соответствии с PostgreSQL.
+
+```yaml
+spec:
+  template:
+    metadata:
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "planner-runtime"
+        vault.hashicorp.com/agent-inject-secret-env: "secret/planner/env"
+        vault.hashicorp.com/agent-inject-file-env: "env"
+        vault.hashicorp.com/secret-volume-path-env: "/config/secret/planner-env"
+        vault.hashicorp.com/agent-inject-template-env: |
+          {{- with secret "secret/planner/env" -}}
+          SUPPORT_PLANNER_DATABASE_URL='{{ .Data.SUPPORT_PLANNER_DATABASE_URL | replaceAll "\\" "\\\\" | replaceAll "'" "\\'" }}'
+          SUPPORT_PLANNER_DATABASE_SCHEMA='{{ .Data.SUPPORT_PLANNER_DATABASE_SCHEMA | replaceAll "\\" "\\\\" | replaceAll "'" "\\'" }}'
+          SESSION_SECRET_KEY='{{ .Data.SESSION_SECRET_KEY | replaceAll "\\" "\\\\" | replaceAll "'" "\\'" }}'
+          PGPASSWORD='{{ .Data.PGPASSWORD | replaceAll "\\" "\\\\" | replaceAll "'" "\\'" }}'
+          {{- end }}
+    spec:
+      serviceAccountName: planner
+      containers:
+        - name: planner
+          image: support-team-planner:local
+          env:
+            - name: SUPPORT_PLANNER_ENV_FILE
+              value: "/config/secret/planner-env/env"
+```
+
+Vault монтирует каталог `/config/secret/planner-env` и создаёт в нём файл `env`. KV v1 использует `.Data.<ключ>` и путь без служебного `/data/`. Фильтры `replaceAll` экранируют обратную косую черту и одинарную кавычку для dotenv. Если пароль хранится в другом секрете, получите его отдельным блоком `with secret` в том же шаблоне и запишите как `PGPASSWORD` в этот файл.
+
+Сохраняйте стандартную предварительную подготовку файла Vault Agent init-контейнером (`agent-pre-populate=true`) и доступ на чтение для пользователя приложения `1001:0`. Не монтируйте каталог секретов поверх `/app`, где находится код. Семантика путей описана в [аннотациях HashiCorp](https://developer.hashicorp.com/vault/docs/deploy/kubernetes/injector/annotations).
+
+Обычный Deployment использует стандартную команду образа. Для отдельной migration Job задайте её Vault-роль, файл с migration-реквизитами и тот же параметр схемы, затем укажите:
+
+```yaml
+args: ["python", "-m", "scripts.migrate_database", "--postgresql"]
+```
+
+Приложение и CLI используют общий загрузчик `backend/settings.py`. После обновления файла перезапустите процесс: dotenv читается при запуске. Секреты подключаются во время работы контейнера и не упаковываются в дистрибутив или образ. Запись пути только в самом dotenv-файле не выбирает этот файл: `SUPPORT_PLANNER_ENV_FILE` задаётся внешним окружением до запуска.
+
 ## Структура
 
 - `backend/` — приложение FastAPI, бизнес-логика, доступ к SQLite (`db/`) и API-маршруты (`routers/`).
